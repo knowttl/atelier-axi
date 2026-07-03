@@ -1,6 +1,6 @@
 ---
 name: lavish-plan
-description: Plan a feature, fix, or change before building it. Runs a light interview, surfaces every open question and edge case as an annotatable visual review surface in the browser (via lavish-axi), converges with the user, then writes a durable spec.md + plan.md and beads records. Use when the user says "plan this", "let's design X", "write a spec/plan for Y", or is about to jump into implementation without a validated plan.
+description: Plan a feature, fix, or change before building it. Instead of a terminal interview, surfaces the clarifying questions, 2-3 candidate approaches with a recommendation, and every open question and edge case as an annotatable visual review surface in the browser (via lavish-axi) — the user reviews and answers them all there — then converges on an approved direction and writes a durable spec.md + plan.md and beads records. Use when the user says "plan this", "let's design X", "write a spec/plan for Y", or is about to jump into implementation without a validated plan.
 ---
 
 # Lavish Plan — visual feature planner
@@ -14,7 +14,16 @@ user opt-in.
 
 - **Planning only — never write implementation code in this flow.** Implementation happens
   later, on explicit opt-in, via `lavish-implement`.
-- **Light interview first.** Do not interrogate before the user has seen anything visual.
+- **Surface questions in the UI, not the terminal.** Do NOT run a one-question-at-a-time
+  terminal interview. Put every clarifying question into the browser review surface so the
+  user reviews and answers them all together. Keep the terminal to a one-line framing before
+  the first artifact opens.
+- **Propose before you converge.** Once the user has answered the intake questions, present
+  2-3 candidate approaches with tradeoffs and a clear recommendation in the UI before writing
+  any spec or plan. Lead with the recommended option and say why.
+- **Approve-the-design gate.** Do not write a spec or plan until the user has approved a
+  direction in the review loop — no matter how simple the change looks. "Simple" changes are
+  where unexamined assumptions cost the most.
 - **Orchestrate, don't reimplement.** All browser review, serving, export, and layout
   auditing is `lavish-axi`; all issue tracking is `bd`. Degrade gracefully when either is
   missing (see Graceful degradation).
@@ -30,23 +39,29 @@ user opt-in.
    may differ from the current working directory — and its design system: Tailwind/theme
    config, CSS variables/design tokens, component library, brand assets, or existing styled
    pages.
-3. Run a LIGHT terminal interview, one question at a time, review-sized: just enough to get
-   the general sense of the feature (purpose, rough shape, hard constraints). Stop as soon as
-   you can build something visual.
+3. From that context and the user's request, ENUMERATE the clarifying questions you need
+   answered — purpose, constraints, success criteria, scope, and any UI/behavior specifics.
+   Do NOT ask them one at a time in the terminal; you surface them all together in the browser
+   in Phase 3. Keep terminal output to at most a one-line framing of what you are about to show.
 
-## Phase 2 — Scope classification
+## Phase 2 — Scope check, decomposition & classification
 
-Classify the change and state the call in plain English with a one-line reason:
+1. **Oversized check.** If the request spans multiple independent subsystems (e.g. "a platform
+   with chat + file storage + billing + analytics"), flag it immediately and help the user
+   decompose into sub-projects: what the independent pieces are, how they relate, and what
+   order to build them. Then plan the FIRST sub-project through the normal flow — each
+   sub-project gets its own spec → plan → implement cycle. Do not spend the review surface
+   refining details of a project that needs decomposition first.
+2. **Classify** the (sub-)project and state the call in plain English with a one-line reason:
+   - **large** — spans multiple independent components, needs a new architectural/design
+     decision, or is likely to touch several files/modules.
+   - **small** — a single well-understood change (one component, no new architectural decision).
 
-- **large** — spans multiple independent components, needs a new architectural/design
-  decision, or is likely to touch several files/modules.
-- **small** — a single well-understood change (one component, no new architectural decision).
+   Say e.g. "I'm treating this as a **large** feature — it needs a new theme system and touches
+   CSS + a component + persistence. Say the word to treat it as small instead." The user may
+   override; the override wins and re-routes the pipeline.
 
-Say e.g. "I'm treating this as a **large** feature — it needs a new theme system and touches
-CSS + a component + persistence. Say the word to treat it as small instead." The user may
-override; the override wins and re-routes the pipeline.
-
-## Phase 3 — Build the review artifact
+## Phase 3 — Build the intake review artifact
 
 1. Open every matching playbook before writing HTML: `lavish-axi playbook plan` (primary),
    plus `lavish-axi playbook input` / `comparison` / `diagram` as the artifact needs them.
@@ -55,24 +70,36 @@ override; the override wins and re-routes the pipeline.
    DaisyUI v5, theme `luxury`). State which you used.
 3. Write the artifact to `.lavish/<topic>-review.html` in the current working directory. Copy
    any sibling assets next to it and reference them with relative paths (never a leading `/`).
-4. Render EVERY open question, edge case, and design option as its own decision card using the
-   `plan` playbook's embedded decision-card template (problem → recommendation → example →
-   Accept/Defer control that queues exactly one prompt). For a UI-facing feature, add sample
-   UI mockups in the subject project's design system; for a non-UI feature, show cards only —
-   no mockups.
+4. Surface EVERY clarifying question from Phase 1 as its own input card, using the `input`
+   playbook pattern: native controls with one per-question submit that queues a single final
+   answer, and `data-lavish-question` so a re-answer replaces the earlier one in the queue.
+   Group the cards (purpose, constraints, success criteria, scope) so the user reviews and
+   answers them ALL at once in the browser rather than in a terminal back-and-forth. For a
+   UI-facing feature, include sample UI mockups in the subject project's design system to make
+   the questions concrete; for a non-UI feature, show questions only — no mockups.
 
-## Phase 4 — Lavish review loop
+## Phase 4 — Lavish review loop (answers → approaches → decisions → approval)
 
-1. Open the session: `lavish-axi <file>`.
-2. Poll for feedback: `lavish-axi poll <file>` — run it in the background if your harness
-   limits foreground command time; if it is killed, just re-run it (queued feedback is never
-   lost). Leave it running; never kill it deliberately.
-3. If the poll returns `layout_warnings`, follow the returned `next_step`: fix fresh
+1. Open the session: `lavish-axi <file>`. Poll for feedback: `lavish-axi poll <file>` — run it
+   in the background if your harness limits foreground command time; if it is killed, just
+   re-run it (queued feedback is never lost). Leave it running; never kill it deliberately.
+2. If the poll returns `layout_warnings`, follow the returned `next_step`: fix fresh
    error-severity findings and re-check BEFORE involving the human; proceed with a note only
    when every current warning is persistent or below error severity.
-4. Incorporate annotations, update the artifact, and re-open until the user confirms the
-   direction. Track each card as accepted or explicitly deferred.
-5. If the poll returns `status: "ended"` with `ended_by: "user"`, stop the loop and do not
+3. **Collect the user's answers** to the intake questions.
+4. **Propose approaches.** Once the questions are answered, update the artifact to present 2-3
+   candidate approaches with tradeoffs and your recommendation, using the `comparison` playbook
+   (option cards; lead with the recommended one and say why). Revisit decomposition here if the
+   answers reveal the scope is larger than it first looked. Let the user pick or annotate an
+   approach.
+5. **Surface decisions.** On the chosen approach, render every remaining open question, edge
+   case, and design option as its own decision card using the `plan` playbook's embedded
+   decision-card template (problem → recommendation → example → Accept/Defer control that
+   queues exactly one prompt). Add or refresh UI mockups for UI-facing features.
+6. Incorporate annotations, update the artifact, and re-open until the user EXPLICITLY approves
+   a direction — the approve-the-design gate; do not proceed to a spec or plan without it.
+   Track each card as accepted or explicitly deferred.
+7. If the poll returns `status: "ended"` with `ended_by: "user"`, stop the loop and do not
    reopen uninvited. Export/preserve the draft artifact, summarize in the terminal what was
    confirmed vs. still open, and ask whether to (a) proceed to durable records from what was
    confirmed (marking unresolved cards as deferred) or (b) hold without writing records.
@@ -99,11 +126,12 @@ override; the override wins and re-routes the pipeline.
 
 ## Phase 7 — Durable records
 
-1. Export the review artifact:
+1. Export the review artifact — **large route only**:
    `lavish-axi export .lavish/<topic>-review.html --out docs/atelier-plans/<type>/<YYYY-MM-DD>-<topic>/review.html`.
+   The small route keeps a reduced record set and skips this export.
 2. Write files into `docs/atelier-plans/<type>/<YYYY-MM-DD>-<topic>/` (create parents):
    - **large:** `spec.md` + `plan.md` + `review.html`.
-   - **small:** `plan.md` + `review.html` (no `spec.md`); `plan.md` is always written so
+   - **small:** `plan.md` only (no `spec.md`, no `review.html`); `plan.md` is always written so
      `lavish-implement` has an executable input.
    - Never clobber an existing same-date+topic folder: ask the user whether to reuse/overwrite
      or write a disambiguated `<topic>-2`/`-3` sibling; default to the suffixed sibling when
