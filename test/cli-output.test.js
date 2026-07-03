@@ -11,6 +11,7 @@ import test from "node:test";
 import { AxiError } from "axi-sdk-js";
 
 import {
+  assertKnownFlags,
   collapseHomeDirectory,
   computeCopilotCliHookUpdate,
   createCopilotCliAmbientContextScript,
@@ -21,6 +22,7 @@ import {
   createOpenOutput,
   createPollOutput,
   createPlaybookOutput,
+  truncateDomSnapshot,
   createServerSpawnOptions,
   createShareOutput,
   createUserEndedOpenOutput,
@@ -771,6 +773,126 @@ test("share help distinguishes public default from password-protected shares", (
   assert.match(homeShareHelp, /PUBLIC by default/);
   assert.match(homeShareHelp, /Pass --password to publish a PRIVATE password-protected page/);
   assert.doesNotMatch(homeShareHelp, /Everything published is public/);
+});
+
+test("assertKnownFlags accepts known boolean and value flags with = and space forms", () => {
+  assert.doesNotThrow(() =>
+    assertKnownFlags(["file.html", "--no-open", "--out", "/tmp/x.html"], {
+      command: "export",
+      valueFlags: ["--out"],
+      booleanFlags: ["--no-open"],
+    }),
+  );
+  assert.doesNotThrow(() =>
+    assertKnownFlags(["--out=/tmp/x.html", "file.html"], {
+      command: "export",
+      valueFlags: ["--out"],
+    }),
+  );
+});
+
+test("assertKnownFlags does not treat a value-flag argument that starts with a dash as a flag", () => {
+  // A password like "-secret" is the VALUE of --password, not an unknown flag.
+  assert.doesNotThrow(() =>
+    assertKnownFlags(["--password", "-secret", "file.html"], {
+      command: "share",
+      valueFlags: ["--password", "--token"],
+    }),
+  );
+});
+
+test("assertKnownFlags stops scanning flags after a -- separator", () => {
+  assert.doesNotThrow(() =>
+    assertKnownFlags(["--", "--not-a-flag.html"], {
+      command: "open",
+      booleanFlags: ["--no-open"],
+    }),
+  );
+});
+
+test("assertKnownFlags rejects an unrecognized flag with a VALIDATION_ERROR and the supported list", () => {
+  let error;
+  try {
+    assertKnownFlags(["--pasword", "pw", "file.html"], {
+      command: "share",
+      valueFlags: ["--password", "--token"],
+    });
+  } catch (caught) {
+    error = caught;
+  }
+
+  assert.ok(error instanceof AxiError);
+  assert.equal(error.code, "VALIDATION_ERROR");
+  assert.match(error.message, /Unknown flag: --pasword/);
+  assert.match(error.suggestions.join(" "), /--password/);
+});
+
+test("assertKnownFlags reports that a command takes no flags when none are allowed", () => {
+  assert.throws(
+    () => assertKnownFlags(["--verbose"], { command: "design" }),
+    (error) => error instanceof AxiError && /takes no flags/.test(error.suggestions.join(" ")),
+  );
+});
+
+test("the atelier-axi CLI fails loudly on an unrecognized flag instead of silently ignoring it", () => {
+  const result = spawnSync(
+    process.execPath,
+    [fileURLToPath(new URL("../bin/atelier-axi.js", import.meta.url)), "share", "--pasword", "pw", "whatever.html"],
+    {
+      cwd: fileURLToPath(new URL("..", import.meta.url)),
+      encoding: "utf8",
+      env: { ...process.env, ATELIER_AXI_STATE_DIR: undefined },
+    },
+  );
+
+  assert.equal(result.status, 2);
+  assert.match(result.stdout + result.stderr, /Unknown flag: --pasword/);
+});
+
+test("truncateDomSnapshot returns a small snapshot unchanged with no truncation metadata", () => {
+  const result = truncateDomSnapshot("<main>small</main>", { file: "/tmp/report.html", maxBytes: 8000 });
+  assert.equal(result.dom_snapshot, "<main>small</main>");
+  assert.equal("dom_snapshot_truncated" in result, false);
+  assert.equal("dom_snapshot_bytes" in result, false);
+});
+
+test("truncateDomSnapshot truncates a large snapshot and adds a byte-size hint pointing at --full", () => {
+  const big = "x".repeat(20000);
+  const result = truncateDomSnapshot(big, { file: "/tmp/report.html", maxBytes: 8000 });
+
+  assert.equal(result.dom_snapshot_truncated, true);
+  assert.equal(result.dom_snapshot_bytes, 20000);
+  assert.ok(Buffer.byteLength(result.dom_snapshot, "utf8") <= 8000);
+  assert.match(result.dom_snapshot_hint, /20000 bytes/);
+  assert.match(result.dom_snapshot_hint, /--full/);
+  assert.match(result.dom_snapshot_hint, /\/tmp\/report\.html/);
+});
+
+test("truncateDomSnapshot returns the full snapshot when full is set", () => {
+  const big = "x".repeat(20000);
+  const result = truncateDomSnapshot(big, { file: "/tmp/report.html", maxBytes: 8000, full: true });
+
+  assert.equal(result.dom_snapshot, big);
+  assert.equal("dom_snapshot_truncated" in result, false);
+});
+
+test("createPollOutput truncates a large dom_snapshot by default and passes it whole when full is set", () => {
+  const big = "y".repeat(50000);
+  const truncated = createPollOutput({
+    file: "/tmp/report.html",
+    response: { status: "feedback", dom_snapshot: big, prompts: [] },
+  });
+  assert.equal(truncated.dom_snapshot_truncated, true);
+  assert.ok(truncated.dom_snapshot.length < big.length);
+  assert.match(truncated.dom_snapshot_hint, /--full/);
+
+  const whole = createPollOutput({
+    file: "/tmp/report.html",
+    response: { status: "feedback", dom_snapshot: big, prompts: [] },
+    full: true,
+  });
+  assert.equal(whole.dom_snapshot, big);
+  assert.equal("dom_snapshot_truncated" in whole, false);
 });
 
 test("feedback next step tells agents to keep polling without timeout flag", () => {

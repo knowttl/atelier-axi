@@ -164,6 +164,7 @@ export function createUserEndedOpenOutput({ file, url }) {
 }
 
 async function openCommand(args) {
+  assertKnownFlags(args, { command: "open", booleanFlags: ["--no-open", "--no-gate", "--reopen"] });
   const file = firstPositionalArg(args);
   if (!file) {
     throw new AxiError("HTML file path is required", "VALIDATION_ERROR", ["Run `atelier-axi <html-file>`"]);
@@ -193,11 +194,17 @@ export function shouldOpenBrowser(args, env) {
 }
 
 async function pollCommand(args) {
+  assertKnownFlags(args, {
+    command: "poll",
+    valueFlags: ["--agent-reply", "--timeout-ms"],
+    booleanFlags: ["--full"],
+  });
   const file = firstPositionalArg(args, ["--agent-reply", "--timeout-ms"]);
   if (!file) {
     throw new AxiError("HTML file path is required", "VALIDATION_ERROR", ["Run `atelier-axi poll <html-file>`"]);
   }
   const absolute = await canonicalFile(file);
+  const full = args.includes("--full");
   const baseUrl = await ensureServer();
   const agentReply = flagValue(args, "--agent-reply");
   if (agentReply) {
@@ -225,7 +232,7 @@ async function pollCommand(args) {
       retries: 3,
       retryDelayMs: 500,
     });
-    return createPollOutput({ file: absolute, response });
+    return createPollOutput({ file: absolute, response, full });
   } finally {
     waitReporter?.stop();
     if (!timeoutMs) {
@@ -276,11 +283,14 @@ export function startPollWaitReporter({
  *   session: { file: string, status: string, session_ended?: boolean, ended_by?: string },
  *   next_step?: string,
  *   dom_snapshot?: string,
+ *   dom_snapshot_truncated?: boolean,
+ *   dom_snapshot_bytes?: number,
+ *   dom_snapshot_hint?: string,
  *   prompts?: any[],
  *   layout_warnings?: any[],
  * }}
  */
-export function createPollOutput({ file, response }) {
+export function createPollOutput({ file, response, full = false }) {
   if (response.status === "missing") {
     throw new AxiError("No active Atelier Editor session for this file", "NOT_FOUND", [
       `Run \`atelier-axi ${file}\` first`,
@@ -296,7 +306,7 @@ export function createPollOutput({ file, response }) {
         status: "feedback",
         ...(sessionEnded ? { session_ended: true, ...(endedBy ? { ended_by: endedBy } : {}) } : {}),
       },
-      dom_snapshot: response.dom_snapshot || "",
+      ...truncateDomSnapshot(response.dom_snapshot, { file, full }),
       prompts: response.prompts || [],
       ...(layoutWarnings.length > 0 ? { layout_warnings: layoutWarnings } : {}),
       next_step: createFeedbackNextStep(file, layoutWarnings, sessionEnded, endedBy),
@@ -361,6 +371,7 @@ function createEndedNextStep(file, endedBy) {
 }
 
 async function endCommand(args) {
+  assertKnownFlags(args, { command: "end" });
   const file = firstPositionalArg(args);
   if (!file) {
     throw new AxiError("HTML file path is required", "VALIDATION_ERROR", ["Run `atelier-axi end <html-file>`"]);
@@ -376,6 +387,7 @@ async function endCommand(args) {
 // as-is for the browser to load, so the export needs network to render those. Atelier makes no
 // outbound requests - export is a pure local file transform, server-independent.
 async function exportCommand(args) {
+  assertKnownFlags(args, { command: "export", valueFlags: ["--out"] });
   const file = firstPositionalArg(args, ["--out"]);
   if (!file) {
     throw new AxiError("HTML file path is required", "VALIDATION_ERROR", ["Run `atelier-axi export <html-file>`"]);
@@ -430,6 +442,7 @@ function assetWarningSummaries(warnings) {
 // account or API key, and returns the share URL plus the secret update_key for
 // managing the page later. Server-independent.
 async function shareCommand(args) {
+  assertKnownFlags(args, { command: "share", valueFlags: ["--password", "--token"] });
   const file = firstPositionalArg(args, ["--password", "--token"]);
   if (!file) {
     throw new AxiError("HTML file path is required", "VALIDATION_ERROR", ["Run `atelier-axi share <html-file>`"]);
@@ -499,6 +512,7 @@ export function createShareOutput({ source, site, warnings, passwordProtected = 
 // Explicitly shut down the running Atelier Editor server. Unlike `end` (which closes a single
 // session), this stops the background process so it stops dangling between sessions.
 export async function stopCommand(args) {
+  assertKnownFlags(args, { command: "stop", valueFlags: ["--port"] });
   const port = Number(flagValue(args, "--port") || defaultPort());
   const baseUrl = `http://${hostForUrl(clientHost())}:${port}`;
   return shutdownServerOnPort(port, { baseUrl, currentVersion: VERSION });
@@ -533,10 +547,12 @@ export async function shutdownServerOnPort(
 }
 
 async function playbookCommand(args) {
+  assertKnownFlags(args, { command: "playbook" });
   return createPlaybookOutput(args);
 }
 
-async function designCommand() {
+async function designCommand(args) {
+  assertKnownFlags(args, { command: "design" });
   return createDesignOutput();
 }
 
@@ -671,6 +687,7 @@ function deepEqual(a, b) {
 }
 
 async function serverCommand(args) {
+  assertKnownFlags(args, { command: "server", valueFlags: ["--port"], booleanFlags: ["--verbose", "--no-open"] });
   const port = Number(flagValue(args, "--port") || defaultPort());
   const debug = args.includes("--verbose") || process.env.ATELIER_AXI_DEBUG === "1";
   const server = await serve({ port, stateFile: stateFile(), version: VERSION, debug });
@@ -940,6 +957,74 @@ function pollResponseInterruptedError() {
   ]);
 }
 
+// Fail loudly on an unrecognized flag instead of silently ignoring it (AXI principle 6). The
+// lenient `firstPositionalArg`/`flagValue` parsers below skip anything they don't recognize, so a
+// typo like `share --pasword x` would otherwise drop the flag and publish a PUBLIC page when the
+// user meant private. Value tokens (the argument after a space-separated value flag, or a value
+// that itself begins with `-`) are not treated as flags, and everything after a `--` separator is
+// positional.
+export function assertKnownFlags(args, { command, valueFlags = [], booleanFlags = [] }) {
+  const valueSet = new Set(valueFlags);
+  const allowed = new Set([...valueFlags, ...booleanFlags]);
+  let positionalMode = false;
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (!positionalMode && arg === "--") {
+      positionalMode = true;
+      continue;
+    }
+    if (positionalMode || arg === "-" || !arg.startsWith("-")) {
+      continue;
+    }
+    const name = arg.includes("=") ? arg.slice(0, arg.indexOf("=")) : arg;
+    if (!allowed.has(name)) {
+      const suggestion = allowed.size
+        ? `Supported flags for \`${command}\`: ${[...allowed].join(", ")}`
+        : `\`${command}\` takes no flags`;
+      throw new AxiError(`Unknown flag: ${name}`, "VALIDATION_ERROR", [suggestion]);
+    }
+    if (valueSet.has(name) && !arg.includes("=")) {
+      // Skip the value token so a value that begins with `-` isn't mistaken for a flag.
+      i += 1;
+    }
+  }
+}
+
+// Default byte cap for the DOM snapshot returned in poll output; override with
+// ATELIER_AXI_POLL_SNAPSHOT_MAX_BYTES. Large snapshots are the biggest single token cost in a
+// poll response, so truncate by default (AXI principle 3) and offer `--full` to bypass.
+const DEFAULT_POLL_SNAPSHOT_MAX_BYTES = 16000;
+
+export function pollSnapshotMaxBytes(env = process.env) {
+  const raw = Number(env.ATELIER_AXI_POLL_SNAPSHOT_MAX_BYTES);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_POLL_SNAPSHOT_MAX_BYTES;
+}
+
+// Truncate a DOM snapshot to a byte cap, leaving a size hint that points the agent at `--full`.
+// Passing `full: true` (or a snapshot already within the cap) returns it untouched with no
+// truncation metadata, so small artifacts and explicit opt-ins are byte-identical.
+/**
+ * @param {string} snapshot
+ * @param {{ file?: string, full?: boolean, maxBytes?: number }} [options]
+ * @returns {{ dom_snapshot: string, dom_snapshot_truncated?: boolean, dom_snapshot_bytes?: number, dom_snapshot_hint?: string }}
+ */
+export function truncateDomSnapshot(snapshot, { file, full = false, maxBytes = pollSnapshotMaxBytes() } = {}) {
+  const text = String(snapshot || "");
+  const bytes = Buffer.byteLength(text, "utf8");
+  if (full || bytes <= maxBytes) {
+    return { dom_snapshot: text };
+  }
+  // Slice on a byte boundary but never mid-codepoint: Buffer#toString drops a trailing partial
+  // UTF-8 sequence rather than emitting a replacement character.
+  const kept = Buffer.from(text, "utf8").subarray(0, maxBytes).toString("utf8");
+  return {
+    dom_snapshot: kept,
+    dom_snapshot_truncated: true,
+    dom_snapshot_bytes: bytes,
+    dom_snapshot_hint: `DOM snapshot truncated to ${Buffer.byteLength(kept, "utf8")} of ${bytes} bytes. Re-run \`atelier-axi poll ${file} --full\` for the complete snapshot.`,
+  };
+}
+
 function firstPositionalArg(args, valueFlags = []) {
   const flags = new Set(valueFlags);
   let positionalMode = false;
@@ -995,7 +1080,7 @@ const TOP_LEVEL_HELP = `atelier-axi - Atelier Editor AXI\n\nUsage:\n  atelier-ax
 
 const COMMAND_HELP = {
   open: `Usage: atelier-axi <html-file> [--no-open] [--no-gate] [--reopen]\n\nOpen or resume a Atelier Editor review session for an HTML artifact. Use --no-open when you need to ensure the server/session exists without opening another browser window. Use --no-gate to skip the open-time layout curtain for this browser open. If the user explicitly ended the session from the browser, this refuses to reopen it and returns guidance instead - pass --reopen to force it open when the user asks for further review or something important needs their visual attention. Sessions ended by the agent (\`atelier-axi end\`) reopen normally without the flag.\n`,
-  poll: `Usage: atelier-axi poll <html-file> [--agent-reply "..."]\n\nThis command long-polls indefinitely for queued user prompts and browser-reported layout_warnings, then returns them to the agent. It stays silent while it waits - that is normal, never kill it. Fix and re-check fresh error-severity layout_warnings before involving the human; persistent or low-severity findings may be surfaced with a note when the cause is not obvious. Do not pass --timeout-ms during normal agent use; it is for tests and debugging only. If your harness limits how long a foreground command may run, run the poll as a background task and wait for it to finish; if it still gets killed or times out, just re-run it - queued feedback is never lost. Use --agent-reply after applying prior feedback to display your response in Atelier Editor before waiting again. When status is ended, stop polling and do not reopen the session uninvited - deliver remaining updates directly in this conversation instead.\n`,
+  poll: `Usage: atelier-axi poll <html-file> [--agent-reply "..."] [--full]\n\nThis command long-polls indefinitely for queued user prompts and browser-reported layout_warnings, then returns them to the agent. It stays silent while it waits - that is normal, never kill it. Fix and re-check fresh error-severity layout_warnings before involving the human; persistent or low-severity findings may be surfaced with a note when the cause is not obvious. Do not pass --timeout-ms during normal agent use; it is for tests and debugging only. If your harness limits how long a foreground command may run, run the poll as a background task and wait for it to finish; if it still gets killed or times out, just re-run it - queued feedback is never lost. Use --agent-reply after applying prior feedback to display your response in Atelier Editor before waiting again. The returned dom_snapshot is truncated by default with a size hint (override the byte cap with ATELIER_AXI_POLL_SNAPSHOT_MAX_BYTES); pass --full to receive the complete DOM snapshot. When status is ended, stop polling and do not reopen the session uninvited - deliver remaining updates directly in this conversation instead.\n`,
   end: `Usage: atelier-axi end <html-file>\n\nEnd a Atelier Editor session as the agent. A session ended this way still reopens normally on the next \`atelier-axi <html-file>\`, unlike a user ending it from the browser, which requires --reopen.\n`,
   export: `Usage: atelier-axi export <html-file> [--out <path>]\n\nWrite a portable copy of an artifact: one HTML file with its LOCAL assets inlined (relative-path stylesheets, scripts, images, and fonts become inline <style>/<script> blocks and data URIs). Remote CDN/font references (https URLs) are left as links for the browser to load, so the file needs network to render those. Atelier makes no outbound requests - it only reads local files, confined to the artifact's directory. Defaults to writing <name>.export.html next to the source; pass --out to choose a path. The Atelier annotation SDK is never included in an export.\n`,
   share: `Usage: atelier-axi share <html-file> [--password <pw>] [--token <t>]\n\nPublish the artifact on ht-ml.app (https://ht-ml.app), a third-party hosting service not part of Atelier, and print a visitable URL. Shares are PUBLIC by default: anyone with the link can open the page, and it may be indexed or scraped. Pass --password to publish a PRIVATE password-protected page; viewers must supply the password to view. Builds the same local-inlined HTML as 'export' (local assets inlined; remote CDN/font URLs left as links and are not blocked by CSP on ht-ml.app, but still load over the viewer's network), then POSTs it to ht-ml.app's /v1 API. Creating a site needs no account or API key. The response includes the url plus a secret update_key (shown once) for updating or deleting the page later. Set ATELIER_AXI_HTML_APP_TOKEN (or pass --token) to attach an optional bearer token; it is never required. The annotation SDK is never included.\n`,
