@@ -120,10 +120,11 @@ user opt-in.
 ## Phase 6 — Plan + consistency loop
 
 1. Write `plan.md` following `plan-template.md`: the agentic-worker header, goal / architecture
-   / tech stack / global constraints, a **File Structure** map of every file each task touches,
-   then bite-sized TDD tasks (write failing test → run it fail → minimal implementation → run it
-   pass → commit) with exact file paths and complete code — written for an engineer with zero
-   context, NO placeholders.
+   / tech stack / global constraints, a **Decisions resolved during review** section (so the
+   review's conclusions survive even when the small route keeps no `review.html`), a **File
+   Structure** map of every file each task touches, then bite-sized TDD tasks (write failing test
+   → run it fail → minimal implementation → run it pass → commit) with exact file paths and
+   complete code — written for an engineer with zero context, NO placeholders.
 2. **Self-review first** (your own checklist, not a subagent): (a) spec coverage — every spec
    requirement maps to a task; (b) placeholder scan — no `TBD`/"add error handling"/"similar to
    Task N"; (c) type/signature consistency — names used in later tasks match earlier
@@ -136,9 +137,9 @@ user opt-in.
 ## Phase 7 — Durable records
 
 1. Export the review artifact — **large route only**:
-   `lavish-axi export .lavish/<topic>-review.html --out docs/atelier-plans/<type>/<YYYY-MM-DD>-<topic>/review.html`.
+   `lavish-axi export .lavish/<topic>-review.html --out docs/plans/<type>/<YYYY-MM-DD>-<topic>/review.html`.
    The small route keeps a reduced record set and skips this export.
-2. Write files into `docs/atelier-plans/<type>/<YYYY-MM-DD>-<topic>/` (create parents):
+2. Write files into `docs/plans/<type>/<YYYY-MM-DD>-<topic>/` (create parents):
    - **large:** `spec.md` + `plan.md` + `review.html`.
    - **small:** `plan.md` only (no `spec.md`, no `review.html`); `plan.md` is always written so
      `lavish-implement` has an executable input.
@@ -157,11 +158,11 @@ Example (large, `bd` present):
 
 ```bash
 bd create --title="Dark mode toggle" --type=epic --priority=2 \
-  --description="Add a user-facing dark mode toggle. Spec & plan: docs/atelier-plans/feature/2026-07-02-dark-mode/ (spec.md, plan.md, review.html)"
+  --description="Add a user-facing dark mode toggle. Spec & plan: docs/plans/feature/2026-07-02-dark-mode/ (spec.md, plan.md, review.html)"
 bd create --title="Add theme CSS variables" --type=task --priority=2 \
-  --description="Plan task 1. See docs/atelier-plans/feature/2026-07-02-dark-mode/plan.md (Task 1)"
+  --description="Plan task 1. See docs/plans/feature/2026-07-02-dark-mode/plan.md (Task 1)"
 bd create --title="Add toggle component + persistence" --type=task --priority=2 \
-  --description="Plan task 2. See docs/atelier-plans/feature/2026-07-02-dark-mode/plan.md (Task 2)"
+  --description="Plan task 2. See docs/plans/feature/2026-07-02-dark-mode/plan.md (Task 2)"
 bd dep add <task2-id> <task1-id>   # task 2 depends on task 1
 bd dep add <task1-id> <epic-id>    # task 1 depends on the epic
 ```

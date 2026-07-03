@@ -67,7 +67,7 @@ The problem it solves: today, feature planning is not a repeatable pipeline. Dee
 - **Keep the build green and the generated skill in sync.** Broadening the `plan` playbook's `use_when` changes `skills/lavish/SKILL.md`, so the spec MUST call out this ripple and require: run `pnpm run build:skill` and commit the regenerated `skills/lavish/SKILL.md`; update `test/cli-output.test.js` (it asserts the exact `plan` `use_when` string in `createPlaybookOutput` and `createDesignOutput`, and asserts `playbooks[7]`/`length === 7`); update `test/skill.test.js` (SKILL.md content assertions); confirm `test/package-json.test.js` still passes after the `files` additions; update the playbook list in `README.md`. New `plan`-playbook guidance content added must be covered by TDD tests (assert the enriched `plan` playbook exposes the new fields/phrases). `pnpm run check` (build + lint + format:check + typecheck + test + `build-skill.js --check`) MUST pass.
 - **Orchestrate, don't reimplement — and only real CLI tools, never other skills.** All browser review, artifact serving, export, and layout auditing is done by calling `lavish-axi`. All issue tracking is done by calling `bd`. Neither skill nor the playbook may invoke, depend on, or be designed to avoid colliding with any skill under `.agents/skills/` or `.claude/skills/` (including `obra.superpowers.brainstorming`, `obra.superpowers.writing-plans`, `obra.superpowers.subagent-driven-development`, `local.mind-clear`) — those are vendored, will not exist in other target projects, and are not dependencies. `skills/lavish-plan/` invoking `skills/lavish-implement/` on opt-in is the one allowed inter-skill call — both are first-party deliverables of this spec. Where a structural pattern resembles a vendored skill's, author it fresh inside the owning deliverable.
 - **Portability.** Both skills and the enriched playbook must work in a target project other than `atelier-axi`, installable via the awesome-ai skills registry / the npm package. No hard-coded `atelier-axi` paths. Degrade gracefully when `lavish-axi` or `bd` is unavailable.
-- **File output location:** `docs/atelier-plans/<type>/<YYYY-MM-DD>-<topic>/` where `<type>` is the beads type (`feature`, `bug`, `chore`, `spike`, `story`, `epic`, `decision`), `<YYYY-MM-DD>` is today's date, and `<topic>` is a short kebab-case slug. The folder holds `spec.md`, `plan.md`, and the exported `review.html` (subset for small features). Create parent directories as needed; never clobber an existing same-date+topic folder (confirm or suffix).
+- **File output location:** `docs/plans/<type>/<YYYY-MM-DD>-<topic>/` where `<type>` is the beads type (`feature`, `bug`, `chore`, `spike`, `story`, `epic`, `decision`), `<YYYY-MM-DD>` is today's date, and `<topic>` is a short kebab-case slug. The folder holds `spec.md`, `plan.md`, and the exported `review.html` (subset for small features). Create parent directories as needed; never clobber an existing same-date+topic folder (confirm or suffix).
 - **Review loops use dispatched subagents** with fresh, isolated context — the controller constructs exactly the context each reviewer needs; reviewers do not inherit the planning conversation.
 - **Plan format:** the implementation plan follows a bite-sized TDD structure authored fresh inside `skills/lavish-plan/` (not inherited from any other skill) — a header stating goal/architecture/tech-stack/global-constraints, then bite-sized TDD tasks (write failing test → run it fails → minimal implementation → run it passes → commit), with exact file paths and complete code in each step and NO placeholders ("TBD"/"add error handling"/"similar to Task N" are plan failures).
 - **Implementation is deferred by default and never auto-started.** It runs only on explicit user opt-in, and never begins on `main`/`master` without consent. On opt-in, `skills/lavish-plan/` invokes `skills/lavish-implement/`, whose fresh-subagent-per-task loop instructions live in `skills/lavish-implement/` (not duplicated in `lavish-plan`, not a dependency on any vendored skill).
@@ -98,7 +98,7 @@ B5. **Spec Writer + Review Loop** (large route) — Write `spec.md`; run an edge
 
 B6. **Plan Writer + Consistency Loop** — Write the bite-sized TDD `plan.md`; dispatch a **subagent reviewer** for spec↔plan consistency and project fit; fix findings; repeat until clean. Output: `plan.md`. Depends on: B5, subagent dispatch.
 
-B7. **Records Writer** — `lavish-axi export` → `review.html`; write files into `docs/atelier-plans/<type>/<date>-<topic>/`; when `bd` is available, create beads entries (large → `epic` + `bd dep`-ordered child `task`s; small → single typed issue; deferred questions → `decision` issues), each with the repo-relative folder pointer. Output: durable files + beads issues. Depends on: B6 (or B2 for small route), `lavish-axi export`, `bd`.
+B7. **Records Writer** — `lavish-axi export` → `review.html`; write files into `docs/plans/<type>/<date>-<topic>/`; when `bd` is available, create beads entries (large → `epic` + `bd dep`-ordered child `task`s; small → single typed issue; deferred questions → `decision` issues), each with the repo-relative folder pointer. Output: durable files + beads issues. Depends on: B6 (or B2 for small route), `lavish-axi export`, `bd`.
 
 B8. **Hand-back & Execution Offer** — Terminal summary + a final lavish artifact of spec+plan; OFFER: (1) invoke `skills/lavish-implement/` against the written `plan.md`, or (2) stop and hand off for a fresh session. Never auto-start; never begin on `main`/`master` without consent. Output: clean stop or handoff into the execution skill. Depends on: B7.
 
@@ -113,7 +113,7 @@ C1. **Execution Loop** — Given a `plan.md` path (from `lavish-plan` on opt-in,
 - `lavish-axi playbook plan` returns enriched feature-planner guidance (names the pre-spec review surface, the embedded decision-card template, edge-case exhaustiveness, and the spec→plan convention), `skills/lavish/SKILL.md` is regenerated to match, and `pnpm run check` passes (including `build-skill.js --check`, lint, format, typecheck, and all tests).
 - `createHomeOutput()`'s `help[]` (the no-args output and the SessionStart payload) includes a pointer to the feature-planning flow via `lavish-axi playbook plan`, covered by a `test/cli-output.test.js` assertion.
 - The other 6 playbooks are unchanged and the playbook count stays 7; `package.json` `"files"` includes `skills/lavish-plan` and `skills/lavish-implement`.
-- Given a large-feature request, the driver skill produces exactly `spec.md` + `plan.md` + `review.html` in the correct `docs/atelier-plans/<type>/<date>-<topic>/` folder; a small-feature request produces the reduced set.
+- Given a large-feature request, the driver skill produces exactly `spec.md` + `plan.md` + `review.html` in the correct `docs/plans/<type>/<date>-<topic>/` folder; a small-feature request produces the reduced set.
 - Beads is written if and only if `bd` is available; each issue links its files; a large feature yields an `epic` plus one `bd dep`-ordered child `task` per plan task.
 - Both review loops are dispatched as subagents with fresh context, and their findings are incorporated before hand-back.
 - Durable records (files + beads) are complete BEFORE the execution choice is offered, so "implement now" and "defer" yield identical handoff artifacts.
@@ -132,7 +132,7 @@ C1. **Execution Loop** — Given a `plan.md` path (from `lavish-plan` on opt-in,
 - **Non-UI feature** → the review artifact shows questions/edge-cases/decision-cards only, no mockups.
 - **Subject project differs from the current working directory** → inspect the subject project for design conventions, per the lavish design-source priority.
 - **Browser reports `layout_warnings`** → fix them before asking the human to review.
-- **`docs/atelier-plans/` or a `<type>/` subfolder is missing** → create it.
+- **`docs/plans/` or a `<type>/` subfolder is missing** → create it.
 - **A same-date + same-topic folder already exists** → do not clobber; confirm with the user or append a disambiguating suffix.
 - **User opts into "implement now"** → `skills/lavish-plan/` invokes `skills/lavish-implement/`, which runs its fresh-subagent-per-task loop (review between tasks, TDD, frequent commits); confirm the working branch before touching `main`/`master`.
 - **A fresh session invokes `skills/lavish-implement/` directly** (no `lavish-plan` in this session's history) → read the given `plan.md` path and proceed; it requires no planning-session context.
@@ -143,7 +143,7 @@ Concrete illustration of the Records Writer output for a hypothetical **large** 
 
 Files:
 ```
-docs/atelier-plans/feature/2026-07-02-dark-mode/
+docs/plans/feature/2026-07-02-dark-mode/
     spec.md
     plan.md
     review.html
@@ -152,14 +152,14 @@ docs/atelier-plans/feature/2026-07-02-dark-mode/
 Beads (created because `bd` is present):
 ```
 bd create --title="Dark mode toggle" --type=epic --priority=2 \
-  --description="Add a user-facing dark mode toggle. Spec & plan: docs/atelier-plans/feature/2026-07-02-dark-mode/ (spec.md, plan.md, review.html)"
+  --description="Add a user-facing dark mode toggle. Spec & plan: docs/plans/feature/2026-07-02-dark-mode/ (spec.md, plan.md, review.html)"
 # → epic id e.g. proj-42
 
 bd create --title="Add theme CSS variables" --type=task --priority=2 \
-  --description="Plan task 1. See docs/atelier-plans/feature/2026-07-02-dark-mode/plan.md (Task 1)"
+  --description="Plan task 1. See docs/plans/feature/2026-07-02-dark-mode/plan.md (Task 1)"
 # → proj-43
 bd create --title="Add toggle component + persistence" --type=task --priority=2 \
-  --description="Plan task 2. See docs/atelier-plans/feature/2026-07-02-dark-mode/plan.md (Task 2)"
+  --description="Plan task 2. See docs/plans/feature/2026-07-02-dark-mode/plan.md (Task 2)"
 # → proj-44
 bd dep add proj-44 proj-43     # task 2 depends on task 1
 bd dep add proj-43 proj-42     # tasks belong under the epic
@@ -167,17 +167,17 @@ bd dep add proj-43 proj-42     # tasks belong under the epic
 
 Contrast — a **small** fix "Fix login crash" with no full spec:
 ```
-docs/atelier-plans/bug/2026-07-02-login-crash/plan.md      # plan only, no spec.md
+docs/plans/bug/2026-07-02-login-crash/plan.md      # plan only, no spec.md
 ```
 ```
 bd create --title="Fix login crash" --type=bug --priority=1 \
-  --description="Null deref on empty session. See docs/atelier-plans/bug/2026-07-02-login-crash/plan.md"
+  --description="Null deref on empty session. See docs/plans/bug/2026-07-02-login-crash/plan.md"
 ```
 
 Contrast — an open question the user deferred during the lavish review becomes a `decision` issue:
 ```
 bd create --title="Should the toggle persist per-device or per-account?" --type=decision --priority=2 \
-  --description="Deferred during planning of docs/atelier-plans/feature/2026-07-02-dark-mode/. Needs a product call before implementation."
+  --description="Deferred during planning of docs/plans/feature/2026-07-02-dark-mode/. Needs a product call before implementation."
 ```
 
 Illustration of the enriched `plan` playbook shape in `src/playbooks.js` (the `code` playbook already embeds an HTML snippet in `design_rules[]`, so this pattern is precedented):
@@ -225,7 +225,7 @@ Structure the specification as follows. Reason through each component inside `<t
 #### Edge Cases
 
 ## File & Record Layout
-[The exact `docs/atelier-plans/<type>/<date>-<topic>/` structure, the small-route subset, and the beads type→entry mapping with file-pointer convention.]
+[The exact `docs/plans/<type>/<date>-<topic>/` structure, the small-route subset, and the beads type→entry mapping with file-pointer convention.]
 
 ## Small vs. Large Routing
 [The component/file-count heuristic, what the classifier tells the user, and how each route flows.]

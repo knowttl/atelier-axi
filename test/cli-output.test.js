@@ -336,6 +336,8 @@ test("plan playbook detail output encodes the feature-planner arc", () => {
   assert.ok(output.playbook.pitfalls.some((item) => item.includes("TBD")));
   assert.ok(output.playbook.lavish_notes.some((item) => item.includes("Accept/Defer")));
   assert.ok(output.playbook.lavish_notes.some((item) => item.includes("comparison") && item.includes("diagram")));
+  assert.ok(output.playbook.pitfalls.some((item) => item.includes("UNIQUE data-lavish-question")));
+  assert.ok(output.playbook.design_rules.some((item) => item.includes("overflow-x: auto")));
 });
 
 test("plan playbook detail output aligns intake, approaches, and plan-writing rigor", () => {
@@ -349,6 +351,31 @@ test("plan playbook detail output aligns intake, approaches, and plan-writing ri
   // Plan-writing rigor aligned with writing-plans: zero-context reader, file mapping.
   assert.ok(output.playbook.design_rules.some((item) => item.includes("zero context")));
   assert.ok(output.playbook.pitfalls.some((item) => item.includes("single foregone approach")));
+});
+
+test("plan playbook decision-card template is structurally sound", () => {
+  const output = createPlaybookOutput(["plan"]);
+  const rule = output.playbook.design_rules.find((item) => item.includes("decision-card"));
+  assert.ok(rule, "the decision-card design rule exists");
+
+  const match = rule.match(/```html\n([\s\S]*?)\n```/);
+  assert.ok(match, "the rule embeds a fenced html template");
+  const template = match[1];
+
+  // The inline onsubmit handler must be wired to the real SDK surface.
+  assert.ok(template.includes("onsubmit="), "template has an onsubmit handler");
+  assert.ok(template.includes("event.preventDefault()"), "handler prevents the native form submit");
+  assert.ok(template.includes("window.lavish.queuePrompt("), "handler queues a prompt");
+  assert.ok(template.includes("data-lavish-question="), "form carries a queue-dedup key");
+
+  // The template lives inside a JS template literal in playbooks.js: a `${...}` would break that
+  // string (or silently interpolate) and a stray backtick would end the literal early.
+  assert.ok(!template.includes("${"), "no template-literal interpolation leaks into the snippet");
+  assert.ok(!template.includes("`"), "no backticks that would close the surrounding template literal");
+
+  // A copy-paste must yield exactly one well-formed card.
+  assert.equal((template.match(/<form/g) || []).length, (template.match(/<\/form>/g) || []).length);
+  assert.equal((template.match(/<form/g) || []).length, 1);
 });
 
 test("unknown playbook ids produce an actionable validation error", () => {

@@ -15,6 +15,13 @@
 <project-wide requirements — version floors, dependency limits, naming/copy rules, the exact
 test/build commands — one line each, exact values. Every task implicitly includes these.>
 
+## Decisions resolved during review
+
+<The open questions the visual review settled — recorded here so the plan carries the review's
+conclusions even when no `review.html` is kept (the small route keeps none). One line each:
+**Accepted** — <question> → <chosen approach>; **Deferred** — <question> → why it was deferred
+and the decision record it became. Omit only if the review surfaced no open questions.>
+
 ## File Structure
 
 <Before defining tasks, map every file the plan creates or modifies and what each is
