@@ -30,6 +30,7 @@ jobs:
         if: ${{ steps.release.outputs.release_created }}
         with:
           node-version: 24
+          registry-url: "https://registry.npmjs.org"
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -54,6 +55,18 @@ jobs:
       # Node 24's bundled npm can predate that, so upgrade explicitly.
       - run: npm install -g npm@latest
         if: ${{ steps.release.outputs.release_created }}
+
+      - name: Diagnose publish environment
+        if: ${{ steps.release.outputs.release_created }}
+        run: |
+          echo "npm version: $(npm --version)  path: $(command -v npm)"
+          echo "node version: $(node --version)"
+          echo "OIDC request url present: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}${ACTIONS_ID_TOKEN_REQUEST_URL:-NO}"
+          echo "registry: $(npm config get registry)"
+          echo "--- ~/.npmrc ---"; cat ~/.npmrc 2>/dev/null || echo "(none)"
+          echo "--- ./.npmrc ---"; cat ./.npmrc 2>/dev/null || echo "(none)"
+          echo "NPM_CONFIG_USERCONFIG=$NPM_CONFIG_USERCONFIG"
+          [ -n "$NPM_CONFIG_USERCONFIG" ] && { echo "--- userconfig npmrc ---"; cat "$NPM_CONFIG_USERCONFIG" 2>/dev/null || echo "(none)"; }
 
       - run: npm publish --access public --provenance
         if: ${{ steps.release.outputs.release_created }}
