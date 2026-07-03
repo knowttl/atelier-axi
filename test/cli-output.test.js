@@ -112,6 +112,7 @@ test("home output teaches agents when and how to use Lavish Editor", () => {
   assert.ok(!output.help.some((item) => item.includes('<meta name="lavish-design" content="off">')));
   assert.ok(!output.help.some((item) => item.includes("Known IDs")));
   assert.ok(output.help.some((item) => item.includes("technical plan")));
+  assert.ok(output.help.some((item) => item.includes("lavish-axi playbook plan")));
 });
 
 test("home output warns agents that poll is a long poll they must not kill", () => {
@@ -173,6 +174,7 @@ test("design output prints copy-pasteable CDN URLs so agents can opt in to Daisy
   const output = createDesignOutput();
 
   assert.match(output.playbook_router.instruction, /MUST open each matching playbook before writing HTML/);
+  assert.match(output.playbook_router.planning, /surface open questions and edge cases/);
   assert.equal(output.playbook_router.playbooks.length, 7);
   assert.equal(
     output.playbook_router.playbooks.find((playbook) => playbook.id === "diagram")?.use_when,
@@ -259,7 +261,7 @@ test("playbook index output lists known playbooks with concise descriptions", ()
   );
   assert.equal(
     output.playbooks.find((playbook) => playbook.id === "plan")?.use_when,
-    "Explain a product or technical plan before implementation",
+    "Plan a feature, fix, or change before implementation: surface open questions and edge cases for review, then produce a spec and implementation plan",
   );
   assert.equal(
     output.playbooks.find((playbook) => playbook.id === "input")?.use_when,
@@ -315,11 +317,65 @@ test("code playbook detail output requires verified @pierre/diffs rendering", ()
   assert.ok(output.playbook.pitfalls.some((item) => item.includes("<pre>")));
 });
 
-test("plan playbook detail output has polished guidance copy", () => {
+test("plan playbook detail output encodes the feature-planner arc", () => {
   const output = createPlaybookOutput(["plan"]);
 
-  assert.ok(output.playbook.structure.some((item) => item.includes("Then describe a proposed approach")));
-  assert.ok(output.playbook.structure.every((item) => !item.includes("Then describe the a proposed approach")));
+  assert.equal(output.playbook.id, "plan");
+  assert.equal(
+    output.playbook.use_when,
+    "Plan a feature, fix, or change before implementation: surface open questions and edge cases for review, then produce a spec and implementation plan",
+  );
+  assert.ok(output.playbook.choose.some((item) => item.includes("full planning arc")));
+  assert.ok(output.playbook.structure.some((item) => item.includes("Before writing any spec")));
+  assert.ok(output.playbook.structure.some((item) => item.includes("bite-sized TDD tasks")));
+  assert.ok(output.playbook.design_rules.some((item) => item.includes("decision-card")));
+  assert.ok(output.playbook.design_rules.some((item) => item.includes("data-lavish-question")));
+  assert.ok(output.playbook.design_rules.some((item) => item.includes("window.lavish.queuePrompt")));
+  assert.ok(output.playbook.design_rules.some((item) => item.includes("subject project's design system")));
+  assert.ok(output.playbook.pitfalls.some((item) => item.includes("before the review surface is confirmed")));
+  assert.ok(output.playbook.pitfalls.some((item) => item.includes("TBD")));
+  assert.ok(output.playbook.lavish_notes.some((item) => item.includes("Accept/Defer")));
+  assert.ok(output.playbook.lavish_notes.some((item) => item.includes("comparison") && item.includes("diagram")));
+  assert.ok(output.playbook.pitfalls.some((item) => item.includes("UNIQUE data-lavish-question")));
+  assert.ok(output.playbook.design_rules.some((item) => item.includes("overflow-x: auto")));
+});
+
+test("plan playbook detail output aligns intake, approaches, and plan-writing rigor", () => {
+  const output = createPlaybookOutput(["plan"]);
+
+  // Front-of-pipeline: questions surfaced in the UI, approaches, decompose, approval gate.
+  assert.ok(output.playbook.structure.some((item) => item.includes("input cards")));
+  assert.ok(output.playbook.structure.some((item) => item.includes("2-3 candidate approaches")));
+  assert.ok(output.playbook.structure.some((item) => item.includes("decompose")));
+  assert.ok(output.playbook.structure.some((item) => item.includes("approved direction")));
+  // Plan-writing rigor aligned with writing-plans: zero-context reader, file mapping.
+  assert.ok(output.playbook.design_rules.some((item) => item.includes("zero context")));
+  assert.ok(output.playbook.pitfalls.some((item) => item.includes("single foregone approach")));
+});
+
+test("plan playbook decision-card template is structurally sound", () => {
+  const output = createPlaybookOutput(["plan"]);
+  const rule = output.playbook.design_rules.find((item) => item.includes("decision-card"));
+  assert.ok(rule, "the decision-card design rule exists");
+
+  const match = rule.match(/```html\n([\s\S]*?)\n```/);
+  assert.ok(match, "the rule embeds a fenced html template");
+  const template = match[1];
+
+  // The inline onsubmit handler must be wired to the real SDK surface.
+  assert.ok(template.includes("onsubmit="), "template has an onsubmit handler");
+  assert.ok(template.includes("event.preventDefault()"), "handler prevents the native form submit");
+  assert.ok(template.includes("window.lavish.queuePrompt("), "handler queues a prompt");
+  assert.ok(template.includes("data-lavish-question="), "form carries a queue-dedup key");
+
+  // The template lives inside a JS template literal in playbooks.js: a `${...}` would break that
+  // string (or silently interpolate) and a stray backtick would end the literal early.
+  assert.ok(!template.includes("${"), "no template-literal interpolation leaks into the snippet");
+  assert.ok(!template.includes("`"), "no backticks that would close the surrounding template literal");
+
+  // A copy-paste must yield exactly one well-formed card.
+  assert.equal((template.match(/<form/g) || []).length, (template.match(/<\/form>/g) || []).length);
+  assert.equal((template.match(/<form/g) || []).length, 1);
 });
 
 test("unknown playbook ids produce an actionable validation error", () => {

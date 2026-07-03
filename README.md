@@ -190,6 +190,8 @@ Known playbook IDs: `diagram`, `table`, `comparison`, `plan`, `code`, `input`, `
 One artifact often combines several playbooks, such as a plan that includes a comparison and a diagram, so agents must match against each `use_when` trigger and open every matching playbook before writing HTML.
 For flows, architecture, state, or sequence diagrams, open the diagram playbook and use the Mermaid tooling from `lavish-axi design` unless SVG is needed for richly annotated nodes; avoid hand-built div/flexbox boxes-and-arrows.
 
+**Feature planning.** Run `lavish-axi playbook plan` to plan a feature or change before building it: the agent surfaces every open question and edge case as an annotatable visual review surface first, converges with you, then writes a durable spec and a bite-sized implementation plan. The companion skills `lavish-plan` (drive planning) and `lavish-implement` (execute a finished `plan.md` with a fresh subagent per task) ship in the package for agents that want the full end-to-end pipeline.
+
 ### Flags
 
 | Command                  | Flag                  | Description                                                                                                                                                                                                                         |
