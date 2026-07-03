@@ -21,6 +21,11 @@ test("lavish-plan skill exists with its reference files and driver anchors", asy
   assert.match(skill, /^name: lavish-plan$/m);
   assert.ok(skill.includes("lavish-axi playbook plan"), "opens the enriched plan playbook");
   assert.ok(skill.includes("lavish-implement"), "hands off to the execution skill");
+  assert.ok(skill.includes("test-driven") || skill.includes("Test-driven"), "encodes TDD");
+  assert.ok(
+    skill.includes("evidence over claims") || skill.includes("Evidence over claims"),
+    "encodes the evidence-over-claims principle",
+  );
 });
 
 test("lavish-implement skill exists and is independently triggerable", async () => {
@@ -30,4 +35,11 @@ test("lavish-implement skill exists and is independently triggerable", async () 
   assert.match(skill, /^name: lavish-implement$/m);
   assert.ok(skill.includes("plan.md"), "executes a plan.md");
   assert.ok(skill.includes("fresh subagent per task") || skill.includes("FRESH implementer subagent"));
+  assert.ok(skill.includes("Iron Law"), "enforces the TDD Iron Law");
+  assert.ok(skill.includes("treehouse"), "acquires an isolated dev worktree via treehouse");
+  assert.ok(skill.includes("git worktree"), "falls back to git worktree when treehouse is absent");
+  assert.ok(
+    skill.includes("evidence over claims") || skill.includes("Evidence over claims"),
+    "requires evidence before declaring success",
+  );
 });

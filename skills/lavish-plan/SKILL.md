@@ -30,6 +30,13 @@ user opt-in.
 - **Self-contained and portable.** Depend on no other skill; use no hard-coded project paths.
 - **Subagents get fresh context.** Dispatch review loops (Phases 5-6) as subagents; construct
   exactly the context each needs — they do not inherit this conversation.
+- **Engineering principles the plan must encode.** The `plan.md` you produce — and the
+  implementation `lavish-implement` drives from it — obey four non-negotiables: **test-driven**
+  (every behavior gets a failing test first, then the minimal code to pass); **systematic over
+  ad-hoc** (a written, reviewable process, not guess-and-check); **complexity reduction**
+  (simplicity is the goal — DRY, YAGNI, build only what the approved scope needs); and
+  **evidence over claims** (verify with real command output before declaring anything done).
+  Write every task so these hold; `lavish-implement` enforces them at execution time.
 
 ## Phase 1 — Intake & project context
 
@@ -167,15 +174,24 @@ bd dep add <task2-id> <task1-id>   # task 2 depends on task 1
 bd dep add <task1-id> <epic-id>    # task 1 depends on the epic
 ```
 
+4. **Commit the durable records** so a fresh dev worktree can see them. On a feature branch
+   (never `main`/`master` without consent), stage and commit the `docs/plans/<...>/` files —
+   e.g. `git switch -c plan/<topic> && git add docs/plans/<...> && git commit -m "docs(plan): <topic> spec + plan"`.
+   Note the branch; `lavish-implement` bases the dev worktree on this commit so `plan.md` is
+   present. (Records are docs, not implementation code, so committing them here does not violate
+   "planning only".)
+
 ## Phase 8 — Hand-back & execution offer
 
 1. Give a terminal summary and open a final lavish artifact of the spec + plan.
 2. Offer exactly two options: **(1) implement now** — invoke `lavish-implement` against the
    written `plan.md`; or **(2) defer** — stop cleanly (the durable `plan.md` lets any fresh
    session implement later).
-3. Durable records (Phase 7) are complete BEFORE this offer, so both options hand off
-   identical artifacts. Never auto-start implementation. On opt-in, confirm the working branch
-   first — never begin on `main`/`master` without explicit consent.
+3. Durable records (Phase 7) are complete and committed BEFORE this offer, so both options hand
+   off identical artifacts. Never auto-start implementation. On opt-in, `lavish-implement` sets
+   up an isolated dev worktree (treehouse when available, else a `git worktree`, else a feature
+   branch) based on the records commit — it never begins on `main`/`master` without explicit
+   consent.
 
 ## Graceful degradation
 

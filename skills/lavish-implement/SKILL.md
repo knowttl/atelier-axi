@@ -14,13 +14,38 @@ context. You orchestrate subagents and invoke no other skill.
 stay focused and your own context stays free for coordination. A subagent never inherits your
 session history — you hand it exactly what it needs.
 
+## Engineering principles (non-negotiable)
+
+Hold every task and every subagent to these:
+
+- **Test-driven — the Iron Law: no production code without a failing test first.** Each task
+  goes RED (one focused failing test) → watch it fail for the RIGHT reason (feature missing, not
+  a typo) → GREEN (the minimal code to pass) → verify → refactor only while green. If any
+  implementation was written before its test, delete it and restart from the test. Exceptions —
+  throwaway prototypes, generated code, pure config/docs — need the user's explicit OK.
+- **Systematic over ad-hoc.** Follow the plan and this loop; when something breaks, form a
+  hypothesis and test it — never guess-and-check or patch blindly.
+- **Complexity reduction.** Build only what the task needs (YAGNI); prefer the simplest design
+  that passes. A task that is hard to test is a design smell — simplify the interface rather than
+  pile on mocks.
+- **Evidence over claims.** Never report a test passing, a task done, or the build green without
+  the actual command and its output. "It should work" is not evidence.
+
 ## Preconditions
 
 1. Locate the `plan.md` — from the argument, the `lavish-plan` hand-off, or by asking the user.
 2. Read it in full: goal, architecture, global constraints, file structure, and every task.
-3. **Branch safety:** confirm the working branch. NEVER write code on `main`/`master` without
-   explicit user consent — create or switch to a feature branch first. Record the branch's
-   start commit (`git merge-base main HEAD`) for the final review.
+3. **Isolated dev worktree.** Do all work on a feature branch in its own worktree, so parallel
+   work stays isolated and never touches `main`/`master` or the user's current checkout without
+   consent. Whichever mechanism you use, check out (or branch from) the commit that holds
+   `plan.md` so the plan is present, and record the branch's start commit
+   (`git merge-base main HEAD`) for the final review. Acquire the worktree in this order of
+   preference and STATE which you used:
+   - **treehouse** (preferred — a pool built for parallel agents): `WT=$(treehouse get --lease --lease-holder "lavish-implement:<topic>")`
+     reserves a worktree and prints its path to stdout (banners go to stderr); do all work in
+     `$WT`. If `treehouse` is not installed or has no pool for this repo, fall through.
+   - else **git worktree:** `git worktree add ../<topic>-impl -b <feature-branch>`.
+   - else a **feature branch** in the current checkout: `git switch -c <feature-branch>`.
 4. **Pre-flight plan review:** scan the plan once for conflicts — tasks that contradict each
    other or the Global Constraints, or anything the plan mandates that a reviewer would treat
    as a defect. Batch everything you find to the user as one question (each finding beside the
@@ -52,9 +77,11 @@ model and silently defeats this.
    Constraints block, Task N's full text (Files, Interfaces, every Step), and any interface or
    decision from earlier tasks it cannot know. Do NOT paste the whole plan or prior-task
    summaries — a dispatch describes one task, not the session's history. Instruct it to follow
-   the TDD steps exactly (write the failing test → run it and confirm it fails → minimal
-   implementation → run it and confirm it passes) using the project's test command, self-review
-   its diff, and STOP before committing.
+   the Iron Law TDD cycle exactly — no production code before a failing test: write the failing
+   test → run it and confirm it fails for the right reason (feature missing, not a typo) → the
+   minimal implementation to pass → run it and confirm it passes — using the project's test
+   command, report the exact command and its output as evidence, self-review its diff for
+   simplicity (nothing beyond the task), and STOP before committing.
 2. **Handle the implementer's status:**
    - **DONE** — proceed to review.
    - **DONE_WITH_CONCERNS** — read the concerns first; if about correctness or scope, resolve
@@ -85,7 +112,13 @@ model and silently defeats this.
    single task review could see. If it returns findings, dispatch ONE fix subagent with the
    complete list — not one fixer per finding.
 2. Run the project's full verification (e.g. `pnpm run check`, or the test/build commands named
-   in the plan's Global Constraints) and report the result.
+   in the plan's Global Constraints) and report the result **with the actual output** — evidence
+   over claims; never declare the branch green without it.
+3. **Hand back the worktree.** Report the branch name and worktree path, and leave the branch for
+   the user to review and merge — never merge to `main`/`master` yourself without consent. When
+   the user is done, release a treehouse worktree with `treehouse return <path>` (or remove a
+   plain one with `git worktree remove <path>`); a leased treehouse worktree is held until you
+   return it.
 
 ## Resume after interruption
 
@@ -97,7 +130,13 @@ do NOT re-dispatch a task already committed/checked; resume at the first uncheck
 
 - Fresh context per task — never paste prior-task history or the whole plan into a dispatch.
 - Never dispatch implementation subagents in parallel — they conflict on the working tree.
-- Never start on `main`/`master` without consent. Commit frequently.
+- Never start on `main`/`master` without consent; work in an isolated worktree/branch (treehouse
+  when available, else `git worktree`, else a feature branch) and hand it back for review rather
+  than self-merging. Commit frequently.
+- Iron Law: no production code without a failing test you watched fail first; if it happened
+  anyway, delete the code and restart from the test.
+- Evidence over claims: paste the real command and its output; never declare a test, task, or
+  build green without it.
 - Never skip the task review, accept a report missing either verdict, or move on with open
   Critical/Important findings.
 - Never tell a reviewer what not to flag or pre-rate a finding's severity.

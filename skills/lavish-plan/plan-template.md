@@ -61,4 +61,8 @@ boundaries below.>
   fresh reviewer's gate. Fold setup/config/scaffolding/docs into the task whose deliverable
   needs them; split only where a reviewer could reject one task while approving its neighbor.
 - Write for an engineer with zero context for the codebase and questionable test taste.
-- DRY, YAGNI, TDD, frequent commits. Each task ends with an independently testable deliverable.
+- **Four non-negotiables:** _test-driven_ (a failing test first, always — RED, watch it fail,
+  then the minimal code to pass); _systematic over ad-hoc_ (follow the plan, don't guess);
+  _complexity reduction_ (DRY, YAGNI — the simplest thing that passes); _evidence over claims_
+  (every step shows the real command and its output). Commit frequently; each task ends with an
+  independently testable deliverable.
