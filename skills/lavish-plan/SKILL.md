@@ -108,21 +108,30 @@ user opt-in.
 
 1. Write `spec.md` capturing the confirmed decisions, architecture, components, and an
    explicit edge-case pass.
-2. Dispatch a **fresh spec-reviewer subagent** with the `spec.md` text + confirmed decisions +
-   the Spec rubric from `review-rubrics.md`. Fix its findings.
-3. Repeat until a clean pass. Convergence safeguard: after 3 rounds without a clean pass, stop
+2. **Self-review first** (your own pass, not a subagent): scan for placeholders/`TBD`, internal
+   contradictions, requirements ambiguous enough to build the wrong thing, and whether the
+   scope is focused enough for one plan. Fix inline.
+3. Dispatch a **fresh spec-reviewer subagent** with the `spec.md` text + confirmed decisions +
+   the Spec rubric from `review-rubrics.md` (calibration + output format included). Fix its
+   findings.
+4. Repeat until a clean pass. Convergence safeguard: after 3 rounds without a clean pass, stop
    and surface the remaining findings to the user for a call.
 
 ## Phase 6 — Plan + consistency loop
 
-1. Write `plan.md` following `plan-template.md`: a header (goal / architecture / tech stack /
-   global constraints) then bite-sized TDD tasks (write failing test → run it fail → minimal
-   implementation → run it pass → commit) with exact file paths and complete code — NO
-   placeholders.
-2. Dispatch a **fresh plan-reviewer subagent** with `spec.md` (if any) + `plan.md` + the Plan
-   rubric from `review-rubrics.md`: spec↔plan coverage, project fit, and a no-placeholder
-   scan. Fix its findings.
-3. Repeat until clean, with the same 3-round safeguard.
+1. Write `plan.md` following `plan-template.md`: the agentic-worker header, goal / architecture
+   / tech stack / global constraints, a **File Structure** map of every file each task touches,
+   then bite-sized TDD tasks (write failing test → run it fail → minimal implementation → run it
+   pass → commit) with exact file paths and complete code — written for an engineer with zero
+   context, NO placeholders.
+2. **Self-review first** (your own checklist, not a subagent): (a) spec coverage — every spec
+   requirement maps to a task; (b) placeholder scan — no `TBD`/"add error handling"/"similar to
+   Task N"; (c) type/signature consistency — names used in later tasks match earlier
+   definitions. Fix inline.
+3. Dispatch a **fresh plan-reviewer subagent** with `spec.md` (if any) + `plan.md` + the Plan
+   rubric from `review-rubrics.md` (spec↔plan coverage, project fit, buildability, no
+   placeholders). Fix its findings.
+4. Repeat until clean, with the same 3-round safeguard.
 
 ## Phase 7 — Durable records
 

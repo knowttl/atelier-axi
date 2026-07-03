@@ -338,6 +338,19 @@ test("plan playbook detail output encodes the feature-planner arc", () => {
   assert.ok(output.playbook.lavish_notes.some((item) => item.includes("comparison") && item.includes("diagram")));
 });
 
+test("plan playbook detail output aligns intake, approaches, and plan-writing rigor", () => {
+  const output = createPlaybookOutput(["plan"]);
+
+  // Front-of-pipeline: questions surfaced in the UI, approaches, decompose, approval gate.
+  assert.ok(output.playbook.structure.some((item) => item.includes("input cards")));
+  assert.ok(output.playbook.structure.some((item) => item.includes("2-3 candidate approaches")));
+  assert.ok(output.playbook.structure.some((item) => item.includes("decompose")));
+  assert.ok(output.playbook.structure.some((item) => item.includes("approved direction")));
+  // Plan-writing rigor aligned with writing-plans: zero-context reader, file mapping.
+  assert.ok(output.playbook.design_rules.some((item) => item.includes("zero context")));
+  assert.ok(output.playbook.pitfalls.some((item) => item.includes("single foregone approach")));
+});
+
 test("unknown playbook ids produce an actionable validation error", () => {
   assert.throws(
     () => createPlaybookOutput(["unknown"]),

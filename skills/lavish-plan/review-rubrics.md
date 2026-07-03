@@ -1,9 +1,24 @@
 # Review rubrics for lavish-plan subagent reviewers
 
-Dispatch each reviewer as a FRESH subagent. Give it only the inputs listed and instruct it to
-return findings as a ranked list — `[blocker|major|minor] <location> — <issue> — Fix: <fix>` —
-plus a one-line verdict. Fix findings, then re-dispatch. After 3 rounds without a clean pass,
-stop and surface the remaining findings to the user.
+Dispatch each reviewer as a FRESH subagent. Give it only the inputs listed and the matching
+rubric below. Fix the findings, then re-dispatch. After 3 rounds without a clean pass, stop and
+surface the remaining findings to the user.
+
+## Calibration (both reviewers)
+
+Only flag issues that would cause real problems during planning or implementation — a missing
+requirement, an internal contradiction, a requirement ambiguous enough to build the wrong
+thing, a placeholder, or a task too vague to act on. Minor wording, stylistic preferences, and
+"nice to have" suggestions are NOT issues. Approve unless there are serious gaps.
+
+## Output format (both reviewers)
+
+Return exactly:
+
+- **Status:** `Approved` | `Issues Found`
+- **Issues (if any):** one line each — `[<location>] <specific issue> — <why it matters for
+planning/implementation>`, ordered most to least severe.
+- **Recommendations (advisory, do not block approval):** optional improvement suggestions.
 
 ## Spec rubric (Phase 5, large route)
 
@@ -35,3 +50,5 @@ Check:
 5. **Bite-sized TDD structure** — each task is failing test → run fail → minimal impl → run
    pass → commit, with exact paths and complete code.
 6. **Independently testable** — each task ends with a deliverable a fresh reviewer could gate.
+7. **Buildability** — could an engineer with zero context follow this plan end to end without
+   getting stuck? Flag any step that assumes unstated knowledge.
