@@ -112,6 +112,7 @@ test("home output teaches agents when and how to use Lavish Editor", () => {
   assert.ok(!output.help.some((item) => item.includes('<meta name="lavish-design" content="off">')));
   assert.ok(!output.help.some((item) => item.includes("Known IDs")));
   assert.ok(output.help.some((item) => item.includes("technical plan")));
+  assert.ok(output.help.some((item) => item.includes("lavish-axi playbook plan")));
 });
 
 test("home output warns agents that poll is a long poll they must not kill", () => {
@@ -173,6 +174,7 @@ test("design output prints copy-pasteable CDN URLs so agents can opt in to Daisy
   const output = createDesignOutput();
 
   assert.match(output.playbook_router.instruction, /MUST open each matching playbook before writing HTML/);
+  assert.match(output.playbook_router.planning, /surface open questions and edge cases/);
   assert.equal(output.playbook_router.playbooks.length, 7);
   assert.equal(
     output.playbook_router.playbooks.find((playbook) => playbook.id === "diagram")?.use_when,

@@ -86,6 +86,8 @@ export function createDesignOutput() {
   return {
     playbook_router: {
       instruction: PLAYBOOK_ROUTER_INSTRUCTION,
+      planning:
+        "To plan a feature or change, open the `plan` playbook: surface open questions and edge cases for visual review first, then produce a spec and implementation plan.",
       playbooks: listPlaybooks(),
     },
     design: {
