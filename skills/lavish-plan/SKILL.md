@@ -144,9 +144,9 @@ user opt-in.
 ## Phase 7 — Durable records
 
 1. Export the review artifact — **large route only**:
-   `lavish-axi export .lavish/<topic>-review.html --out docs/plans/<type>/<YYYY-MM-DD>-<topic>/review.html`.
+   `lavish-axi export .lavish/<topic>-review.html --out docs/atelier/<YYYY-MM-DD>-<type>-<topic>/review.html`.
    The small route keeps a reduced record set and skips this export.
-2. Write files into `docs/plans/<type>/<YYYY-MM-DD>-<topic>/` (create parents):
+2. Write files into `docs/atelier/<YYYY-MM-DD>-<type>-<topic>/` (create parents):
    - **large:** `spec.md` + `plan.md` + `review.html`.
    - **small:** `plan.md` only (no `spec.md`, no `review.html`); `plan.md` is always written so
      `lavish-implement` has an executable input.
@@ -165,18 +165,18 @@ Example (large, `bd` present):
 
 ```bash
 bd create --title="Dark mode toggle" --type=epic --priority=2 \
-  --description="Add a user-facing dark mode toggle. Spec & plan: docs/plans/feature/2026-07-02-dark-mode/ (spec.md, plan.md, review.html)"
+  --description="Add a user-facing dark mode toggle. Spec & plan: docs/atelier/2026-07-02-feature-dark-mode/ (spec.md, plan.md, review.html)"
 bd create --title="Add theme CSS variables" --type=task --priority=2 \
-  --description="Plan task 1. See docs/plans/feature/2026-07-02-dark-mode/plan.md (Task 1)"
+  --description="Plan task 1. See docs/atelier/2026-07-02-feature-dark-mode/plan.md (Task 1)"
 bd create --title="Add toggle component + persistence" --type=task --priority=2 \
-  --description="Plan task 2. See docs/plans/feature/2026-07-02-dark-mode/plan.md (Task 2)"
+  --description="Plan task 2. See docs/atelier/2026-07-02-feature-dark-mode/plan.md (Task 2)"
 bd dep add <task2-id> <task1-id>   # task 2 depends on task 1
 bd dep add <task1-id> <epic-id>    # task 1 depends on the epic
 ```
 
 4. **Commit the durable records** so a fresh dev worktree can see them. On a feature branch
-   (never `main`/`master` without consent), stage and commit the `docs/plans/<...>/` files —
-   e.g. `git switch -c plan/<topic> && git add docs/plans/<...> && git commit -m "docs(plan): <topic> spec + plan"`.
+   (never `main`/`master` without consent), stage and commit the `docs/atelier/<...>/` files —
+   e.g. `git switch -c plan/<topic> && git add docs/atelier/<...> && git commit -m "docs(plan): <topic> spec + plan"`.
    Note the branch; `lavish-implement` bases the dev worktree on this commit so `plan.md` is
    present. (Records are docs, not implementation code, so committing them here does not violate
    "planning only".)

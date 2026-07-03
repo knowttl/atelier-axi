@@ -21,7 +21,7 @@ Every task's requirements implicitly include this section. Values copied verbati
 - **New skills are self-contained.** `skills/lavish-plan/` and `skills/lavish-implement/` must NOT invoke, depend on, or be designed around any vendored `.agents/skills/` or `.claude/skills/` skill. The ONLY allowed inter-skill call is `lavish-plan` invoking `lavish-implement` at hand-back.
 - **Portability:** no hard-coded `atelier-axi` paths in skill runtime behavior; all paths relative to the target project. Skills must degrade gracefully when `lavish-axi` or `bd` is absent.
 - **Skills live at the project root `skills/`** as siblings of `skills/lavish/` — NOT under `.agents/skills/` or `.claude/skills/`.
-- **Durable output folder:** `docs/plans/<type>/<YYYY-MM-DD>-<topic>/` where `<type>` is the beads type.
+- **Durable output folder:** `docs/atelier/<YYYY-MM-DD>-<type>-<topic>/` where `<type>` is the beads type.
 - **Run a single test file:** `node --test test/<file>.test.js`. **Regenerate the skill:** `pnpm run build:skill`.
 
 ---
@@ -373,9 +373,9 @@ override; the override wins and re-routes the pipeline.
 ## Phase 7 — Durable records
 
 1. Export the review artifact — **large route only**:
-   `lavish-axi export .lavish/<topic>-review.html --out docs/plans/<type>/<YYYY-MM-DD>-<topic>/review.html`.
+   `lavish-axi export .lavish/<topic>-review.html --out docs/atelier/<YYYY-MM-DD>-<type>-<topic>/review.html`.
    The small route keeps a reduced record set and skips this export.
-2. Write files into `docs/plans/<type>/<YYYY-MM-DD>-<topic>/` (create parents):
+2. Write files into `docs/atelier/<YYYY-MM-DD>-<type>-<topic>/` (create parents):
    - **large:** `spec.md` + `plan.md` + `review.html`.
    - **small:** `plan.md` only (no `spec.md`, no `review.html`); `plan.md` is always written so
      `lavish-implement` has an executable input.
@@ -394,11 +394,11 @@ Example (large, `bd` present):
 
 ```bash
 bd create --title="Dark mode toggle" --type=epic --priority=2 \
-  --description="Add a user-facing dark mode toggle. Spec & plan: docs/plans/feature/2026-07-02-dark-mode/ (spec.md, plan.md, review.html)"
+  --description="Add a user-facing dark mode toggle. Spec & plan: docs/atelier/2026-07-02-feature-dark-mode/ (spec.md, plan.md, review.html)"
 bd create --title="Add theme CSS variables" --type=task --priority=2 \
-  --description="Plan task 1. See docs/plans/feature/2026-07-02-dark-mode/plan.md (Task 1)"
+  --description="Plan task 1. See docs/atelier/2026-07-02-feature-dark-mode/plan.md (Task 1)"
 bd create --title="Add toggle component + persistence" --type=task --priority=2 \
-  --description="Plan task 2. See docs/plans/feature/2026-07-02-dark-mode/plan.md (Task 2)"
+  --description="Plan task 2. See docs/atelier/2026-07-02-feature-dark-mode/plan.md (Task 2)"
 bd dep add <task2-id> <task1-id>   # task 2 depends on task 1
 bd dep add <task1-id> <epic-id>    # task 1 depends on the epic
 ```

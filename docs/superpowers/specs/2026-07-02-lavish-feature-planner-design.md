@@ -181,7 +181,7 @@ allowed inter-skill call is `lavish-plan` invoking `lavish-implement` on user op
 are first-party deliverables of this spec). Where a structural pattern resembles a vendored
 skill, it is authored fresh inside the owning skill. Neither skill hard-codes any
 `atelier-axi`-specific path: all paths are relative to the target project (the
-`docs/plans/` output root and the artifact's `.lavish/` directory are created wherever
+`docs/atelier/` output root and the artifact's `.lavish/` directory are created wherever
 the skill runs).
 
 ### `skills/lavish-plan/` (driver)
@@ -407,9 +407,9 @@ Produce the durable record: exported review artifact, spec/plan files in the typ
 folder, and beads entries when `bd` is available.
 
 #### Interface
-- **Commands:** `lavish-axi export <file> --out docs/plans/<type>/<date>-<topic>/review.html`.
+- **Commands:** `lavish-axi export <file> --out docs/atelier/<date>-<type>-<topic>/review.html`.
 - **Writes:** `spec.md` (large only) + `plan.md` into
-  `docs/plans/<type>/<YYYY-MM-DD>-<topic>/`, creating parent dirs; never clobber an
+  `docs/atelier/<YYYY-MM-DD>-<type>-<topic>/`, creating parent dirs; never clobber an
   existing same-date+topic folder (ask to reuse/overwrite, else write a `<topic>-2`/`-3`
   sibling — see Edge Cases).
 - **Beads (only if `bd` present):** large → one `epic` + one `bd dep`-ordered child `task` per
@@ -422,7 +422,7 @@ Beads written iff `bd` present; each issue links its files; large yields epic + 
 child tasks.
 
 #### Edge Cases
-- `docs/plans/` or `<type>/` missing → create it (parents too).
+- `docs/atelier/` or the `<YYYY-MM-DD>-<type>-<topic>/` folder missing → create it (parents too).
 - Same-date+topic folder exists → never clobber; ask the user whether to reuse/overwrite that
   folder or write a disambiguated sibling (`<topic>-2`, `-3`); default to the suffixed sibling
   when the user cannot be asked.
@@ -474,25 +474,25 @@ history; requires no planning-session context beyond the `plan.md`.
 
 ## File & Record Layout
 
-Output folder: `docs/plans/<type>/<YYYY-MM-DD>-<topic>/` where `<type>` is the beads
+Output folder: `docs/atelier/<YYYY-MM-DD>-<type>-<topic>/` where `<type>` is the beads
 type (`feature`, `bug`, `chore`, `spike`, `story`, `epic`, `decision`), `<YYYY-MM-DD>` is
 today's date, `<topic>` a short kebab-case slug. Create parents as needed; never clobber a
 same-date+topic folder (ask to reuse/overwrite, else write a `<topic>-2`/`-3` sibling).
 
 **Large route:**
 ```
-docs/plans/feature/2026-07-02-dark-mode/
+docs/atelier/2026-07-02-feature-dark-mode/
     spec.md
     plan.md
     review.html
 ```
 ```
 bd create --title="Dark mode toggle" --type=epic --priority=2 \
-  --description="Add a user-facing dark mode toggle. Spec & plan: docs/plans/feature/2026-07-02-dark-mode/ (spec.md, plan.md, review.html)"        # -> proj-42
+  --description="Add a user-facing dark mode toggle. Spec & plan: docs/atelier/2026-07-02-feature-dark-mode/ (spec.md, plan.md, review.html)"        # -> proj-42
 bd create --title="Add theme CSS variables" --type=task --priority=2 \
-  --description="Plan task 1. See docs/plans/feature/2026-07-02-dark-mode/plan.md (Task 1)"   # -> proj-43
+  --description="Plan task 1. See docs/atelier/2026-07-02-feature-dark-mode/plan.md (Task 1)"   # -> proj-43
 bd create --title="Add toggle component + persistence" --type=task --priority=2 \
-  --description="Plan task 2. See docs/plans/feature/2026-07-02-dark-mode/plan.md (Task 2)"   # -> proj-44
+  --description="Plan task 2. See docs/atelier/2026-07-02-feature-dark-mode/plan.md (Task 2)"   # -> proj-44
 bd dep add proj-44 proj-43     # task 2 depends on task 1
 bd dep add proj-43 proj-42     # task 1 depends on the epic (chain: epic -> task 1 -> task 2)
 ```
@@ -502,17 +502,17 @@ bd dep add proj-43 proj-42     # task 1 depends on the epic (chain: epic -> task
 `lavish-implement` has an executable input; "just a beads issue, no `plan.md`" applies only to
 a trivial one-liner where the beads description *is* the plan.
 ```
-docs/plans/bug/2026-07-02-login-crash/plan.md
+docs/atelier/2026-07-02-bug-login-crash/plan.md
 ```
 ```
 bd create --title="Fix login crash" --type=bug --priority=1 \
-  --description="Null deref on empty session. See docs/plans/bug/2026-07-02-login-crash/plan.md"
+  --description="Null deref on empty session. See docs/atelier/2026-07-02-bug-login-crash/plan.md"
 ```
 
 **Deferred question → `decision` issue:**
 ```
 bd create --title="Should the toggle persist per-device or per-account?" --type=decision --priority=2 \
-  --description="Deferred during planning of docs/plans/feature/2026-07-02-dark-mode/. Needs a product call before implementation."
+  --description="Deferred during planning of docs/atelier/2026-07-02-feature-dark-mode/. Needs a product call before implementation."
 ```
 
 **Beads type → entry mapping:** large → `epic` + `bd dep`-ordered child `task`s (one per plan
