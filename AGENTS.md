@@ -171,6 +171,7 @@ No need to explicitly document the telemetry behaviors.
   - `SessionStore` marks a re-reported layout warning `persistent: true` once its `kind:selector` key has already been delivered to the agent via `takeFeedback` (tracked in `session.delivered_layout_warning_keys`, independent of the `layout_warnings` field that gets cleared on each delivery). `cli.js`'s `createFeedbackNextStep` softens its guidance - permitting the agent to proceed to the human instead of looping fixes and reloads - once every current warning is either `persistent` or below `error` severity (currently only `overlapping-text`, since it stays heuristic even after fragment-aware matching).
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
+
 ## Beads Issue Tracker
 
 This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands. Use the `beads` skill at `.agents/skills/beads/SKILL.md` (project install) or `~/.agents/skills/beads/SKILL.md` (global install) for Beads workflow guidance, then use the `bd` CLI for issue operations.
@@ -213,6 +214,7 @@ bd prime                # Refresh Beads context
 7. **Hand off** - Provide context for next session
 
 **CRITICAL RULES:**
+
 - Work is NOT complete until `git push` succeeds
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push
@@ -220,6 +222,7 @@ bd prime                # Refresh Beads context
 <!-- END BEADS INTEGRATION -->
 
 <!-- BEGIN: local.beads-memory-format -->
+
 ## Beads Memory Format (bd remember)
 
 Record every lesson with `bd remember` in this exact shape so memories are searchable with `bd memories <keyword>` and dedup-able by key:
@@ -232,4 +235,5 @@ Record every lesson with `bd remember` in this exact shape so memories are searc
 - `--key <area>-<subject>` — stable kebab-case slug; re-recording the same key updates the memory in place instead of duplicating.
 
 Before recording, search with `bd memories <keyword>`; if a close memory exists, reuse its `--key` to refine it rather than adding a near-duplicate. Full procedure: the `local.beads-workflow` skill (Operation 4).
+
 <!-- END: local.beads-memory-format -->
