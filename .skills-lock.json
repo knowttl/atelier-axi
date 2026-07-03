@@ -60,6 +60,146 @@
       "installedAt": "2026-07-03T04:50:28Z",
       "agents": ["claude-code", "github-copilot", "codex"],
       "profile": null
+    },
+    "obra.superpowers.brainstorming": {
+      "type": "skill",
+      "version": "1.0.0",
+      "source": "local",
+      "sourceUrl": null,
+      "sourceCommit": null,
+      "installedAt": "2026-07-03T05:38:02Z",
+      "agents": ["claude-code"],
+      "profile": null
+    },
+    "obra.superpowers.dispatching-parallel-agents": {
+      "type": "skill",
+      "version": "1.0.0",
+      "source": "local",
+      "sourceUrl": null,
+      "sourceCommit": null,
+      "installedAt": "2026-07-03T05:38:02Z",
+      "agents": ["claude-code"],
+      "profile": null
+    },
+    "obra.superpowers.executing-plans": {
+      "type": "skill",
+      "version": "1.0.0",
+      "source": "local",
+      "sourceUrl": null,
+      "sourceCommit": null,
+      "installedAt": "2026-07-03T05:38:02Z",
+      "agents": ["claude-code"],
+      "profile": null
+    },
+    "obra.superpowers.finishing-a-development-branch": {
+      "type": "skill",
+      "version": "1.0.0",
+      "source": "local",
+      "sourceUrl": null,
+      "sourceCommit": null,
+      "installedAt": "2026-07-03T05:38:02Z",
+      "agents": ["claude-code"],
+      "profile": null
+    },
+    "obra.superpowers.receiving-code-review": {
+      "type": "skill",
+      "version": "1.0.0",
+      "source": "local",
+      "sourceUrl": null,
+      "sourceCommit": null,
+      "installedAt": "2026-07-03T05:38:02Z",
+      "agents": ["claude-code"],
+      "profile": null
+    },
+    "obra.superpowers.requesting-code-review": {
+      "type": "skill",
+      "version": "1.0.0",
+      "source": "local",
+      "sourceUrl": null,
+      "sourceCommit": null,
+      "installedAt": "2026-07-03T05:38:02Z",
+      "agents": ["claude-code"],
+      "profile": null
+    },
+    "obra.superpowers.subagent-driven-development": {
+      "type": "skill",
+      "version": "1.0.0",
+      "source": "local",
+      "sourceUrl": null,
+      "sourceCommit": null,
+      "installedAt": "2026-07-03T05:38:02Z",
+      "agents": ["claude-code"],
+      "profile": null
+    },
+    "obra.superpowers.systematic-debugging": {
+      "type": "skill",
+      "version": "1.0.0",
+      "source": "local",
+      "sourceUrl": null,
+      "sourceCommit": null,
+      "installedAt": "2026-07-03T05:38:02Z",
+      "agents": ["claude-code"],
+      "profile": null
+    },
+    "obra.superpowers.test-driven-development": {
+      "type": "skill",
+      "version": "1.0.0",
+      "source": "local",
+      "sourceUrl": null,
+      "sourceCommit": null,
+      "installedAt": "2026-07-03T05:38:02Z",
+      "agents": ["claude-code"],
+      "profile": null
+    },
+    "obra.superpowers.using-git-worktrees": {
+      "type": "skill",
+      "version": "1.0.0",
+      "source": "local",
+      "sourceUrl": null,
+      "sourceCommit": null,
+      "installedAt": "2026-07-03T05:38:02Z",
+      "agents": ["claude-code"],
+      "profile": null
+    },
+    "obra.superpowers.using-superpowers": {
+      "type": "skill",
+      "version": "1.0.0",
+      "source": "local",
+      "sourceUrl": null,
+      "sourceCommit": null,
+      "installedAt": "2026-07-03T05:38:02Z",
+      "agents": ["claude-code"],
+      "profile": null
+    },
+    "obra.superpowers.verification-before-completion": {
+      "type": "skill",
+      "version": "1.0.0",
+      "source": "local",
+      "sourceUrl": null,
+      "sourceCommit": null,
+      "installedAt": "2026-07-03T05:38:03Z",
+      "agents": ["claude-code"],
+      "profile": null
+    },
+    "obra.superpowers.writing-plans": {
+      "type": "skill",
+      "version": "1.0.0",
+      "source": "local",
+      "sourceUrl": null,
+      "sourceCommit": null,
+      "installedAt": "2026-07-03T05:38:03Z",
+      "agents": ["claude-code"],
+      "profile": null
+    },
+    "obra.superpowers.writing-skills": {
+      "type": "skill",
+      "version": "1.0.0",
+      "source": "local",
+      "sourceUrl": null,
+      "sourceCommit": null,
+      "installedAt": "2026-07-03T05:38:03Z",
+      "agents": ["claude-code"],
+      "profile": null
     }
   }
 }
