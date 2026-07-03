@@ -62,13 +62,7 @@ jobs:
       # line so npm has a publish target and falls through to OIDC.
       - name: Enable OIDC trusted publishing (drop placeholder auth token)
         if: ${{ steps.release.outputs.release_created }}
-        run: |
-          sed -i '/:_authToken=/d' "$NPM_CONFIG_USERCONFIG"
-          echo "--- npmrc after strip ---"; cat "$NPM_CONFIG_USERCONFIG"
+        run: sed -i '/:_authToken=/d' "$NPM_CONFIG_USERCONFIG"
 
-      - run: npm publish --access public --provenance --loglevel verbose
+      - run: npm publish --access public --provenance
         if: ${{ steps.release.outputs.release_created }}
-
-      - name: Dump npm debug log on failure
-        if: ${{ failure() && steps.release.outputs.release_created }}
-        run: cat /home/runner/.npm/_logs/*-debug-0.log 2>/dev/null || true
