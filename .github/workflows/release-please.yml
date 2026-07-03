@@ -56,17 +56,15 @@ jobs:
       - run: npm install -g npm@latest
         if: ${{ steps.release.outputs.release_created }}
 
-      - name: Diagnose publish environment
+      # setup-node's registry-url writes `_authToken=${NODE_AUTH_TOKEN}` into
+      # the npmrc, and npm uses that placeholder token instead of OIDC trusted
+      # publishing (-> 404). Strip only the auth line, keeping the registry
+      # line so npm has a publish target and falls through to OIDC.
+      - name: Enable OIDC trusted publishing (drop placeholder auth token)
         if: ${{ steps.release.outputs.release_created }}
         run: |
-          echo "npm version: $(npm --version)  path: $(command -v npm)"
-          echo "node version: $(node --version)"
-          echo "OIDC request url present: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}${ACTIONS_ID_TOKEN_REQUEST_URL:-NO}"
-          echo "registry: $(npm config get registry)"
-          echo "--- ~/.npmrc ---"; cat ~/.npmrc 2>/dev/null || echo "(none)"
-          echo "--- ./.npmrc ---"; cat ./.npmrc 2>/dev/null || echo "(none)"
-          echo "NPM_CONFIG_USERCONFIG=$NPM_CONFIG_USERCONFIG"
-          [ -n "$NPM_CONFIG_USERCONFIG" ] && { echo "--- userconfig npmrc ---"; cat "$NPM_CONFIG_USERCONFIG" 2>/dev/null || echo "(none)"; }
+          sed -i '/:_authToken=/d' "$NPM_CONFIG_USERCONFIG"
+          echo "--- npmrc after strip ---"; cat "$NPM_CONFIG_USERCONFIG"
 
       - run: npm publish --access public --provenance
         if: ${{ steps.release.outputs.release_created }}
