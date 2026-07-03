@@ -92,28 +92,61 @@ export const PLAYBOOKS = [
   },
   {
     id: "plan",
-    use_when: "Explain a product or technical plan before implementation",
+    use_when:
+      "Plan a feature, fix, or change before implementation: surface open questions and edge cases for review, then produce a spec and implementation plan",
     choose: [
-      "Use this when the user needs to inspect a feature approach before implementation begins.",
-      "Use it when the user explicitly asked for a PRD, technical design, implementation plan or proposal.",
-      "Use a lighter comparison or diagram playbook when the plan is only a single small design choice.",
+      "Use the full planning arc when the change is non-trivial: first surface every open question, edge case, and design option as an annotatable review surface, converge with the user, then produce a spec and a bite-sized implementation plan.",
+      "Use a lighter single-decision plan when the change is one well-understood option: show the proposal and its few open questions, confirm, and produce just an implementation plan.",
+      "Use the 'comparison' or 'diagram' playbook alone when the artifact is only a single design choice or a relationship map, not a plan that needs a spec.",
     ],
     structure: [
-      "Start with the goal, the current state, and desired behavior.",
-      "Then describe a proposed approach, focusing on high level decisions.",
-      "At the end, list any risks you see, and open questions you have, and follow the 'comparison' playbook to provide options for the user to choose from.",
+      "Open with a light framing: the goal, the current state, and the desired behavior in a few sentences - do not interrogate before the user has seen anything visual.",
+      "Before writing any spec, surface EXHAUSTIVELY: every open question, every edge case, and every design option, each as its own decision card the user can accept or defer individually.",
+      "Converge on the surfaced decisions first; only after the user confirms the direction do you write the spec, then a bite-sized TDD implementation plan derived from it.",
+      "Structure the plan as bite-sized TDD tasks - write a failing test, run it and see it fail, add the minimal implementation, run it and see it pass, commit - with exact file paths and complete code in every step.",
+      "End the plan self-contained enough that another developer, or a fresh agent session with no planning context, can implement it without asking a follow-up question.",
     ],
     design_rules: [
       "Verify each claim against the codebase before presenting it as fact.",
-      "When discussing frontend experiences, prefer visually mocking the experience under a consistent design system as the real product over describing it with text.",
-      "The plan needs to be self-contained enough that another developer can read it and fully implement the proposal.",
+      `Render each open question, edge case, and design option as a self-contained decision card: a plain-English problem statement, a highlighted recommendation, and a short concrete example, plus Accept/Defer controls that queue exactly one prompt for the decision. Restyle the card to the subject project's design system (or DaisyUI via \`lavish-axi design\`). Reusable template:
+\`\`\`html
+<!-- Decision card: one open question / edge case / option. Restyle to the subject project's design system. -->
+<form class="decision-card" data-lavish-question="theme-scope"
+      onsubmit="event.preventDefault();
+        const f = new FormData(event.currentTarget);
+        const decision = f.get('decision');            // 'accept' | 'defer'
+        const note = (f.get('note') || '').toString().trim();
+        if (!decision) return;
+        window.lavish.queuePrompt(
+          'Decision [Theme scope]: ' + decision + (note ? ' - ' + note : ''),
+          { tag: 'decision', text: 'Theme scope: ' + decision, element: event.currentTarget,
+            data: { question: 'theme-scope', decision, note } });">
+  <h3 class="decision-card__title">Should the toggle persist per-device or per-account?</h3>
+  <p class="decision-card__problem">Users on multiple devices may expect the theme to follow them, but per-account persistence needs a settings API we do not have yet.</p>
+  <p class="decision-card__reco"><strong>Recommendation:</strong> Start per-device (localStorage) - it ships without a backend change and covers the common single-device case.</p>
+  <pre class="decision-card__example"><code>localStorage.setItem('theme', 'dark')  // per-device, no API</code></pre>
+  <fieldset class="decision-card__controls">
+    <label><input type="radio" name="decision" value="accept"> Accept recommendation</label>
+    <label><input type="radio" name="decision" value="defer"> Defer (needs a product call)</label>
+    <input type="text" name="note" placeholder="Optional note or counter-proposal">
+    <button type="submit">Queue this decision</button>
+  </fieldset>
+</form>
+\`\`\``,
+      "When the feature is UI-facing, add a sample UI mockup alongside the relevant decision cards and render it in the SUBJECT project's design system (its Tailwind/theme config, CSS tokens, component library, or existing styled pages), following the design-source priority. When the feature is NOT UI-facing, show questions, edge cases, and decision cards only - no mockups.",
+      "The plan and spec must be self-contained enough that another developer can read them and fully implement the proposal without the planning conversation.",
     ],
     pitfalls: [
-      "Do not leave resolved open questions in the artifact. Update existing content to reflect the decision and remove the open question.",
-      "Do not only focus on ambiguous decisions and omit the actual proposal.",
-      "Do not omit failure modes, migration concerns, or backwards compatibility questions.",
+      "Do not write the spec before the review surface is confirmed - surface and converge on the open questions and edge cases first.",
+      "Do not leave open questions unresolved and unlabeled: every card must end accepted or explicitly deferred, and deferred questions must be captured (as decision records) rather than dropped.",
+      "Do not leave placeholders in the plan. 'TBD', 'add error handling', or 'similar to Task N' are plan failures - every task carries exact file paths and complete code.",
+      "Do not leave resolved open questions in the artifact. Update the content to reflect the decision and remove the question.",
     ],
-    lavish_notes: ["A Lavish plan should make a plan and its uncertainties easy to annotate before code exists."],
+    lavish_notes: [
+      "Make each question, edge case, and option an individual annotation target with its own Accept/Defer control, so the user resolves them one at a time in the review loop.",
+      "Build the accept/defer and option-selection controls with the 'input' playbook pattern (native controls, one per-question submit that queues a single final prompt); use 'comparison' for option cards with tradeoffs and 'diagram' (Mermaid) for flows, architecture, state, or sequence views.",
+      "A deferred card should queue a prompt clear enough to become a standalone decision to resolve before implementation.",
+    ],
   },
   {
     id: "code",

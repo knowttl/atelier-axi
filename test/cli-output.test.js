@@ -259,7 +259,7 @@ test("playbook index output lists known playbooks with concise descriptions", ()
   );
   assert.equal(
     output.playbooks.find((playbook) => playbook.id === "plan")?.use_when,
-    "Explain a product or technical plan before implementation",
+    "Plan a feature, fix, or change before implementation: surface open questions and edge cases for review, then produce a spec and implementation plan",
   );
   assert.equal(
     output.playbooks.find((playbook) => playbook.id === "input")?.use_when,
@@ -315,11 +315,25 @@ test("code playbook detail output requires verified @pierre/diffs rendering", ()
   assert.ok(output.playbook.pitfalls.some((item) => item.includes("<pre>")));
 });
 
-test("plan playbook detail output has polished guidance copy", () => {
+test("plan playbook detail output encodes the feature-planner arc", () => {
   const output = createPlaybookOutput(["plan"]);
 
-  assert.ok(output.playbook.structure.some((item) => item.includes("Then describe a proposed approach")));
-  assert.ok(output.playbook.structure.every((item) => !item.includes("Then describe the a proposed approach")));
+  assert.equal(output.playbook.id, "plan");
+  assert.equal(
+    output.playbook.use_when,
+    "Plan a feature, fix, or change before implementation: surface open questions and edge cases for review, then produce a spec and implementation plan",
+  );
+  assert.ok(output.playbook.choose.some((item) => item.includes("full planning arc")));
+  assert.ok(output.playbook.structure.some((item) => item.includes("Before writing any spec")));
+  assert.ok(output.playbook.structure.some((item) => item.includes("bite-sized TDD tasks")));
+  assert.ok(output.playbook.design_rules.some((item) => item.includes("decision-card")));
+  assert.ok(output.playbook.design_rules.some((item) => item.includes("data-lavish-question")));
+  assert.ok(output.playbook.design_rules.some((item) => item.includes("window.lavish.queuePrompt")));
+  assert.ok(output.playbook.design_rules.some((item) => item.includes("subject project's design system")));
+  assert.ok(output.playbook.pitfalls.some((item) => item.includes("before the review surface is confirmed")));
+  assert.ok(output.playbook.pitfalls.some((item) => item.includes("TBD")));
+  assert.ok(output.playbook.lavish_notes.some((item) => item.includes("Accept/Defer")));
+  assert.ok(output.playbook.lavish_notes.some((item) => item.includes("comparison") && item.includes("diagram")));
 });
 
 test("unknown playbook ids produce an actionable validation error", () => {
