@@ -10,6 +10,8 @@
   "files": [
     "dist",
     "skills/lavish",
+    "skills/lavish-plan",
+    "skills/lavish-implement",
     "lavish-editor-marketing/renders/lavish-editor-marketing.gif",
     "LICENSE",
     "README.md"
