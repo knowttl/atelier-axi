@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "installed": {
+    "local.awesome-ai-usage": {
+      "type": "skill",
+      "version": "1.0.0",
+      "source": "local",
+      "sourceUrl": null,
+      "sourceCommit": null,
+      "installedAt": "2026-07-03T04:23:42Z",
+      "agents": ["claude-code", "github-copilot", "codex"],
+      "profile": null
+    },
+    "local.agentsmd-init": {
+      "type": "skill",
+      "version": "1.0.0",
+      "source": "local",
+      "sourceUrl": null,
+      "sourceCommit": null,
+      "installedAt": "2026-07-03T04:31:31Z",
+      "agents": ["claude-code", "github-copilot", "codex"],
+      "profile": null
+    },
+    "local.mind-clear": {
+      "type": "skill",
+      "version": "1.4.0",
+      "source": "local",
+      "sourceUrl": null,
+      "sourceCommit": null,
+      "installedAt": "2026-07-03T04:31:35Z",
+      "agents": ["claude-code", "github-copilot", "codex"],
+      "profile": null
+    },
+    "local.beads": {
+      "type": "instruction",
+      "version": "1.0.0",
+      "source": "local",
+      "sourceUrl": null,
+      "sourceCommit": null,
+      "installedAt": "2026-07-03T04:45:36Z",
+      "agents": ["claude-code", "github-copilot", "codex"],
+      "profile": null
+    },
+    "local.beads-workflow": {
+      "type": "skill",
+      "version": "1.0.0",
+      "source": "local",
+      "sourceUrl": null,
+      "sourceCommit": null,
+      "installedAt": "2026-07-03T04:45:37Z",
+      "agents": ["claude-code", "github-copilot", "codex"],
+      "profile": null
+    },
+    "local.opensrc-source-context": {
+      "type": "instruction",
+      "version": "1.0.0",
+      "source": "local",
+      "sourceUrl": null,
+      "sourceCommit": null,
+      "installedAt": "2026-07-03T04:50:28Z",
+      "agents": ["claude-code", "github-copilot", "codex"],
+      "profile": null
+    }
+  }
+}

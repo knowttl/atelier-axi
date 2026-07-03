@@ -173,22 +173,23 @@ No need to explicitly document the telemetry behaviors.
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
 ## Beads Issue Tracker
 
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
+This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands. Use the `beads` skill at `.agents/skills/beads/SKILL.md` (project install) or `~/.agents/skills/beads/SKILL.md` (global install) for Beads workflow guidance, then use the `bd` CLI for issue operations.
 
 ### Quick Reference
 
 ```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
+bd ready                # Find available work
+bd show <id>            # View issue details
 bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
+bd close <id>           # Complete work
+bd prime                # Refresh Beads context
 ```
 
 ### Rules
 
 - Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
+- Run `bd prime` for detailed command reference and session close protocol, or whenever Beads context is missing or stale
+- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md or other ad hoc memory files
 
 **Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
 
@@ -217,3 +218,18 @@ bd close <id>         # Complete work
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
 <!-- END BEADS INTEGRATION -->
+
+<!-- BEGIN: local.beads-memory-format -->
+## Beads Memory Format (bd remember)
+
+Record every lesson with `bd remember` in this exact shape so memories are searchable with `bd memories <keyword>` and dedup-able by key:
+
+    bd remember "[<area>] <generalized lesson — root cause + rule/fix>. Keywords: <kw1>, <kw2>, <kw3>." --key <area>-<subject>
+
+- `[<area>]` — one of: build, test, config, deps, api, arch, tooling, env, data, perf, security, workflow (workflow = catch-all).
+- Lesson — one or two self-contained sentences that read as a reusable rule (root cause + fix). Strip transient paths, ticket numbers, and debugging noise.
+- `Keywords:` — 3–6 lowercase search terms (tool/command names, file/component names, error tokens) a future agent would type into `bd memories`.
+- `--key <area>-<subject>` — stable kebab-case slug; re-recording the same key updates the memory in place instead of duplicating.
+
+Before recording, search with `bd memories <keyword>`; if a close memory exists, reuse its `--key` to refine it rather than adding a near-duplicate. Full procedure: the `local.beads-workflow` skill (Operation 4).
+<!-- END: local.beads-memory-format -->
