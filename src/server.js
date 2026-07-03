@@ -12,7 +12,7 @@ import {
   classifyHorizontalOverflow,
   classifyVerticalOverflow,
   createArtifactSdk,
-  deriveLavishQueueKey,
+  deriveAtelierQueueKey,
   fragmentsSignificantlyOverlap,
   isNativeInteractiveControl,
   resolveVisibleSpillCandidates,
@@ -24,7 +24,7 @@ import {
   splitExportWarnings,
 } from "./export-bundle.js";
 import { publishToHtmlApp } from "./html-app.js";
-import { injectLavishSdk } from "./html-transform.js";
+import { injectAtelierSdk } from "./html-transform.js";
 import { bindHost, hostForUrl, linkHost } from "./paths.js";
 import { canonicalFile, SessionStore, sessionKey } from "./session-store.js";
 
@@ -52,11 +52,11 @@ const DEFAULT_IDLE_TIMEOUT_MS = 30 * 60_000;
 
 // A detached server should not live forever. When no browser chrome (SSE) and no agent poll
 // are connected for this long, the server shuts itself down so it stops dangling. The next
-// `lavish-axi <file>` invocation re-spawns a fresh server and adopts resumable sessions from
+// `atelier-axi <file>` invocation re-spawns a fresh server and adopts resumable sessions from
 // state.json. Browser-ended sessions still require the explicit --reopen opt-in. Set
-// LAVISH_AXI_IDLE_TIMEOUT_MS to 0/off to disable, or to a custom millisecond budget.
+// ATELIER_AXI_IDLE_TIMEOUT_MS to 0/off to disable, or to a custom millisecond budget.
 export function resolveIdleTimeoutMs(env = process.env) {
-  const raw = env.LAVISH_AXI_IDLE_TIMEOUT_MS?.trim();
+  const raw = env.ATELIER_AXI_IDLE_TIMEOUT_MS?.trim();
   if (raw === undefined || raw === "") return DEFAULT_IDLE_TIMEOUT_MS;
   if (raw === "0" || raw.toLowerCase() === "off") return null;
   const value = Number(raw);
@@ -82,15 +82,15 @@ export async function serve({
   const activePolls = new Map();
   const deliveredFeedback = new Set();
   const sseClients = new Set();
-  const verbose = debug || process.env.LAVISH_AXI_DEBUG === "1";
+  const verbose = debug || process.env.ATELIER_AXI_DEBUG === "1";
   const writeLog = typeof log === "function" ? log : (line) => process.stderr.write(`${line}\n`);
-  const logEvent = verbose ? (line) => writeLog(`[lavish] ${line}`) : null;
+  const logEvent = verbose ? (line) => writeLog(`[atelier] ${line}`) : null;
   let publicPort = port;
 
   app.use(express.json({ limit: "2mb" }));
 
   app.get("/health", (req, res) => {
-    res.json({ ok: true, app: "lavish-axi", version });
+    res.json({ ok: true, app: "atelier-axi", version });
   });
 
   let shutdownResolve;
@@ -112,9 +112,9 @@ export async function serve({
       const existing = await store.findByKey(key);
       // A user-initiated end (browser "End session"/"Send & end session") means the human
       // deliberately closed the review surface. Silently reopening it on the next
-      // `lavish-axi <file>` is the exact behavior this route exists to prevent - require an
+      // `atelier-axi <file>` is the exact behavior this route exists to prevent - require an
       // explicit `reopen` opt-in instead of reviving it automatically. Agent-initiated ends
-      // (`lavish-axi end`) keep reviving on the next open, same as before this change.
+      // (`atelier-axi end`) keep reviving on the next open, same as before this change.
       if (existing?.status === "ended" && existing.ended_by === "user" && !reopen) {
         logEvent?.(`session open blocked (user-ended) key=${key} file=${file}`);
         res.json({ key, file, url: existing.url, status: "user-ended" });
@@ -287,8 +287,8 @@ export async function serve({
       });
       const { unresolved, notices } = splitExportWarnings(warnings);
       res.setHeader("content-disposition", exportContentDisposition(session.file));
-      res.setHeader("x-lavish-export-warning-count", String(unresolved.length));
-      res.setHeader("x-lavish-export-notice-count", String(notices.length));
+      res.setHeader("x-atelier-export-warning-count", String(unresolved.length));
+      res.setHeader("x-atelier-export-notice-count", String(notices.length));
       res.type("html").send(html);
     } catch (error) {
       next(error);
@@ -296,7 +296,7 @@ export async function serve({
   });
 
   // Hosted share: build the local-inlined artifact and publish it to ht-ml.app, a third-party
-  // hosting service not part of Lavish, returning the share URL. Publishing sends the artifact
+  // hosting service not part of Atelier, returning the share URL. Publishing sends the artifact
   // to ht-ml.app's servers. Remote CDN/font references are left intact for the viewer's browser
   // to load.
   // Publishing creates a public third-party page unless a password is supplied, so this is gated
@@ -381,7 +381,7 @@ export async function serve({
         return;
       }
       const html = await readFile(session.file, "utf8");
-      res.type("html").send(injectLavishSdk(html, key));
+      res.type("html").send(injectAtelierSdk(html, key));
     } catch (error) {
       next(error);
     }
@@ -683,8 +683,8 @@ async function watchSession(session, watchers, events, logEvent) {
 // Watching the artifact's parent directory recursively can stall the event loop when the
 // artifact lives in a large tree (e.g. ~/Downloads). Default to watching only the artifact
 // itself; an artifact opts back into directory-wide live reload via either a
-// `data-lavish-live-reload-root` attribute on its root element or
-// `<meta name="lavish-live-reload" content="root">`.
+// `data-atelier-live-reload-root` attribute on its root element or
+// `<meta name="atelier-live-reload" content="root">`.
 export async function resolveWatchTarget(session) {
   const baseOptions = {
     ignoreInitial: true,
@@ -698,7 +698,7 @@ export async function resolveWatchTarget(session) {
         scope: "directory",
         options: {
           ...baseOptions,
-          ignored: /(^|[/\\])(\.git|node_modules|dist|build|\.lavish-axi)([/\\]|$)/,
+          ignored: /(^|[/\\])(\.git|node_modules|dist|build|\.atelier-axi)([/\\]|$)/,
         },
       };
     }
@@ -711,8 +711,8 @@ export async function resolveWatchTarget(session) {
 export function hasLiveReloadRootOptIn(html) {
   if (typeof html !== "string") return false;
   const searchableHtml = html.replace(/<!--[\s\S]*?-->/g, "");
-  if (/<html\b[^>]*\sdata-lavish-live-reload-root(?:[\s=>/]|$)[^>]*>/i.test(searchableHtml)) return true;
-  return /<meta\b(?=[^>]*name=["']lavish-live-reload["'])(?=[^>]*content=["']root["'])[^>]*>/i.test(searchableHtml);
+  if (/<html\b[^>]*\sdata-atelier-live-reload-root(?:[\s=>/]|$)[^>]*>/i.test(searchableHtml)) return true;
+  return /<meta\b(?=[^>]*name=["']atelier-live-reload["'])(?=[^>]*content=["']root["'])[^>]*>/i.test(searchableHtml);
 }
 
 function setPollActive(key, activePolls, deliveredFeedback, events, active) {
@@ -855,23 +855,23 @@ export function createChromeHtml(session, { layoutGateEnabled = true } = {}) {
     layoutGateEnabled,
   });
   const { head: pathHead, tail: pathTail } = displayPathParts(session.file);
-  const bodyClass = layoutGateEnabled ? "lavish layout-gate-active" : "lavish";
+  const bodyClass = layoutGateEnabled ? "atelier layout-gate-active" : "atelier";
   const layoutGateHidden = layoutGateEnabled ? "" : " hidden";
   return `<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lavish Editor</title>
+<title>Atelier Editor</title>
 <link rel="stylesheet" href="/chrome.css">
 </head>
 <body class="${bodyClass}">
-<div class="bar"><div class="brand"><span class="brand-mark">Lavish</span><span class="brand-support">Editor</span></div><div class="spacer" aria-hidden="true"></div><button class="annotate-switch" id="annotation" type="button" aria-pressed="true"><span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span><span>Annotate</span></button><div class="more-wrap" id="moreWrap"><button class="more-button" id="moreButton" type="button" title="More" aria-haspopup="menu" aria-expanded="false">${chromeIcons.more}</button><div class="menu more-menu" id="moreMenu" hidden><div class="menu-head"><div class="menu-label">Editing</div><button class="menu-file" id="copyPath" type="button" title="Copy path · ${escapeHtml(session.file)}">${chromeIcons.file}<span class="menu-file-text"><span class="path-head">${escapeHtml(pathHead)}</span><span class="path-tail">${escapeHtml(pathTail)}</span></span><span class="copy-hint" id="copyHint"><span class="icon-copy">${chromeIcons.copy}</span><span class="icon-check">${chromeIcons.check}</span><span id="copyHintText">Copy</span></span></button></div><div class="menu-rule"></div><button class="menu-item" id="reloadArtifact" type="button">${chromeIcons.refresh}<span>Reload artifact</span></button><button class="menu-item" id="copySnapshot" type="button">${chromeIcons.camera}<span>Copy DOM snapshot</span></button><button class="menu-item" id="exportArtifact" type="button">${chromeIcons.download}<span>Export standalone HTML</span></button><button class="menu-item" id="shareArtifact" type="button">${chromeIcons.globe}<span>Publish link</span></button><div class="menu-rule"></div><button class="menu-item danger" id="end" type="button">${chromeIcons.exit}<span>End session</span></button></div></div></div>
-<div class="layout"><div class="frame"><iframe id="artifact" sandbox="allow-scripts allow-forms allow-popups allow-downloads" data-artifact-src="/artifact/${session.key}/index.html"></iframe><div class="layout-issue-banner" id="layoutIssueBanner" hidden>This surface may have layout issues. Your agent has been notified.</div></div><aside class="panel"><h2>Conversation</h2><div class="chat" id="chatLog"></div><div class="composer"><div class="presence-banner" id="presenceBanner" hidden>Your agent is not listening. If this persists, ask your agent to poll for updates from Lavish.</div><div class="annotation-pills" id="annotationPills"></div><textarea id="chatInput" placeholder="Write a message for the agent..."></textarea><div class="actions" id="sendActions"><span class="send-hint" id="sendHint" hidden>Write a message or annotate an element first.</span><div class="split"><button class="button send-main" id="send">Send to Agent</button><button class="button send-caret" id="sendCaret" type="button" title="Send options" aria-haspopup="menu" aria-expanded="false">${chromeIcons.caret}</button></div><div class="menu send-menu" id="sendMenu" hidden><button class="menu-item" id="sendFromMenu" type="button">${chromeIcons.send}<span>Send to Agent</span></button><button class="menu-item danger" id="sendAndEnd" type="button">${chromeIcons.exit}<span>Send &amp; end session</span></button></div></div></div></aside></div>
-<div class="share-overlay" id="shareDialog" role="dialog" aria-modal="true" aria-labelledby="shareTitleText" hidden><form class="share-card" id="shareForm"><div class="share-head"><div><div class="share-kicker">Publish to <a class="share-link" href="https://ht-ml.app" target="_blank" rel="noopener noreferrer">ht-ml.app</a></div><h2 id="shareTitleText">Publish artifact</h2></div><button class="share-close" id="shareClose" type="button" aria-label="Close publish dialog"><svg width="14" height="14" viewBox="0 0 10 10" fill="none" aria-hidden="true" focusable="false"><path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div><p class="share-note">ht-ml.app is a separate, third-party hosting service, not part of Lavish. Publishing sends this artifact to its servers.</p><p class="share-copy">This uploads this artifact to ht-ml.app with local assets inlined. Without a password, the page is PUBLIC and anyone with the link can open it. With a password, the page is PRIVATE and viewers must supply the password to view.</p><p class="share-note">Do not publish secrets. The Lavish annotation SDK is not included.</p><div class="share-grid"><label>Password (optional)<input id="sharePassword" name="password" type="password" autocomplete="new-password" placeholder="Leave blank for a public page"></label></div><div class="share-status" id="shareStatus" role="status"></div><div class="share-result" id="shareResult" hidden><label>Share URL<div class="share-copy-row"><input id="shareUrl" readonly><button class="share-copy-btn" id="copyShareUrl" type="button">Copy URL</button></div></label><label>Update key (secret)<div class="share-copy-row"><input id="shareUpdateKey" readonly><button class="share-copy-btn" id="copyUpdateKey" type="button">Copy key</button></div></label><p class="share-note">Keep the update key private. ht-ml.app returns it once and it is the only way to update or delete this page later.</p></div><div class="share-actions"><button class="share-cancel" id="shareCancel" type="button">Cancel</button><button class="button" id="sharePublish" type="submit">Publish</button></div></form></div>
-<div class="ended-overlay layout-gate-overlay" id="layoutGateOverlay"${layoutGateHidden}><div class="ended-card"><div class="ended-title" id="layoutGateTitle">Checking layout.<br>One moment.</div><p class="ended-copy" id="layoutGateCopy">Lavish is waiting for fonts and final geometry before revealing this artifact.</p><button class="button ended-action" id="layoutGateAction" type="button">Show anyway</button></div></div>
+<div class="bar"><div class="brand"><span class="brand-mark">Atelier</span><span class="brand-support">Editor</span></div><div class="spacer" aria-hidden="true"></div><button class="annotate-switch" id="annotation" type="button" aria-pressed="true"><span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span><span>Annotate</span></button><div class="more-wrap" id="moreWrap"><button class="more-button" id="moreButton" type="button" title="More" aria-haspopup="menu" aria-expanded="false">${chromeIcons.more}</button><div class="menu more-menu" id="moreMenu" hidden><div class="menu-head"><div class="menu-label">Editing</div><button class="menu-file" id="copyPath" type="button" title="Copy path · ${escapeHtml(session.file)}">${chromeIcons.file}<span class="menu-file-text"><span class="path-head">${escapeHtml(pathHead)}</span><span class="path-tail">${escapeHtml(pathTail)}</span></span><span class="copy-hint" id="copyHint"><span class="icon-copy">${chromeIcons.copy}</span><span class="icon-check">${chromeIcons.check}</span><span id="copyHintText">Copy</span></span></button></div><div class="menu-rule"></div><button class="menu-item" id="reloadArtifact" type="button">${chromeIcons.refresh}<span>Reload artifact</span></button><button class="menu-item" id="copySnapshot" type="button">${chromeIcons.camera}<span>Copy DOM snapshot</span></button><button class="menu-item" id="exportArtifact" type="button">${chromeIcons.download}<span>Export standalone HTML</span></button><button class="menu-item" id="shareArtifact" type="button">${chromeIcons.globe}<span>Publish link</span></button><div class="menu-rule"></div><button class="menu-item danger" id="end" type="button">${chromeIcons.exit}<span>End session</span></button></div></div></div>
+<div class="layout"><div class="frame"><iframe id="artifact" sandbox="allow-scripts allow-forms allow-popups allow-downloads" data-artifact-src="/artifact/${session.key}/index.html"></iframe><div class="layout-issue-banner" id="layoutIssueBanner" hidden>This surface may have layout issues. Your agent has been notified.</div></div><aside class="panel"><h2>Conversation</h2><div class="chat" id="chatLog"></div><div class="composer"><div class="presence-banner" id="presenceBanner" hidden>Your agent is not listening. If this persists, ask your agent to poll for updates from Atelier.</div><div class="annotation-pills" id="annotationPills"></div><textarea id="chatInput" placeholder="Write a message for the agent..."></textarea><div class="actions" id="sendActions"><span class="send-hint" id="sendHint" hidden>Write a message or annotate an element first.</span><div class="split"><button class="button send-main" id="send">Send to Agent</button><button class="button send-caret" id="sendCaret" type="button" title="Send options" aria-haspopup="menu" aria-expanded="false">${chromeIcons.caret}</button></div><div class="menu send-menu" id="sendMenu" hidden><button class="menu-item" id="sendFromMenu" type="button">${chromeIcons.send}<span>Send to Agent</span></button><button class="menu-item danger" id="sendAndEnd" type="button">${chromeIcons.exit}<span>Send &amp; end session</span></button></div></div></div></aside></div>
+<div class="share-overlay" id="shareDialog" role="dialog" aria-modal="true" aria-labelledby="shareTitleText" hidden><form class="share-card" id="shareForm"><div class="share-head"><div><div class="share-kicker">Publish to <a class="share-link" href="https://ht-ml.app" target="_blank" rel="noopener noreferrer">ht-ml.app</a></div><h2 id="shareTitleText">Publish artifact</h2></div><button class="share-close" id="shareClose" type="button" aria-label="Close publish dialog"><svg width="14" height="14" viewBox="0 0 10 10" fill="none" aria-hidden="true" focusable="false"><path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div><p class="share-note">ht-ml.app is a separate, third-party hosting service, not part of Atelier. Publishing sends this artifact to its servers.</p><p class="share-copy">This uploads this artifact to ht-ml.app with local assets inlined. Without a password, the page is PUBLIC and anyone with the link can open it. With a password, the page is PRIVATE and viewers must supply the password to view.</p><p class="share-note">Do not publish secrets. The Atelier annotation SDK is not included.</p><div class="share-grid"><label>Password (optional)<input id="sharePassword" name="password" type="password" autocomplete="new-password" placeholder="Leave blank for a public page"></label></div><div class="share-status" id="shareStatus" role="status"></div><div class="share-result" id="shareResult" hidden><label>Share URL<div class="share-copy-row"><input id="shareUrl" readonly><button class="share-copy-btn" id="copyShareUrl" type="button">Copy URL</button></div></label><label>Update key (secret)<div class="share-copy-row"><input id="shareUpdateKey" readonly><button class="share-copy-btn" id="copyUpdateKey" type="button">Copy key</button></div></label><p class="share-note">Keep the update key private. ht-ml.app returns it once and it is the only way to update or delete this page later.</p></div><div class="share-actions"><button class="share-cancel" id="shareCancel" type="button">Cancel</button><button class="button" id="sharePublish" type="submit">Publish</button></div></form></div>
+<div class="ended-overlay layout-gate-overlay" id="layoutGateOverlay"${layoutGateHidden}><div class="ended-card"><div class="ended-title" id="layoutGateTitle">Checking layout.<br>One moment.</div><p class="ended-copy" id="layoutGateCopy">Atelier is waiting for fonts and final geometry before revealing this artifact.</p><button class="button ended-action" id="layoutGateAction" type="button">Show anyway</button></div></div>
 <div class="ended-overlay" id="endedOverlay" hidden><div class="ended-card"><div class="ended-title">Session ended.<br>Return to your agent to continue.</div><p class="ended-copy">${escapeHtml(session.file)}</p></div></div>
-<script id="lavish-session" type="application/json">${sessionJson}</script>
+<script id="atelier-session" type="application/json">${sessionJson}</script>
 <script src="/chrome-client.js"></script>
 </body>
 </html>`;
@@ -881,7 +881,7 @@ export function createSdkJs(key) {
   return `(() => {
 const key=${JSON.stringify(key)};
 void key;
-const deriveQueueKey=${deriveLavishQueueKey.toString()};
+const deriveQueueKey=${deriveAtelierQueueKey.toString()};
 const isNativeInteractiveControl=${isNativeInteractiveControl.toString()};
 const fragmentsSignificantlyOverlap=${fragmentsSignificantlyOverlap.toString()};
 const resolveVisibleSpillCandidates=${resolveVisibleSpillCandidates.toString()};

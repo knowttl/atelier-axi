@@ -1,5 +1,5 @@
 // Hosted sharing transport: publish a self-contained HTML page to ht-ml.app
-// (https://ht-ml.app), a third-party hosting service not part of Lavish, and return a visitable
+// (https://ht-ml.app), a third-party hosting service not part of Atelier, and return a visitable
 // share URL. Creation needs no account or API key - `POST /v1/sites` sends the HTML to
 // ht-ml.app's servers with an optional password, then returns a `url` plus a secret
 // `update_key` (the only credential, returned once, used later to update or delete the page).
@@ -10,7 +10,7 @@ const DEFAULT_API_URL = "https://api.ht-ml.app";
 const PUBLISH_TIMEOUT_MS = 30_000;
 
 export function htmlAppApiUrl(env = process.env) {
-  return String(env.LAVISH_AXI_HTML_APP_API_URL || DEFAULT_API_URL).replace(/\/+$/, "");
+  return String(env.ATELIER_AXI_HTML_APP_API_URL || DEFAULT_API_URL).replace(/\/+$/, "");
 }
 
 export function createHtmlAppPayload(html, options = {}) {
@@ -26,7 +26,7 @@ export function createHtmlAppPayload(html, options = {}) {
  * @param {object} [options]
  * @param {string} [options.password] Make the site private behind this password.
  * @param {string} [options.token] Optional bearer token (never required to create a site).
- * @param {string} [options.apiUrl] Override the API base (defaults to LAVISH_AXI_HTML_APP_API_URL or ht-ml.app).
+ * @param {string} [options.apiUrl] Override the API base (defaults to ATELIER_AXI_HTML_APP_API_URL or ht-ml.app).
  * @param {typeof fetch} [options.fetch] Injected fetch for testing.
  * @param {NodeJS.ProcessEnv} [options.env]
  * @param {number} [options.timeoutMs]
@@ -36,9 +36,9 @@ export async function publishToHtmlApp(html, options = {}) {
   const env = options.env || process.env;
   const apiUrl = (options.apiUrl ? String(options.apiUrl).replace(/\/+$/, "") : "") || htmlAppApiUrl(env);
   const fetchImpl = options.fetch || fetch;
-  const token = optionalString(options.token ?? env.LAVISH_AXI_HTML_APP_TOKEN);
+  const token = optionalString(options.token ?? env.ATELIER_AXI_HTML_APP_TOKEN);
 
-  const headers = { "content-type": "application/json", "user-agent": "lavish-axi" };
+  const headers = { "content-type": "application/json", "user-agent": "atelier-axi" };
   if (token) headers.authorization = `Bearer ${token}`;
 
   const controller = new AbortController();

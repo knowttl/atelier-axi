@@ -29,8 +29,8 @@ export const PLAYBOOKS = [
       "Do not let default diagram colors clash with the page palette or dark mode.",
       "Do not present unverified architecture claims as facts. Cite the files or commands that support them.",
     ],
-    lavish_notes: [
-      "A Lavish diagram should invite precise annotation: make modules, edges, and captions easy to click and discuss.",
+    atelier_notes: [
+      "A Atelier diagram should invite precise annotation: make modules, edges, and captions easy to click and discuss.",
       "When a relationship is uncertain, label it as a question so the user can resolve it in the review loop.",
     ],
   },
@@ -57,8 +57,8 @@ export const PLAYBOOKS = [
       "Do not hide the important conclusion below a large undifferentiated grid.",
       "Do not use color as the only status signal.",
     ],
-    lavish_notes: [
-      "A Lavish table should make individual rows easy annotation targets.",
+    atelier_notes: [
+      "A Atelier table should make individual rows easy annotation targets.",
       "If a row implies a follow-up change, include an action control that queues a specific prompt.",
     ],
   },
@@ -85,8 +85,8 @@ export const PLAYBOOKS = [
       "Do not compare vague summaries when concrete examples are available.",
       "Do not bury assumptions that would change the recommendation.",
     ],
-    lavish_notes: [
-      "A Lavish comparison should let the user annotate the exact option or tradeoff they want changed.",
+    atelier_notes: [
+      "A Atelier comparison should let the user annotate the exact option or tradeoff they want changed.",
       "If the goal is selection, provide controls that queue the chosen option with rationale.",
     ],
   },
@@ -109,16 +109,16 @@ export const PLAYBOOKS = [
     ],
     design_rules: [
       "Verify each claim against the codebase before presenting it as fact.",
-      `Render each open question, edge case, and design option as a self-contained decision card: a plain-English problem statement, a highlighted recommendation, and a short concrete example, plus Accept/Defer controls that queue exactly one prompt for the decision. Restyle the card to the subject project's design system (or DaisyUI via \`lavish-axi design\`). Reusable template:
+      `Render each open question, edge case, and design option as a self-contained decision card: a plain-English problem statement, a highlighted recommendation, and a short concrete example, plus Accept/Defer controls that queue exactly one prompt for the decision. Restyle the card to the subject project's design system (or DaisyUI via \`atelier-axi design\`). Reusable template:
 \`\`\`html
-<!-- Decision card: ONE open question / edge case / option. Give each card a UNIQUE data-lavish-question (a kebab slug of its question); cards sharing a key overwrite each other's queued prompt. Restyle to the subject project's design system. -->
-<form class="decision-card" data-lavish-question="theme-scope"
+<!-- Decision card: ONE open question / edge case / option. Give each card a UNIQUE data-atelier-question (a kebab slug of its question); cards sharing a key overwrite each other's queued prompt. Restyle to the subject project's design system. -->
+<form class="decision-card" data-atelier-question="theme-scope"
       onsubmit="event.preventDefault();
         const f = new FormData(event.currentTarget);
         const decision = f.get('decision');            // 'accept' | 'defer'
         const note = (f.get('note') || '').toString().trim();
         if (!decision) return;
-        window.lavish.queuePrompt(
+        window.atelier.queuePrompt(
           'Decision [Theme scope]: ' + decision + (note ? ' - ' + note : ''),
           { tag: 'decision', text: 'Theme scope: ' + decision, element: event.currentTarget,
             data: { question: 'theme-scope', decision, note } });">
@@ -144,10 +144,10 @@ export const PLAYBOOKS = [
       "Do not leave open questions unresolved and unlabeled: every card must end accepted or explicitly deferred, and deferred questions must be captured (as decision records) rather than dropped.",
       "Do not leave placeholders in the plan. 'TBD', 'add error handling', or 'similar to Task N' are plan failures - every task carries exact file paths and complete code.",
       "Do not present a single foregone approach or start writing the spec or plan before the user approves a direction. Offer 2-3 candidate approaches with a recommendation and converge on an approved one first.",
-      "Do not reuse one data-lavish-question across cards. Give every decision card a UNIQUE data-lavish-question (a kebab slug of its question); two cards that share the key silently overwrite each other's queued prompt in the browser, so an earlier decision is lost with no error.",
+      "Do not reuse one data-atelier-question across cards. Give every decision card a UNIQUE data-atelier-question (a kebab slug of its question); two cards that share the key silently overwrite each other's queued prompt in the browser, so an earlier decision is lost with no error.",
       "Do not leave resolved open questions in the artifact. Update the content to reflect the decision and remove the question.",
     ],
-    lavish_notes: [
+    atelier_notes: [
       "Make each question, edge case, and option an individual annotation target with its own Accept/Defer control, so the user resolves them one at a time in the review loop.",
       "Build the accept/defer and option-selection controls with the 'input' playbook pattern (native controls, one per-question submit that queues a single final prompt); use 'comparison' for option cards with tradeoffs and 'diagram' (Mermaid) for flows, architecture, state, or sequence views.",
       "A deferred card should queue a prompt clear enough to become a standalone decision to resolve before implementation.",
@@ -156,7 +156,7 @@ export const PLAYBOOKS = [
   },
   {
     id: "code",
-    use_when: "Render source code, code files, patches, PR diffs, and before/after code inside Lavish artifacts",
+    use_when: "Render source code, code files, patches, PR diffs, and before/after code inside Atelier artifacts",
     choose: [
       "Use this whenever an artifact shows source code: a snippet, full file, patch, PR diff, local change set, or before/after code.",
       "Use File for one code file, FileDiff for old/new versions or parsed patch metadata, and CodeView only when several files or diffs need coordinated navigation.",
@@ -179,11 +179,11 @@ export const PLAYBOOKS = [
   const options = { theme, themeType: "dark", overflow: "wrap" };
   const oldFile = {
     name: "src/greeting.ts",
-    contents: "export function greet(name: string) {\\n  return \\"Hello \\" + name;\\n}\\n\\nconsole.log(greet(\\"Lavish\\"));\\n",
+    contents: "export function greet(name: string) {\\n  return \\"Hello \\" + name;\\n}\\n\\nconsole.log(greet(\\"Atelier\\"));\\n",
   };
   const newFile = {
     name: "src/greeting.ts",
-    contents: "export function greet(name: string) {\\n  return \\"Hello, \\" + name + \\"!\\";\\n}\\n\\nconsole.log(greet(\\"Lavish\\"));\\n",
+    contents: "export function greet(name: string) {\\n  return \\"Hello, \\" + name + \\"!\\";\\n}\\n\\nconsole.log(greet(\\"Atelier\\"));\\n",
   };
 
   new File(options).render({
@@ -209,8 +209,8 @@ export const PLAYBOOKS = [
       "Do not show huge unrelated files when a focused render range, parsed patch file, or grouped summary would be clearer.",
       "Do not separate a claim from the code lines that prove it.",
     ],
-    lavish_notes: [
-      "A Lavish code artifact should make each file, hunk, and relevant line easy to annotate precisely.",
+    atelier_notes: [
+      "A Atelier code artifact should make each file, hunk, and relevant line easy to annotate precisely.",
       "When a user action should trigger a fix, queue prompts that name the file path, line range, and desired change.",
       "If the artifact combines code with a plan, table, or comparison, read those playbooks too and keep @pierre/diffs responsible for the code surface.",
     ],
@@ -231,13 +231,13 @@ export const PLAYBOOKS = [
       "Show selected state separately from queued state so the user trusts what will be sent back.",
     ],
     design_rules: [
-      "Native controls - radios, checkboxes, text inputs, selects, textareas, buttons, options, labels, disclosure summaries, and contenteditable regions - are interactive automatically: clicks toggle, focus, and type instead of annotating, so they do not need data-lavish-action. Build choice and option UIs from these whenever you can.",
-      "For reversible choices, do not call window.lavish.queuePrompt() from radio change handlers or option click handlers. Those handlers should only update local selected state.",
-      "Use a per-question form submit or explicit Queue answer button to read the current values and call window.lavish.queuePrompt() exactly once for the final answer.",
-      "Put data-lavish-action only on custom (non-native) elements that should act like a feedback control - typically a styled div or span you made clickable - so Lavish does not annotate it and shows a pointer cursor instead.",
-      "Use data-lavish-question on a question wrapper or pass queueKey when multiple pre-send updates should replace the prior unsent answer for the same question.",
+      "Native controls - radios, checkboxes, text inputs, selects, textareas, buttons, options, labels, disclosure summaries, and contenteditable regions - are interactive automatically: clicks toggle, focus, and type instead of annotating, so they do not need data-atelier-action. Build choice and option UIs from these whenever you can.",
+      "For reversible choices, do not call window.atelier.queuePrompt() from radio change handlers or option click handlers. Those handlers should only update local selected state.",
+      "Use a per-question form submit or explicit Queue answer button to read the current values and call window.atelier.queuePrompt() exactly once for the final answer.",
+      "Put data-atelier-action only on custom (non-native) elements that should act like a feedback control - typically a styled div or span you made clickable - so Atelier does not annotate it and shows a pointer cursor instead.",
+      "Use data-atelier-question on a question wrapper or pass queueKey when multiple pre-send updates should replace the prior unsent answer for the same question.",
       "Pass options such as tag, text, selector, target, data, queueKey, or element when they help the agent understand exactly what the user chose.",
-      "Call window.lavish.sendQueuedPrompts() only when the control should immediately send committed feedback instead of waiting for the user to press Send to Agent.",
+      "Call window.atelier.sendQueuedPrompts() only when the control should immediately send committed feedback instead of waiting for the user to press Send to Agent.",
       "Make queued prompts specific enough that the agent can act without asking a follow-up question.",
       "Keep native browser controls accessible and readable on mobile.",
     ],
@@ -247,11 +247,11 @@ export const PLAYBOOKS = [
       "Do not hide the difference between selected locally and queued for the agent.",
       "Do not require interaction for content the user only needs to read.",
     ],
-    lavish_notes: [
-      "Lavish is strongest when the artifact becomes a focused review surface and not just a static page.",
-      'A native single-choice question should submit the final value: `<form data-lavish-question="plan" onsubmit="event.preventDefault(); const choice = new FormData(event.currentTarget).get(\'plan\'); if (choice) window.lavish.queuePrompt(\'Use the \' + choice + \' plan\', { tag: \'choice\', text: \'Plan: \' + choice, element: event.currentTarget, data: { question: \'plan\', answer: choice } });"><label><input type="radio" name="plan" value="Starter"> Starter</label><label><input type="radio" name="plan" value="Pro"> Pro</label><button type="submit">Queue this answer</button></form>`.',
-      "A custom choice UI should make option buttons update local state, then use a separate Queue answer button with data-lavish-action to queue the final selected value.",
-      "Use window.lavish.queuePrompt for user intent, not internal analytics or UI-only state changes.",
+    atelier_notes: [
+      "Atelier is strongest when the artifact becomes a focused review surface and not just a static page.",
+      'A native single-choice question should submit the final value: `<form data-atelier-question="plan" onsubmit="event.preventDefault(); const choice = new FormData(event.currentTarget).get(\'plan\'); if (choice) window.atelier.queuePrompt(\'Use the \' + choice + \' plan\', { tag: \'choice\', text: \'Plan: \' + choice, element: event.currentTarget, data: { question: \'plan\', answer: choice } });"><label><input type="radio" name="plan" value="Starter"> Starter</label><label><input type="radio" name="plan" value="Pro"> Pro</label><button type="submit">Queue this answer</button></form>`.',
+      "A custom choice UI should make option buttons update local state, then use a separate Queue answer button with data-atelier-action to queue the final selected value.",
+      "Use window.atelier.queuePrompt for user intent, not internal analytics or UI-only state changes.",
       "End input paths with an obvious way for the user to send feedback back to the agent.",
     ],
   },
@@ -278,8 +278,8 @@ export const PLAYBOOKS = [
       "Do not paste a scroll-page outline into fixed-size frames without rewriting the narrative.",
       "Do not make consecutive slides with the same spatial composition unless repetition is the point.",
     ],
-    lavish_notes: [
-      "A Lavish slide deck can still collect feedback, but each prompt should refer to a slide or decision.",
+    atelier_notes: [
+      "A Atelier slide deck can still collect feedback, but each prompt should refer to a slide or decision.",
       "Use slides for persuasion or presentation, not for dense code review.",
     ],
   },

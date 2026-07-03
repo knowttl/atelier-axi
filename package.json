@@ -1,18 +1,18 @@
 {
-  "name": "lavish-axi",
+  "name": "atelier-axi",
   "version": "0.1.35",
   "packageManager": "pnpm@11.1.1",
-  "description": "HTML is the new markdown. Lavish is the new editor for your HTML artifacts.",
+  "description": "HTML is the new markdown. Atelier is the new editor for your HTML artifacts.",
   "type": "module",
   "bin": {
-    "lavish-axi": "dist/cli.mjs"
+    "atelier-axi": "dist/cli.mjs"
   },
   "files": [
     "dist",
-    "skills/lavish",
-    "skills/lavish-plan",
-    "skills/lavish-implement",
-    "lavish-editor-marketing/renders/lavish-editor-marketing.gif",
+    "skills/atelier",
+    "skills/atelier-plan",
+    "skills/atelier-implement",
+    "atelier-editor-marketing/renders/atelier-editor-marketing.gif",
     "LICENSE",
     "README.md"
   ],
@@ -60,12 +60,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kunchenguid/lavish-axi.git"
+    "url": "git+https://github.com/knowttl/atelier-axi.git"
   },
   "bugs": {
-    "url": "https://github.com/kunchenguid/lavish-axi/issues"
+    "url": "https://github.com/knowttl/atelier-axi/issues"
   },
-  "homepage": "https://github.com/kunchenguid/lavish-axi#readme",
+  "homepage": "https://github.com/knowttl/atelier-axi#readme",
   "publishConfig": {
     "access": "public"
   }

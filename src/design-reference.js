@@ -42,7 +42,7 @@ export const LAYOUT_SAFETY_CSS_SNIPPET = `<style>
 </style>`;
 
 export const DESIGN_SYSTEM_HINT =
-  "Lavish does not auto-inject any design system - artifacts stay portable so they render identically when opened directly without lavish-axi running. Before writing any HTML, decide the design direction in this strict priority order, and only move to the next step when the current one truly yields nothing: (1) if the user asked for a specific look or named design system, use that; (2) otherwise you must first inspect the project the artifact is about - the subject or product whose content or UI it represents, which may differ from your current working directory - and match that project's design system: Tailwind or theme config, shared CSS variables or design tokens, component library, brand assets, or existing styled pages. If the artifact previews, proposes, or mocks a specific app's UI, render it in that app's own design system so it faithfully shows the product, even when you are running in a different repo; (3) only when both steps come up empty, use the Lavish-recommended Tailwind CSS browser runtime v4 + DaisyUI v5, available via CDN - run `lavish-axi design` for a content-to-playbook router, a copy-pasteable CDN snippet, a Mermaid CDN snippet/init for diagrams, and the DaisyUI component reference, and prefer the Tailwind/DaisyUI CDN snippet over hand-writing styles unless explicitly instructed otherwise by the user. When you deliver the artifact, state which of the three design sources you used and why.";
+  "Atelier does not auto-inject any design system - artifacts stay portable so they render identically when opened directly without atelier-axi running. Before writing any HTML, decide the design direction in this strict priority order, and only move to the next step when the current one truly yields nothing: (1) if the user asked for a specific look or named design system, use that; (2) otherwise you must first inspect the project the artifact is about - the subject or product whose content or UI it represents, which may differ from your current working directory - and match that project's design system: Tailwind or theme config, shared CSS variables or design tokens, component library, brand assets, or existing styled pages. If the artifact previews, proposes, or mocks a specific app's UI, render it in that app's own design system so it faithfully shows the product, even when you are running in a different repo; (3) only when both steps come up empty, use the Atelier-recommended Tailwind CSS browser runtime v4 + DaisyUI v5, available via CDN - run `atelier-axi design` for a content-to-playbook router, a copy-pasteable CDN snippet, a Mermaid CDN snippet/init for diagrams, and the DaisyUI component reference, and prefer the Tailwind/DaisyUI CDN snippet over hand-writing styles unless explicitly instructed otherwise by the user. When you deliver the artifact, state which of the three design sources you used and why.";
 
 export const DAISYUI_THEMES = [
   "light",
@@ -92,7 +92,7 @@ export function createDesignOutput() {
     },
     design: {
       summary:
-        "Use this Lavish CDN fallback only if (1) the user gave no design direction and (2) you already inspected the project the artifact is about - the subject or product whose content or UI it represents, which may differ from your current working directory - and found no design system or style conventions to match. If you have not checked the subject project yet, check first. Lavish does not auto-inject any design system; artifacts stay portable HTML. The strict priority order is: (1) a look or named design system the user asked for; (2) the subject project's design system or style conventions - look for a Tailwind or theme config, shared CSS variables or design tokens, a component library, brand assets, or existing styled pages. If the artifact previews, proposes, or mocks a specific app's UI, render it in that app's own design system so it faithfully shows the product, even when you are running in a different repo; (3) this Tailwind CSS browser runtime v4 + DaisyUI v5 + themes snippet - paste the CDN snippet below into your `<head>` and prefer the CDN snippet over hand-writing styles unless explicitly instructed otherwise by the user.",
+        "Use this Atelier CDN fallback only if (1) the user gave no design direction and (2) you already inspected the project the artifact is about - the subject or product whose content or UI it represents, which may differ from your current working directory - and found no design system or style conventions to match. If you have not checked the subject project yet, check first. Atelier does not auto-inject any design system; artifacts stay portable HTML. The strict priority order is: (1) a look or named design system the user asked for; (2) the subject project's design system or style conventions - look for a Tailwind or theme config, shared CSS variables or design tokens, a component library, brand assets, or existing styled pages. If the artifact previews, proposes, or mocks a specific app's UI, render it in that app's own design system so it faithfully shows the product, even when you are running in a different repo; (3) this Tailwind CSS browser runtime v4 + DaisyUI v5 + themes snippet - paste the CDN snippet below into your `<head>` and prefer the CDN snippet over hand-writing styles unless explicitly instructed otherwise by the user.",
       cdn_snippet: DESIGN_CDN_SNIPPET,
       cdn_urls: DESIGN_CDN_URLS,
       versions: { tailwind: TAILWIND_BROWSER_VERSION, daisyui: DAISYUI_VERSION },
@@ -101,9 +101,9 @@ export function createDesignOutput() {
         "Use this command for common syntax. Read the latest DaisyUI docs for full details when using advanced or unfamiliar components.",
       layout_safety_snippet: LAYOUT_SAFETY_CSS_SNIPPET,
       layout_safety_note:
-        "Optional copy-paste CSS for artifacts with dense nested grid/flex layouts, badges, wide monospace or pixel fonts, or local media. Paste it into the artifact yourself when useful. Lavish never auto-injects it, so direct-open portability stays intact.",
+        "Optional copy-paste CSS for artifacts with dense nested grid/flex layouts, badges, wide monospace or pixel fonts, or local media. Paste it into the artifact yourself when useful. Atelier never auto-injects it, so direct-open portability stays intact.",
       other_design_systems:
-        "If the user asks for a different design system (Bootstrap, custom CSS, plain HTML, etc.), use that instead - Lavish does not require DaisyUI.",
+        "If the user asks for a different design system (Bootstrap, custom CSS, plain HTML, etc.), use that instead - Atelier does not require DaisyUI.",
     },
     diagram_tooling: {
       use_when:
@@ -113,7 +113,7 @@ export function createDesignOutput() {
       versions: { mermaid: MERMAID_VERSION },
     },
     theme_usage: [
-      'Default to `<html data-theme="luxury">` - it matches the Lavish look. Pick a different theme from the list below only when the user asked for one or the content clearly calls for it.',
+      'Default to `<html data-theme="luxury">` - it matches the Atelier look. Pick a different theme from the list below only when the user asked for one or the content clearly calls for it.',
       'Set a nested section theme with `<section data-theme="night">`.',
       "Prefer semantic colors such as `bg-base-100`, `bg-base-200`, `text-base-content`, `bg-primary`, `text-primary-content`, `alert-warning`, and `btn-primary` so themes remain readable.",
       "Avoid hardcoded Tailwind color names for text and surfaces unless the user asked for exact colors.",

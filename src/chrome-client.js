@@ -1,11 +1,11 @@
 /* global EventSource, document, location, window */
 
-const sessionDataElement = document.getElementById("lavish-session");
+const sessionDataElement = document.getElementById("atelier-session");
 const sessionData = JSON.parse(sessionDataElement?.textContent || "{}");
 const key = String(sessionData.key || "");
 const filePath = String(sessionData.file || "");
-const queueStorageKey = "lavish-axi:queued:" + key;
-const internalQueueKeyField = "_lavishQueueKey";
+const queueStorageKey = "atelier-axi:queued:" + key;
+const internalQueueKeyField = "_atelierQueueKey";
 const initialChat = Array.isArray(sessionData.initialChat) ? sessionData.initialChat : [];
 
 const frame = /** @type {HTMLIFrameElement} */ (document.getElementById("artifact"));
@@ -281,7 +281,7 @@ function postToFrame(message) {
 
 function requestSnapshot(action) {
   snapshotRequests.push(action);
-  postToFrame({ type: "lavish:requestSnapshot" });
+  postToFrame({ type: "atelier:requestSnapshot" });
 }
 
 function sendQueued(endAfter) {
@@ -394,7 +394,7 @@ function setLayoutGateCard(state) {
   }
 
   layoutGateTitle.innerHTML = "Checking layout.<br>One moment.";
-  layoutGateCopy.textContent = "Lavish is waiting for fonts and final geometry before revealing this artifact.";
+  layoutGateCopy.textContent = "Atelier is waiting for fonts and final geometry before revealing this artifact.";
 }
 
 function setLayoutGateActive(active) {
@@ -415,7 +415,7 @@ function forceRevealLayoutGate(reason) {
   if (reason === "manual") layoutGateManuallyBypassed = true;
   const bannerText =
     reason === "timeout"
-      ? "This surface may have layout issues. Lavish revealed it after the safety timeout so review is never blocked."
+      ? "This surface may have layout issues. Atelier revealed it after the safety timeout so review is never blocked."
       : "This surface may have layout issues. You chose to show it before the layout check passed.";
   revealLayoutGate({ showBanner: true, bannerText });
 }
@@ -498,7 +498,7 @@ function markSessionEnded() {
   if (presenceBanner) presenceBanner.hidden = true;
   layoutGateManuallyBypassed = true;
   revealLayoutGate();
-  postToFrame({ type: "lavish:setAnnotationMode", enabled: false });
+  postToFrame({ type: "atelier:setAnnotationMode", enabled: false });
   endedOverlay.hidden = false;
 }
 
@@ -552,8 +552,8 @@ async function exportArtifact() {
   try {
     const response = await fetch("/api/" + key + "/export");
     if (!response.ok) throw new Error("export failed");
-    const warningCount = Number(response.headers.get("x-lavish-export-warning-count") || "0");
-    const noticeCount = Number(response.headers.get("x-lavish-export-notice-count") || "0");
+    const warningCount = Number(response.headers.get("x-atelier-export-warning-count") || "0");
+    const noticeCount = Number(response.headers.get("x-atelier-export-notice-count") || "0");
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -680,10 +680,10 @@ window.addEventListener("message", (event) => {
   if (event.source !== frame.contentWindow) return;
 
   const msg = event.data || {};
-  if (msg.type === "lavish:queuePrompt") {
+  if (msg.type === "atelier:queuePrompt") {
     enqueuePrompt(msg.prompt);
   }
-  if (msg.type === "lavish:snapshot") {
+  if (msg.type === "atelier:snapshot") {
     const snapshotAction = snapshotRequests.shift() || "submit";
     if (snapshotAction === "copy") {
       copyText(msg.snapshot || "");
@@ -692,15 +692,15 @@ window.addEventListener("message", (event) => {
       submitQueued();
     }
   }
-  if (msg.type === "lavish:scroll") {
+  if (msg.type === "atelier:scroll") {
     lastScroll = { x: Number(msg.x) || 0, y: Number(msg.y) || 0 };
   }
-  if (msg.type === "lavish:layoutWarnings") {
+  if (msg.type === "atelier:layoutWarnings") {
     handleLayoutWarningsForGate(msg.layout_warnings);
     submitLayoutWarnings(msg.layout_warnings).catch(() => {});
   }
-  if (msg.type === "lavish:sendQueuedPrompts") sendQueued();
-  if (msg.type === "lavish:endSession") endSession();
+  if (msg.type === "atelier:sendQueuedPrompts") sendQueued();
+  if (msg.type === "atelier:endSession") endSession();
 });
 
 loadFrame();
@@ -708,7 +708,7 @@ loadFrame();
 annotationSwitch.onclick = () => {
   annotation = !annotation;
   annotationSwitch.setAttribute("aria-pressed", String(annotation));
-  postToFrame({ type: "lavish:setAnnotationMode", enabled: annotation });
+  postToFrame({ type: "atelier:setAnnotationMode", enabled: annotation });
 };
 
 sendButton.onclick = () => sendQueued(false);
@@ -755,9 +755,9 @@ document.addEventListener("keydown", (event) => {
   }
 });
 frame.addEventListener("load", () => {
-  postToFrame({ type: "lavish:setAnnotationMode", enabled: annotation && !ended });
+  postToFrame({ type: "atelier:setAnnotationMode", enabled: annotation && !ended });
   // Replay the pre-reload scroll position so hot reloads don't jump the artifact to the top.
-  postToFrame({ type: "lavish:restoreScroll", x: lastScroll.x, y: lastScroll.y });
+  postToFrame({ type: "atelier:restoreScroll", x: lastScroll.x, y: lastScroll.y });
 });
 
 initializeLayoutGate();

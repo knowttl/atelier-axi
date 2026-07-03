@@ -48,7 +48,7 @@ import { serve } from "../src/server.js";
 function setupHooksEnv(homeDir, stateDir) {
   // eslint-disable-next-line no-unused-vars
   const { COPILOT_HOME, ...env } = process.env;
-  return { ...env, HOME: homeDir, LAVISH_AXI_STATE_DIR: stateDir };
+  return { ...env, HOME: homeDir, ATELIER_AXI_STATE_DIR: stateDir };
 }
 
 test("CLI version tracks package.json so release-please bumps reach the published binary", async () => {
@@ -56,13 +56,13 @@ test("CLI version tracks package.json so release-please bumps reach the publishe
   assert.equal(VERSION, packageJson.version);
 });
 
-test("home output teaches agents when and how to use Lavish Editor", () => {
-  const output = createHomeOutput({ bin: `${os.homedir()}/.local/bin/lavish-axi`, sessions: [] });
+test("home output teaches agents when and how to use Atelier Editor", () => {
+  const output = createHomeOutput({ bin: `${os.homedir()}/.local/bin/atelier-axi`, sessions: [] });
 
-  assert.equal(output.bin, "~/.local/bin/lavish-axi");
-  assert.match(output.description, /Lavish Editor/);
+  assert.equal(output.bin, "~/.local/bin/atelier-axi");
+  assert.match(output.description, /Atelier Editor/);
   assert.match(output.description, /complex response/);
-  assert.match(output.description, /consider using Lavish Editor/);
+  assert.match(output.description, /consider using Atelier Editor/);
   assert.match(output.description, /First generate an interactive HTML artifact/);
   assert.deepEqual(output.sessions, []);
   assert.equal("use_cases" in output, false);
@@ -84,9 +84,9 @@ test("home output teaches agents when and how to use Lavish Editor", () => {
     output.playbooks.find((item) => item.id === "input")?.use_when,
     "Must be used when the agent needs to collect user input on decisions, choices, preferences, triage, scope, or other structured feedback from within the artifact",
   );
-  assert.ok(output.help.some((item) => item.includes("lavish-axi <html-file>")));
-  assert.ok(output.help.some((item) => item.includes("`.lavish/`")));
-  assert.ok(output.help.some((item) => item.includes("lavish-axi playbook <playbook_id>")));
+  assert.ok(output.help.some((item) => item.includes("atelier-axi <html-file>")));
+  assert.ok(output.help.some((item) => item.includes("`.atelier/`")));
+  assert.ok(output.help.some((item) => item.includes("atelier-axi playbook <playbook_id>")));
   assert.ok(output.help.some((item) => item.includes("combines several playbooks")));
   assert.ok(output.help.some((item) => item.includes("MUST open each matching playbook")));
   assert.ok(output.help.some((item) => item.includes("reference other filesystem assets")));
@@ -94,7 +94,7 @@ test("home output teaches agents when and how to use Lavish Editor", () => {
   assert.ok(output.help.some((item) => item.includes("does not auto-inject")));
   assert.ok(output.help.some((item) => item.includes("portable")));
   assert.ok(output.help.some((item) => item.includes("Tailwind CSS browser runtime v4")));
-  assert.ok(output.help.some((item) => item.includes("lavish-axi design")));
+  assert.ok(output.help.some((item) => item.includes("atelier-axi design")));
   assert.ok(output.help.some((item) => /prefer.*CDN snippet.*hand-writing styles/i.test(item)));
   assert.ok(output.help.some((item) => /unless.*explicitly instructed/i.test(item)));
   assert.ok(output.help.some((item) => /priority order/i.test(item)));
@@ -109,15 +109,15 @@ test("home output teaches agents when and how to use Lavish Editor", () => {
   assert.ok(output.help.some((item) => /only when both steps come up empty/i.test(item)));
   assert.ok(output.help.some((item) => /state which of the three design sources/i.test(item)));
   assert.ok(!output.help.some((item) => /inspect the current project/i.test(item)));
-  assert.ok(!output.help.some((item) => item.includes('<meta name="lavish-design" content="off">')));
+  assert.ok(!output.help.some((item) => item.includes('<meta name="atelier-design" content="off">')));
   assert.ok(!output.help.some((item) => item.includes("Known IDs")));
   assert.ok(output.help.some((item) => item.includes("technical plan")));
-  assert.ok(output.help.some((item) => item.includes("lavish-axi playbook plan")));
+  assert.ok(output.help.some((item) => item.includes("atelier-axi playbook plan")));
 });
 
 test("home output warns agents that poll is a long poll they must not kill", () => {
-  const output = createHomeOutput({ bin: "lavish-axi", sessions: [] });
-  const pollHelp = output.help.find((item) => item.includes("lavish-axi poll <html-file>"));
+  const output = createHomeOutput({ bin: "atelier-axi", sessions: [] });
+  const pollHelp = output.help.find((item) => item.includes("atelier-axi poll <html-file>"));
 
   assert.ok(pollHelp, "home help mentions the poll command");
   assert.match(pollHelp, /long-poll/);
@@ -130,25 +130,25 @@ test("home output warns agents that poll is a long poll they must not kill", () 
 });
 
 test("top-level help renders static home output without dynamic sessions", async () => {
-  const stateDir = await mkdtemp(`${os.tmpdir()}/lavish-axi-help-test-`);
+  const stateDir = await mkdtemp(`${os.tmpdir()}/atelier-axi-help-test-`);
   try {
     const result = spawnSync(
       process.execPath,
-      [fileURLToPath(new URL("../bin/lavish-axi.js", import.meta.url)), "--help"],
+      [fileURLToPath(new URL("../bin/atelier-axi.js", import.meta.url)), "--help"],
       {
         cwd: fileURLToPath(new URL("..", import.meta.url)),
         encoding: "utf8",
-        env: { ...process.env, LAVISH_AXI_STATE_DIR: stateDir },
+        env: { ...process.env, ATELIER_AXI_STATE_DIR: stateDir },
       },
     );
 
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.match(result.stdout, /playbooks\[7\]/);
-    assert.match(result.stdout, /lavish-axi playbook <playbook_id>/);
+    assert.match(result.stdout, /atelier-axi playbook <playbook_id>/);
     assert.match(result.stdout, /reference other filesystem assets/);
     assert.match(result.stdout, /same directory as the HTML file/);
     assert.match(result.stdout, /Tailwind CSS browser runtime v4/);
-    assert.match(result.stdout, /lavish-axi design/);
+    assert.match(result.stdout, /atelier-axi design/);
     assert.match(result.stdout, /does not auto-inject/);
     assert.match(result.stdout, /prefer.*CDN snippet.*hand-writing styles/i);
     assert.match(result.stdout, /unless.*explicitly instructed/i);
@@ -162,7 +162,7 @@ test("top-level help renders static home output without dynamic sessions", async
     assert.match(result.stdout, /never kill it/);
     assert.match(result.stdout, /queued feedback is never lost/);
     assert.doesNotMatch(result.stdout, /above 10 minutes/);
-    assert.doesNotMatch(result.stdout, /lavish-design/);
+    assert.doesNotMatch(result.stdout, /atelier-design/);
     assert.doesNotMatch(result.stdout, /sessions\[/);
     assert.doesNotMatch(result.stdout, /Known IDs/);
   } finally {
@@ -268,7 +268,7 @@ test("playbook index output lists known playbooks with concise descriptions", ()
     "Must be used when the agent needs to collect user input on decisions, choices, preferences, triage, scope, or other structured feedback from within the artifact",
   );
   assert.ok(output.playbooks.every((playbook) => playbook.use_when.length > 20));
-  assert.ok(output.help.some((item) => item.includes("lavish-axi playbook <playbook_id>")));
+  assert.ok(output.help.some((item) => item.includes("atelier-axi playbook <playbook_id>")));
   assert.ok(output.help.some((item) => item.includes("combines several playbooks")));
   assert.ok(output.help.some((item) => item.includes("MUST open each matching playbook")));
 });
@@ -282,7 +282,7 @@ test("diagram playbook names the hand-built flow anti-pattern", () => {
   assert.ok(output.playbook.pitfalls.some((item) => /does not auto-route edges/i.test(item)));
 });
 
-test("playbook detail output returns focused Lavish-native guidance", () => {
+test("playbook detail output returns focused Atelier-native guidance", () => {
   const output = createPlaybookOutput(["input"]);
 
   assert.equal(output.playbook.id, "input");
@@ -293,14 +293,14 @@ test("playbook detail output returns focused Lavish-native guidance", () => {
   assert.ok(output.playbook.design_rules.some((item) => item.includes("queuePrompt")));
   assert.ok(output.playbook.design_rules.some((item) => item.includes("per-question form submit")));
   assert.ok(output.playbook.design_rules.some((item) => item.includes("radio change handlers")));
-  assert.ok(output.playbook.design_rules.some((item) => item.includes("data-lavish-action")));
-  assert.ok(output.playbook.design_rules.some((item) => item.includes("data-lavish-question")));
+  assert.ok(output.playbook.design_rules.some((item) => item.includes("data-atelier-action")));
+  assert.ok(output.playbook.design_rules.some((item) => item.includes("data-atelier-question")));
   assert.ok(output.playbook.design_rules.some((item) => item.includes("queueKey")));
-  assert.ok(output.playbook.lavish_notes.some((item) => item.includes("window.lavish.queuePrompt")));
-  assert.ok(output.playbook.lavish_notes.some((item) => item.includes("onsubmit")));
+  assert.ok(output.playbook.atelier_notes.some((item) => item.includes("window.atelier.queuePrompt")));
+  assert.ok(output.playbook.atelier_notes.some((item) => item.includes("onsubmit")));
   assert.ok(output.playbook.pitfalls.some((item) => item.includes("unclear")));
   assert.ok(output.playbook.pitfalls.some((item) => item.includes("radio change")));
-  assert.ok(output.playbook.lavish_notes.some((item) => item.includes("Lavish")));
+  assert.ok(output.playbook.atelier_notes.some((item) => item.includes("Atelier")));
 });
 
 test("code playbook detail output requires verified @pierre/diffs rendering", () => {
@@ -329,14 +329,14 @@ test("plan playbook detail output encodes the feature-planner arc", () => {
   assert.ok(output.playbook.structure.some((item) => item.includes("Before writing any spec")));
   assert.ok(output.playbook.structure.some((item) => item.includes("bite-sized TDD tasks")));
   assert.ok(output.playbook.design_rules.some((item) => item.includes("decision-card")));
-  assert.ok(output.playbook.design_rules.some((item) => item.includes("data-lavish-question")));
-  assert.ok(output.playbook.design_rules.some((item) => item.includes("window.lavish.queuePrompt")));
+  assert.ok(output.playbook.design_rules.some((item) => item.includes("data-atelier-question")));
+  assert.ok(output.playbook.design_rules.some((item) => item.includes("window.atelier.queuePrompt")));
   assert.ok(output.playbook.design_rules.some((item) => item.includes("subject project's design system")));
   assert.ok(output.playbook.pitfalls.some((item) => item.includes("before the review surface is confirmed")));
   assert.ok(output.playbook.pitfalls.some((item) => item.includes("TBD")));
-  assert.ok(output.playbook.lavish_notes.some((item) => item.includes("Accept/Defer")));
-  assert.ok(output.playbook.lavish_notes.some((item) => item.includes("comparison") && item.includes("diagram")));
-  assert.ok(output.playbook.pitfalls.some((item) => item.includes("UNIQUE data-lavish-question")));
+  assert.ok(output.playbook.atelier_notes.some((item) => item.includes("Accept/Defer")));
+  assert.ok(output.playbook.atelier_notes.some((item) => item.includes("comparison") && item.includes("diagram")));
+  assert.ok(output.playbook.pitfalls.some((item) => item.includes("UNIQUE data-atelier-question")));
   assert.ok(output.playbook.design_rules.some((item) => item.includes("overflow-x: auto")));
 });
 
@@ -365,8 +365,8 @@ test("plan playbook decision-card template is structurally sound", () => {
   // The inline onsubmit handler must be wired to the real SDK surface.
   assert.ok(template.includes("onsubmit="), "template has an onsubmit handler");
   assert.ok(template.includes("event.preventDefault()"), "handler prevents the native form submit");
-  assert.ok(template.includes("window.lavish.queuePrompt("), "handler queues a prompt");
-  assert.ok(template.includes("data-lavish-question="), "form carries a queue-dedup key");
+  assert.ok(template.includes("window.atelier.queuePrompt("), "handler queues a prompt");
+  assert.ok(template.includes("data-atelier-question="), "form carries a queue-dedup key");
 
   // The template lives inside a JS template literal in playbooks.js: a `${...}` would break that
   // string (or silently interpolate) and a stray backtick would end the literal early.
@@ -385,7 +385,7 @@ test("unknown playbook ids produce an actionable validation error", () => {
       assert.ok(error instanceof AxiError);
       assert.equal(error.code, "VALIDATION_ERROR");
       assert.match(error.message, /Unknown playbook/);
-      assert.ok(error.suggestions.some((item) => item.includes("lavish-axi playbook")));
+      assert.ok(error.suggestions.some((item) => item.includes("atelier-axi playbook")));
       return true;
     },
   );
@@ -393,12 +393,12 @@ test("unknown playbook ids produce an actionable validation error", () => {
 
 test("home directory collapse tolerates Windows mixed separators", () => {
   assert.equal(
-    collapseHomeDirectory("C:\\Users\\runneradmin/.local/bin/lavish-axi", "C:\\Users\\runneradmin"),
-    "~/.local/bin/lavish-axi",
+    collapseHomeDirectory("C:\\Users\\runneradmin/.local/bin/atelier-axi", "C:\\Users\\runneradmin"),
+    "~/.local/bin/atelier-axi",
   );
   assert.equal(
-    collapseHomeDirectory("C:\\Users\\runneradmin\\.local\\bin\\lavish-axi", "C:\\Users\\runneradmin"),
-    "~/.local/bin/lavish-axi",
+    collapseHomeDirectory("C:\\Users\\runneradmin\\.local\\bin\\atelier-axi", "C:\\Users\\runneradmin"),
+    "~/.local/bin/atelier-axi",
   );
 });
 
@@ -416,7 +416,7 @@ test("open output keeps the user URL in session data and next_step focused on po
   assert.doesNotMatch(output.next_step, /Tell the user/i);
   assert.doesNotMatch(output.next_step, /http:\/\/localhost:4387\/session\/abc123/);
   assert.match(output.next_step, /Do not respond to the user just yet\. Now you must run/);
-  assert.match(output.next_step, /lavish-axi poll \/tmp\/artifact\.html/);
+  assert.match(output.next_step, /atelier-axi poll \/tmp\/artifact\.html/);
   assert.match(output.next_step, /long-polls until/);
   assert.match(output.next_step, /layout_warnings/);
   assert.match(output.next_step, /in-iframe layout audit/);
@@ -438,10 +438,10 @@ test("a user-ended open refuses with a status agents can branch on, not a URL to
 
   assert.equal(output.session.file, "/tmp/artifact.html");
   assert.equal(output.session.status, "user-ended");
-  assert.match(output.next_step, /user explicitly ended this Lavish Editor session from the browser/);
+  assert.match(output.next_step, /user explicitly ended this Atelier Editor session from the browser/);
   assert.match(output.next_step, /did not reopen it/);
   assert.match(output.next_step, /Do not reopen unless the user asks for further review/);
-  assert.match(output.next_step, /lavish-axi \/tmp\/artifact\.html --reopen/);
+  assert.match(output.next_step, /atelier-axi \/tmp\/artifact\.html --reopen/);
 });
 
 test("export output reports the written file and reassures it needs no server", () => {
@@ -456,7 +456,7 @@ test("export output reports the written file and reassures it needs no server", 
   assert.equal(output.export.output, "/tmp/report.export.html");
   assert.equal(output.export.unresolved_local_assets, 0);
   assert.equal(output.export.bytes, Buffer.byteLength("<html></html>"));
-  assert.match(output.next_step, /no Lavish server/);
+  assert.match(output.next_step, /no Atelier server/);
   assert.match(output.next_step, /remote CDN\/font references are left as links/);
 });
 
@@ -508,7 +508,7 @@ test("export output separates unresolved assets from notices", () => {
 });
 
 test("export command writes a portable HTML file next to the artifact", async () => {
-  const dir = await mkdtemp(`${os.tmpdir()}/lavish-axi-export-test-`);
+  const dir = await mkdtemp(`${os.tmpdir()}/atelier-axi-export-test-`);
   const artifact = `${dir}/report.html`;
   await writeFile(`${dir}/theme.css`, ".btn{color:rebeccapurple}", "utf8");
   await writeFile(
@@ -520,10 +520,10 @@ test("export command writes a portable HTML file next to the artifact", async ()
   try {
     const result = spawnSync(
       process.execPath,
-      [fileURLToPath(new URL("../bin/lavish-axi.js", import.meta.url)), "export", artifact],
+      [fileURLToPath(new URL("../bin/atelier-axi.js", import.meta.url)), "export", artifact],
       {
         cwd: fileURLToPath(new URL("..", import.meta.url)),
-        env: { ...process.env, LAVISH_AXI_STATE_DIR: dir, LAVISH_AXI_TELEMETRY: "0" },
+        env: { ...process.env, ATELIER_AXI_STATE_DIR: dir, ATELIER_AXI_TELEMETRY: "0" },
         encoding: "utf8",
       },
     );
@@ -541,17 +541,17 @@ test("export command writes a portable HTML file next to the artifact", async ()
 });
 
 test("export command treats --out value as an option operand, not the source file", async () => {
-  const dir = await mkdtemp(`${os.tmpdir()}/lavish-axi-export-test-`);
+  const dir = await mkdtemp(`${os.tmpdir()}/atelier-axi-export-test-`);
   const artifact = `${dir}/report.html`;
   const output = `${dir}/custom.html`;
   await writeFile(artifact, "<!doctype html><html><body><h1>Hi</h1></body></html>", "utf8");
   try {
     const result = spawnSync(
       process.execPath,
-      [fileURLToPath(new URL("../bin/lavish-axi.js", import.meta.url)), "export", "--out", output, artifact],
+      [fileURLToPath(new URL("../bin/atelier-axi.js", import.meta.url)), "export", "--out", output, artifact],
       {
         cwd: fileURLToPath(new URL("..", import.meta.url)),
-        env: { ...process.env, LAVISH_AXI_STATE_DIR: dir, LAVISH_AXI_TELEMETRY: "0" },
+        env: { ...process.env, ATELIER_AXI_STATE_DIR: dir, ATELIER_AXI_TELEMETRY: "0" },
         encoding: "utf8",
       },
     );
@@ -579,7 +579,7 @@ test("share output reports the public url and the secret update key", () => {
   assert.match(output.next_step, /PUBLIC/);
   assert.match(output.next_step, /update_key/);
   assert.match(output.next_step, /x\.ht-ml\.app/);
-  assert.match(output.next_step, /ht-ml\.app \(https:\/\/ht-ml\.app\), a third-party host not part of Lavish/);
+  assert.match(output.next_step, /ht-ml\.app \(https:\/\/ht-ml\.app\), a third-party host not part of Atelier/);
 });
 
 test("password-protected share output tells viewers they also need the password", () => {
@@ -595,7 +595,7 @@ test("password-protected share output tells viewers they also need the password"
   assert.equal(output.share.visibility, "private");
   assert.match(output.next_step, /PASSWORD-PROTECTED/);
   assert.match(output.next_step, /viewers also need the password/);
-  assert.match(output.next_step, /ht-ml\.app \(https:\/\/ht-ml\.app\), a third-party host not part of Lavish/);
+  assert.match(output.next_step, /ht-ml\.app \(https:\/\/ht-ml\.app\), a third-party host not part of Atelier/);
   assert.doesNotMatch(output.next_step, /anyone with the link can view/);
 });
 
@@ -609,7 +609,7 @@ test("share output surfaces local assets that could not be inlined", () => {
   assert.equal(output.share.unresolved_local_assets, 1);
   assert.deepEqual(output.unresolved_local_assets, [{ kind: "load-failed", ref: "./missing.png" }]);
   assert.match(output.next_step, /LOCAL assets could not be inlined/);
-  assert.match(output.next_step, /ht-ml\.app \(https:\/\/ht-ml\.app\), a third-party host not part of Lavish/);
+  assert.match(output.next_step, /ht-ml\.app \(https:\/\/ht-ml\.app\), a third-party host not part of Atelier/);
   assert.doesNotMatch(output.next_step, /share this URL/);
 });
 
@@ -647,12 +647,12 @@ test("password-protected share output with unresolved assets still mentions the 
   assert.equal(output.share.visibility, "private");
   assert.match(output.next_step, /PASSWORD-PROTECTED/);
   assert.match(output.next_step, /viewers also need the password/);
-  assert.match(output.next_step, /ht-ml\.app \(https:\/\/ht-ml\.app\), a third-party host not part of Lavish/);
+  assert.match(output.next_step, /ht-ml\.app \(https:\/\/ht-ml\.app\), a third-party host not part of Atelier/);
   assert.doesNotMatch(output.next_step, /anyone with the link can view/);
 });
 
 test("share command publishes the artifact to ht-ml.app and returns the public url", async () => {
-  const dir = await mkdtemp(`${os.tmpdir()}/lavish-axi-share-test-`);
+  const dir = await mkdtemp(`${os.tmpdir()}/atelier-axi-share-test-`);
   const artifact = `${dir}/report.html`;
   await writeFile(`${dir}/theme.css`, ".btn{color:teal}", "utf8");
   await writeFile(
@@ -668,14 +668,14 @@ test("share command publishes the artifact to ht-ml.app and returns the public u
     // on this process's event loop, which spawnSync would block, deadlocking the request.
     const child = spawn(
       process.execPath,
-      [fileURLToPath(new URL("../bin/lavish-axi.js", import.meta.url)), "share", "--password", "pw", artifact],
+      [fileURLToPath(new URL("../bin/atelier-axi.js", import.meta.url)), "share", "--password", "pw", artifact],
       {
         cwd: fileURLToPath(new URL("..", import.meta.url)),
         env: {
           ...process.env,
-          LAVISH_AXI_STATE_DIR: dir,
-          LAVISH_AXI_TELEMETRY: "0",
-          LAVISH_AXI_HTML_APP_API_URL: `http://127.0.0.1:${htmlApp.port}`,
+          ATELIER_AXI_STATE_DIR: dir,
+          ATELIER_AXI_TELEMETRY: "0",
+          ATELIER_AXI_HTML_APP_API_URL: `http://127.0.0.1:${htmlApp.port}`,
         },
       },
     );
@@ -704,7 +704,7 @@ test("share command publishes the artifact to ht-ml.app and returns the public u
 });
 
 test("share command treats a whitespace-only password as public", async () => {
-  const dir = await mkdtemp(`${os.tmpdir()}/lavish-axi-share-test-`);
+  const dir = await mkdtemp(`${os.tmpdir()}/atelier-axi-share-test-`);
   const artifact = `${dir}/report.html`;
   await writeFile(artifact, "<!doctype html><html><body><h1>Hi</h1></body></html>", "utf8");
 
@@ -713,14 +713,14 @@ test("share command treats a whitespace-only password as public", async () => {
   try {
     const child = spawn(
       process.execPath,
-      [fileURLToPath(new URL("../bin/lavish-axi.js", import.meta.url)), "share", "--password", "   ", artifact],
+      [fileURLToPath(new URL("../bin/atelier-axi.js", import.meta.url)), "share", "--password", "   ", artifact],
       {
         cwd: fileURLToPath(new URL("..", import.meta.url)),
         env: {
           ...process.env,
-          LAVISH_AXI_STATE_DIR: dir,
-          LAVISH_AXI_TELEMETRY: "0",
-          LAVISH_AXI_HTML_APP_API_URL: `http://127.0.0.1:${htmlApp.port}`,
+          ATELIER_AXI_STATE_DIR: dir,
+          ATELIER_AXI_TELEMETRY: "0",
+          ATELIER_AXI_HTML_APP_API_URL: `http://127.0.0.1:${htmlApp.port}`,
         },
       },
     );
@@ -761,8 +761,8 @@ test("poll help warns agents to leave the long poll running", () => {
 
 test("share help distinguishes public default from password-protected shares", () => {
   const help = getCommandHelp("share");
-  const home = createHomeOutput({ bin: "lavish-axi", sessions: [] });
-  const homeShareHelp = home.help.find((item) => item.includes("lavish-axi share <html-file>"));
+  const home = createHomeOutput({ bin: "atelier-axi", sessions: [] });
+  const homeShareHelp = home.help.find((item) => item.includes("atelier-axi share <html-file>"));
 
   assert.match(help, /PUBLIC by default/);
   assert.match(help, /Pass --password to publish a PRIVATE password-protected page/);
@@ -827,11 +827,11 @@ test("a poll reporting the session ended by the user tells the agent to stop and
 
   assert.equal(output.session.status, "ended");
   assert.equal(output.session.ended_by, "user");
-  assert.match(output.next_step, /user ended this Lavish Editor session/);
+  assert.match(output.next_step, /user ended this Atelier Editor session/);
   assert.match(output.next_step, /Stop polling/);
-  assert.match(output.next_step, /do not run `lavish-axi \/tmp\/report\.html` to reopen it/);
+  assert.match(output.next_step, /do not run `atelier-axi \/tmp\/report\.html` to reopen it/);
   assert.match(output.next_step, /deliver any remaining updates directly in this conversation/i);
-  assert.match(output.next_step, /lavish-axi \/tmp\/report\.html --reopen/);
+  assert.match(output.next_step, /atelier-axi \/tmp\/report\.html --reopen/);
 });
 
 test("a poll reporting an agent-ended session allows a plain reopen if still needed", () => {
@@ -842,7 +842,7 @@ test("a poll reporting an agent-ended session allows a plain reopen if still nee
 
   assert.equal(output.session.ended_by, "agent");
   assert.match(output.next_step, /Stop polling/);
-  assert.match(output.next_step, /lavish-axi \/tmp\/report\.html`\s+to open a fresh session/);
+  assert.match(output.next_step, /atelier-axi \/tmp\/report\.html`\s+to open a fresh session/);
   assert.doesNotMatch(output.next_step, /--reopen/);
 });
 
@@ -862,7 +862,7 @@ test("the final feedback batch before a user end flags session_ended and skips t
   assert.equal(output.session.ended_by, "user");
   assert.match(output.next_step, /last feedback before the user ended the session/);
   assert.match(output.next_step, /Stop polling \/tmp\/report\.html and do not reopen it/);
-  assert.match(output.next_step, /lavish-axi \/tmp\/report\.html --reopen/);
+  assert.match(output.next_step, /atelier-axi \/tmp\/report\.html --reopen/);
   assert.doesNotMatch(output.next_step, /reload or re-open/);
 });
 
@@ -880,10 +880,10 @@ test("the final feedback batch before an agent end preserves ended_by and allows
 
   assert.equal(output.session.session_ended, true);
   assert.equal(output.session.ended_by, "agent");
-  assert.match(output.next_step, /last feedback before the Lavish Editor session ended/);
-  assert.match(output.next_step, /lavish-axi \/tmp\/report\.html`\s+to open a fresh session/);
+  assert.match(output.next_step, /last feedback before the Atelier Editor session ended/);
+  assert.match(output.next_step, /atelier-axi \/tmp\/report\.html`\s+to open a fresh session/);
   assert.doesNotMatch(output.next_step, /--reopen/);
-  assert.doesNotMatch(output.next_step, /user ended this Lavish Editor session/);
+  assert.doesNotMatch(output.next_step, /user ended this Atelier Editor session/);
 });
 
 test("persistent layout warnings after a failed fix attempt permit proceeding to the human", () => {
@@ -1003,22 +1003,22 @@ test("a mix of persistent errors and fresh low-severity warnings permits proceed
 
 test("poll wait messages tell watching agents the silence is normal", () => {
   const banner = pollWaitBannerText("/tmp/report.html");
-  assert.match(banner, /\[lavish-axi\]/);
+  assert.match(banner, /\[atelier-axi\]/);
   assert.match(banner, /Long-polling for user feedback/);
   assert.match(banner, /stays silent/);
   assert.match(banner, /leave it running/i);
   assert.match(banner, /queued feedback is never lost/);
 
   const tick = pollWaitTickText(3 * 60_000);
-  assert.match(tick, /\[lavish-axi\]/);
+  assert.match(tick, /\[atelier-axi\]/);
   assert.match(tick, /Still waiting for user feedback \(3m\)/);
   assert.match(tick, /leave this running/i);
 
   const interrupted = pollInterruptedText("/tmp/report.html");
-  assert.match(interrupted, /\[lavish-axi\]/);
+  assert.match(interrupted, /\[atelier-axi\]/);
   assert.match(interrupted, /Poll interrupted/);
   assert.match(interrupted, /user may still be reviewing/);
-  assert.match(interrupted, /lavish-axi poll \/tmp\/report\.html/);
+  assert.match(interrupted, /atelier-axi poll \/tmp\/report\.html/);
   assert.match(interrupted, /queued feedback is never lost/);
 });
 
@@ -1049,7 +1049,7 @@ test("poll wait reporter writes a banner immediately and heartbeats on an interv
 });
 
 test("spawned poll announces the wait on stderr and leaves re-run guidance when killed", async () => {
-  const stateDir = await mkdtemp(`${os.tmpdir()}/lavish-axi-poll-wait-test-`);
+  const stateDir = await mkdtemp(`${os.tmpdir()}/atelier-axi-poll-wait-test-`);
   const artifact = `${stateDir}/artifact.html`;
   await writeFile(artifact, "<html><body>hello</body></html>", "utf8");
   const server = await serve({ port: 0, stateFile: `${stateDir}/state.json`, version: VERSION });
@@ -1063,10 +1063,10 @@ test("spawned poll announces the wait on stderr and leaves re-run guidance when 
 
     const child = spawn(
       process.execPath,
-      [fileURLToPath(new URL("../bin/lavish-axi.js", import.meta.url)), "poll", artifact],
+      [fileURLToPath(new URL("../bin/atelier-axi.js", import.meta.url)), "poll", artifact],
       {
         cwd: fileURLToPath(new URL("..", import.meta.url)),
-        env: { ...process.env, LAVISH_AXI_STATE_DIR: stateDir, LAVISH_AXI_PORT: String(server.port) },
+        env: { ...process.env, ATELIER_AXI_STATE_DIR: stateDir, ATELIER_AXI_PORT: String(server.port) },
       },
     );
 
@@ -1105,7 +1105,7 @@ test("waiting next step reassures agents that re-running poll loses nothing", ()
     response: { status: "waiting" },
   });
 
-  assert.match(output.next_step, /lavish-axi poll \/tmp\/report\.html/);
+  assert.match(output.next_step, /atelier-axi poll \/tmp\/report\.html/);
   assert.match(output.next_step, /without --timeout-ms/);
   assert.match(output.next_step, /queued feedback is never lost/);
 });
@@ -1129,8 +1129,8 @@ test("SDK reserved commands pass through instead of normalizing to open", () => 
 
 test("setup hooks resolves HOME before platform-specific user profile variables", () => {
   assert.equal(
-    resolveHookHomeDir({ HOME: "/tmp/lavish-home", USERPROFILE: "C:\\Users\\runneradmin" }, "/fallback"),
-    "/tmp/lavish-home",
+    resolveHookHomeDir({ HOME: "/tmp/atelier-home", USERPROFILE: "C:\\Users\\runneradmin" }, "/fallback"),
+    "/tmp/atelier-home",
   );
 });
 
@@ -1160,7 +1160,7 @@ test("setup hooks creates a Copilot CLI hook that injects additional context", (
   assert.equal(updated.hooks.sessionStart[0].bash, "echo keep-me");
   assert.match(updated.hooks.sessionStart[1].bash, /additionalContext/);
   assert.match(updated.hooks.sessionStart[1].powershell, /additionalContext/);
-  assert.match(updated.hooks.sessionStart[1].bash, /lavish-axi/);
+  assert.match(updated.hooks.sessionStart[1].bash, /atelier-axi/);
   assert.equal(updated.hooks.sessionStart[1].timeoutSec, 10);
 
   const [unchanged, unchangedFlag] = computeCopilotCliHookUpdate(updated, hook);
@@ -1168,10 +1168,10 @@ test("setup hooks creates a Copilot CLI hook that injects additional context", (
   assert.equal(unchanged, updated);
 });
 
-test("Copilot CLI ambient context script wraps lavish output as hook JSON", async () => {
-  const tempDir = await mkdtemp(`${os.tmpdir()}/lavish-axi-copilot-hook-`);
+test("Copilot CLI ambient context script wraps atelier output as hook JSON", async () => {
+  const tempDir = await mkdtemp(`${os.tmpdir()}/atelier-axi-copilot-hook-`);
   try {
-    const fakeCli = path.join(tempDir, "fake-lavish.js");
+    const fakeCli = path.join(tempDir, "fake-atelier.js");
     await writeFile(fakeCli, 'console.log("sessions: []");\n', "utf8");
     const command = `"${process.execPath}" "${fakeCli}"`;
     const result = spawnSync(process.execPath, ["-e", createCopilotCliAmbientContextScript(command)], {
@@ -1180,7 +1180,7 @@ test("Copilot CLI ambient context script wraps lavish output as hook JSON", asyn
 
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const output = JSON.parse(result.stdout);
-    assert.match(output.additionalContext, /## AXI ambient context: lavish-axi/);
+    assert.match(output.additionalContext, /## AXI ambient context: atelier-axi/);
     assert.match(output.additionalContext, /sessions: \[\]/);
   } finally {
     await rm(tempDir, { force: true, recursive: true });
@@ -1188,12 +1188,12 @@ test("Copilot CLI ambient context script wraps lavish output as hook JSON", asyn
 });
 
 test("setup hooks installs agent session hooks explicitly", async () => {
-  const stateDir = await mkdtemp(`${os.tmpdir()}/lavish-axi-setup-state-`);
-  const homeDir = await mkdtemp(`${os.tmpdir()}/lavish-axi-setup-home-`);
+  const stateDir = await mkdtemp(`${os.tmpdir()}/atelier-axi-setup-state-`);
+  const homeDir = await mkdtemp(`${os.tmpdir()}/atelier-axi-setup-home-`);
   try {
     const result = spawnSync(
       process.execPath,
-      [fileURLToPath(new URL("../bin/lavish-axi.js", import.meta.url)), "setup", "hooks"],
+      [fileURLToPath(new URL("../bin/atelier-axi.js", import.meta.url)), "setup", "hooks"],
       {
         cwd: fileURLToPath(new URL("..", import.meta.url)),
         encoding: "utf8",
@@ -1207,9 +1207,9 @@ test("setup hooks installs agent session hooks explicitly", async () => {
     assert.match(result.stdout, /GitHub Copilot CLI/);
     assert.match(result.stdout, /Restart your agent session/);
     assert.ok(existsSync(`${homeDir}/.claude/settings.json`));
-    assert.ok(existsSync(`${homeDir}/.copilot/hooks/lavish-axi.json`));
+    assert.ok(existsSync(`${homeDir}/.copilot/hooks/atelier-axi.json`));
 
-    const copilotHook = JSON.parse(await readFile(`${homeDir}/.copilot/hooks/lavish-axi.json`, "utf8"));
+    const copilotHook = JSON.parse(await readFile(`${homeDir}/.copilot/hooks/atelier-axi.json`, "utf8"));
     assert.equal(copilotHook.version, 1);
     assert.equal(copilotHook.hooks.sessionStart.length, 1);
     assert.match(copilotHook.hooks.sessionStart[0].bash, /additionalContext/);
@@ -1221,15 +1221,15 @@ test("setup hooks installs agent session hooks explicitly", async () => {
 });
 
 test("setup hooks exits with an error when hook installation fails", async () => {
-  const stateDir = await mkdtemp(`${os.tmpdir()}/lavish-axi-setup-fail-state-`);
-  const homeDir = await mkdtemp(`${os.tmpdir()}/lavish-axi-setup-fail-home-`);
+  const stateDir = await mkdtemp(`${os.tmpdir()}/atelier-axi-setup-fail-state-`);
+  const homeDir = await mkdtemp(`${os.tmpdir()}/atelier-axi-setup-fail-home-`);
   try {
     await mkdir(`${homeDir}/.claude`, { recursive: true });
     await writeFile(`${homeDir}/.claude/settings.json`, "{ invalid json", "utf8");
 
     const result = spawnSync(
       process.execPath,
-      [fileURLToPath(new URL("../bin/lavish-axi.js", import.meta.url)), "setup", "hooks"],
+      [fileURLToPath(new URL("../bin/atelier-axi.js", import.meta.url)), "setup", "hooks"],
       {
         cwd: fileURLToPath(new URL("..", import.meta.url)),
         encoding: "utf8",
@@ -1271,30 +1271,30 @@ test("server spawn options can persist detached server output to a log fd", () =
 });
 
 test("server entry resolves to a node-executable script that actually invokes run()", () => {
-  // Running from source, the entry must be `bin/lavish-axi.js` (the only file in the
+  // Running from source, the entry must be `bin/atelier-axi.js` (the only file in the
   // source tree that calls run() on import). In the published bundle only `dist/cli.mjs`
   // ships - it embeds the bin wrapper so it self-invokes. Either way, spawning the entry
   // with `node <entry> server` must boot the server, not silently load the module and exit.
   const entry = resolveServerEntry();
   assert.ok(existsSync(entry), `server entry must exist on disk, got: ${entry}`);
-  // From source: bin/lavish-axi.js is present and preferred.
-  assert.equal(entry, fileURLToPath(new URL("../bin/lavish-axi.js", import.meta.url)));
+  // From source: bin/atelier-axi.js is present and preferred.
+  assert.equal(entry, fileURLToPath(new URL("../bin/atelier-axi.js", import.meta.url)));
 });
 
 test("local built CLI opens force a server restart while source and installed runs do not", () => {
   const root = fileURLToPath(new URL("..", import.meta.url));
 
   assert.equal(shouldForceRestartForLocalBuild(`${root}/dist/cli.mjs`, true), true);
-  assert.equal(shouldForceRestartForLocalBuild(`${root}/bin/lavish-axi.js`, true), false);
-  assert.equal(shouldForceRestartForLocalBuild("/usr/local/lib/node_modules/lavish-axi/dist/cli.mjs", false), false);
+  assert.equal(shouldForceRestartForLocalBuild(`${root}/bin/atelier-axi.js`, true), false);
+  assert.equal(shouldForceRestartForLocalBuild("/usr/local/lib/node_modules/atelier-axi/dist/cli.mjs", false), false);
 });
 
 test("shouldRestartServer reuses a server running the same version", () => {
   assert.equal(shouldRestartServer("0.1.4", { ok: true, version: "0.1.4" }), false);
 });
 
-test("shouldRestartServer restarts same-version Lavish servers when forced", () => {
-  assert.equal(shouldRestartServer("0.1.4", { ok: true, app: "lavish-axi", version: "0.1.4" }, true), true);
+test("shouldRestartServer restarts same-version Atelier servers when forced", () => {
+  assert.equal(shouldRestartServer("0.1.4", { ok: true, app: "atelier-axi", version: "0.1.4" }, true), true);
   assert.equal(shouldRestartServer("0.1.4", { ok: true, app: "other", version: "0.1.4" }, true), false);
 });
 
@@ -1321,16 +1321,16 @@ test("shouldKillProcessOnPort does not kill unidentified health responders", () 
   assert.equal(shouldKillProcessOnPort("0.1.4", { ok: true, app: "other", version: "0.1.3" }), false);
 });
 
-test("shouldKillProcessOnPort kills pre-handshake Lavish servers after shutdown fails", () => {
+test("shouldKillProcessOnPort kills pre-handshake Atelier servers after shutdown fails", () => {
   assert.equal(shouldKillProcessOnPort("0.1.4", { ok: true }), true);
 });
 
-test("shouldKillProcessOnPort only kills Lavish servers with a mismatched version", () => {
-  assert.equal(shouldKillProcessOnPort("0.1.4", { ok: true, app: "lavish-axi", version: "0.1.3" }), true);
-  assert.equal(shouldKillProcessOnPort("0.1.4", { ok: true, app: "lavish-axi", version: "0.1.4" }), false);
+test("shouldKillProcessOnPort only kills Atelier servers with a mismatched version", () => {
+  assert.equal(shouldKillProcessOnPort("0.1.4", { ok: true, app: "atelier-axi", version: "0.1.3" }), true);
+  assert.equal(shouldKillProcessOnPort("0.1.4", { ok: true, app: "atelier-axi", version: "0.1.4" }), false);
 });
 
-test("shutdownServerOnPort kills pre-handshake Lavish servers when shutdown does not free the port", async () => {
+test("shutdownServerOnPort kills pre-handshake Atelier servers when shutdown does not free the port", async () => {
   let shutdowns = 0;
   let kills = 0;
   const portFreeResults = [false, true];
@@ -1346,7 +1346,7 @@ test("shutdownServerOnPort kills pre-handshake Lavish servers when shutdown does
     killProcessOnPort: () => {
       kills += 1;
     },
-    processMatchesLavish: () => true,
+    processMatchesAtelier: () => true,
   });
 
   assert.equal(shutdowns, 1);
@@ -1369,19 +1369,19 @@ test("shutdownServerOnPort ignores unidentified health responders", async () => 
     killProcessOnPort: () => {
       kills += 1;
     },
-    processMatchesLavish: () => false,
+    processMatchesAtelier: () => false,
   });
 
   assert.equal(shutdowns, 0);
   assert.equal(kills, 0);
-  assert.deepEqual(output, { server: { status: "not-lavish", port: 4387 } });
+  assert.deepEqual(output, { server: { status: "not-atelier", port: 4387 } });
 });
 
 test("open can resume a session without opening another browser window", () => {
   assert.equal(shouldOpenBrowser(["--no-open", "artifact.html"], {}), false);
   assert.equal(shouldOpenBrowser(["artifact.html", "--no-open"], {}), false);
   assert.equal(shouldOpenBrowser(["--no-gate", "artifact.html"], {}), true);
-  assert.equal(shouldOpenBrowser(["artifact.html"], { LAVISH_AXI_NO_OPEN: "1" }), false);
+  assert.equal(shouldOpenBrowser(["artifact.html"], { ATELIER_AXI_NO_OPEN: "1" }), false);
   assert.equal(shouldOpenBrowser(["artifact.html"], {}), true);
   assert.match(getCommandHelp("open"), /--no-open/);
   assert.match(getCommandHelp("open"), /--no-gate/);
@@ -1392,7 +1392,7 @@ test("open can resume a session without opening another browser window", () => {
   assert.doesNotMatch(getCommandHelp("playbook"), new RegExp(`${"di"}ff, input`));
   assert.doesNotMatch(getCommandHelp("playbook"), /interactive/);
   assert.match(getCommandHelp("design"), /DaisyUI/);
-  assert.match(getCommandHelp("design"), /lavish-axi design/);
+  assert.match(getCommandHelp("design"), /atelier-axi design/);
   assert.match(getCommandHelp("design"), /portable/);
   assert.match(getCommandHelp("design"), /prefer.*CDN snippet.*hand-writing styles/i);
   assert.match(getCommandHelp("design"), /unless.*explicitly instructed/i);
@@ -1413,21 +1413,21 @@ test("polling a file without an active session tells the agent to open it first"
     (error) => {
       assert.ok(error instanceof AxiError);
       assert.equal(error.code, "NOT_FOUND");
-      assert.match(error.message, /No active Lavish Editor session/);
-      assert.ok(error.suggestions.some((item) => item.includes("lavish-axi /tmp/report.html")));
+      assert.match(error.message, /No active Atelier Editor session/);
+      assert.ok(error.suggestions.some((item) => item.includes("atelier-axi /tmp/report.html")));
       return true;
     },
   );
 });
 
-test("network fetch failures become structured Lavish server errors", async () => {
+test("network fetch failures become structured Atelier server errors", async () => {
   await assert.rejects(
     () => fetchJson("http://127.0.0.1:1/api/poll"),
     (error) => {
       assert.ok(error instanceof AxiError);
       assert.equal(error.code, "SERVER_ERROR");
-      assert.match(error.message, /Lavish Editor server connection failed/);
-      assert.ok(error.suggestions.some((item) => item.includes("lavish-axi server --verbose")));
+      assert.match(error.message, /Atelier Editor server connection failed/);
+      assert.ok(error.suggestions.some((item) => item.includes("atelier-axi server --verbose")));
       return true;
     },
   );
@@ -1479,7 +1479,7 @@ test("fetchJson reports interrupted response body failures without retrying", as
       (error) => {
         assert.ok(error instanceof AxiError);
         assert.equal(error.code, "SERVER_ERROR");
-        assert.match(error.message, /Lavish Editor poll response was interrupted/);
+        assert.match(error.message, /Atelier Editor poll response was interrupted/);
         return true;
       },
     );
@@ -1490,7 +1490,7 @@ test("fetchJson reports interrupted response body failures without retrying", as
 });
 
 test("stop command shuts down the running server on the configured port", async () => {
-  const dir = await mkdtemp(`${os.tmpdir()}/lavish-axi-stop-test-`);
+  const dir = await mkdtemp(`${os.tmpdir()}/atelier-axi-stop-test-`);
   const server = await serve({ port: 0, stateFile: `${dir}/state.json`, version: "9.9.9-test" });
   try {
     const output = await stopCommand(["--port", String(server.port)]);
@@ -1504,7 +1504,7 @@ test("stop command shuts down the running server on the configured port", async 
 });
 
 test("stop command reports when no server is running", async () => {
-  const dir = await mkdtemp(`${os.tmpdir()}/lavish-axi-stop-test-`);
+  const dir = await mkdtemp(`${os.tmpdir()}/atelier-axi-stop-test-`);
   try {
     // Bind then release a port so we know nothing is listening on it.
     const probe = await serve({ port: 0, stateFile: `${dir}/state.json` });

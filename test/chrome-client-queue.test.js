@@ -118,7 +118,7 @@ async function createChromeHarness({
     return el;
   }
 
-  element("lavish-session").textContent = JSON.stringify(sessionData);
+  element("atelier-session").textContent = JSON.stringify(sessionData);
   const frame = element("artifact");
   frame.dataset.artifactSrc = artifactSrc;
   Object.defineProperty(frame, "src", {
@@ -145,7 +145,7 @@ async function createChromeHarness({
     setTimeout: fakeSetTimeout,
     URL: {
       createObjectURL() {
-        return "blob:lavish-test";
+        return "blob:atelier-test";
       },
       revokeObjectURL() {},
     },
@@ -209,7 +209,7 @@ async function createChromeHarness({
       handler({ source: frame.contentWindow, data });
     },
     queued() {
-      return JSON.parse(storage.get("lavish-axi:queued:abc") || "[]");
+      return JSON.parse(storage.get("atelier-axi:queued:abc") || "[]");
     },
     runTimers,
     srcLoads,
@@ -224,15 +224,15 @@ test("chrome client replaces queued prompts with the same internal key", async (
   const chrome = await createChromeHarness();
 
   chrome.sendFrameMessage({
-    type: "lavish:queuePrompt",
-    prompt: { prompt: "Use plan A", selector: "input#plan-a", tag: "choice", text: "Plan A", _lavishQueueKey: "plan" },
+    type: "atelier:queuePrompt",
+    prompt: { prompt: "Use plan A", selector: "input#plan-a", tag: "choice", text: "Plan A", _atelierQueueKey: "plan" },
   });
   chrome.sendFrameMessage({
-    type: "lavish:queuePrompt",
-    prompt: { prompt: "Use plan B", selector: "input#plan-b", tag: "choice", text: "Plan B", _lavishQueueKey: "plan" },
+    type: "atelier:queuePrompt",
+    prompt: { prompt: "Use plan B", selector: "input#plan-b", tag: "choice", text: "Plan B", _atelierQueueKey: "plan" },
   });
   chrome.sendFrameMessage({
-    type: "lavish:queuePrompt",
+    type: "atelier:queuePrompt",
     prompt: { prompt: "Apply dark mode", selector: "button#dark", tag: "choice", text: "Dark" },
   });
 
@@ -254,7 +254,7 @@ test("chrome client posts layout warnings from the artifact iframe", async () =>
   });
 
   chrome.sendFrameMessage({
-    type: "lavish:layoutWarnings",
+    type: "atelier:layoutWarnings",
     layout_warnings: [
       {
         selector: "html",
@@ -288,7 +288,7 @@ test("chrome client surfaces export warnings from the server response", async ()
       ok: true,
       headers: {
         get(name) {
-          if (name.toLowerCase() === "x-lavish-export-warning-count") return "1";
+          if (name.toLowerCase() === "x-atelier-export-warning-count") return "1";
           return null;
         },
       },
@@ -308,8 +308,8 @@ test("chrome client surfaces export notices from the server response", async () 
       ok: true,
       headers: {
         get(name) {
-          if (name.toLowerCase() === "x-lavish-export-warning-count") return "0";
-          if (name.toLowerCase() === "x-lavish-export-notice-count") return "1";
+          if (name.toLowerCase() === "x-atelier-export-warning-count") return "0";
+          if (name.toLowerCase() === "x-atelier-export-notice-count") return "1";
           return null;
         },
       },
@@ -329,8 +329,8 @@ test("chrome client includes export notices alongside unresolved assets", async 
       ok: true,
       headers: {
         get(name) {
-          if (name.toLowerCase() === "x-lavish-export-warning-count") return "2";
-          if (name.toLowerCase() === "x-lavish-export-notice-count") return "1";
+          if (name.toLowerCase() === "x-atelier-export-warning-count") return "2";
+          if (name.toLowerCase() === "x-atelier-export-notice-count") return "1";
           return null;
         },
       },
@@ -490,7 +490,7 @@ test("layout gate reveals after a clean audit result", async () => {
   assert.equal(chrome.element("layoutGateOverlay").hidden, false);
   assert.equal(chrome.element("body").classList.contains("layout-gate-active"), true);
 
-  chrome.sendFrameMessage({ type: "lavish:layoutWarnings", layout_warnings: [] });
+  chrome.sendFrameMessage({ type: "atelier:layoutWarnings", layout_warnings: [] });
   await flushPromises();
 
   assert.equal(chrome.element("layoutGateOverlay").hidden, true);
@@ -509,7 +509,7 @@ test("layout gate holds on error severity audit findings and still posts them", 
   });
 
   chrome.sendFrameMessage({
-    type: "lavish:layoutWarnings",
+    type: "atelier:layoutWarnings",
     layout_warnings: [
       {
         selector: "html",
@@ -532,7 +532,7 @@ test("layout gate does not hold on warning severity audit findings", async () =>
   const chrome = await createChromeHarness();
 
   chrome.sendFrameMessage({
-    type: "lavish:layoutWarnings",
+    type: "atelier:layoutWarnings",
     layout_warnings: [
       {
         selector: ".card",
@@ -556,7 +556,7 @@ test("layout gate timeout reveals with a persistent layout issue banner", async 
   });
 
   chrome.sendFrameMessage({
-    type: "lavish:layoutWarnings",
+    type: "atelier:layoutWarnings",
     layout_warnings: [{ selector: "html", kind: "content-overlap", severity: "error" }],
   });
   assert.equal(chrome.element("layoutGateOverlay").hidden, false);
@@ -575,7 +575,7 @@ test("layout gate timeout re-arms on reload", async () => {
   });
 
   chrome.sendFrameMessage({
-    type: "lavish:layoutWarnings",
+    type: "atelier:layoutWarnings",
     layout_warnings: [{ selector: "html", kind: "content-overlap", severity: "error" }],
   });
   chrome.runTimers(25);
@@ -589,7 +589,7 @@ test("layout gate timeout re-arms on reload", async () => {
   assert.equal(chrome.element("layoutIssueBanner").hidden, true);
 
   chrome.sendFrameMessage({
-    type: "lavish:layoutWarnings",
+    type: "atelier:layoutWarnings",
     layout_warnings: [{ selector: "html", kind: "content-overlap", severity: "error" }],
   });
 
@@ -601,7 +601,7 @@ test("layout gate manual override reveals immediately", async () => {
   const chrome = await createChromeHarness();
 
   chrome.sendFrameMessage({
-    type: "lavish:layoutWarnings",
+    type: "atelier:layoutWarnings",
     layout_warnings: [{ selector: "html", kind: "content-overlap", severity: "error" }],
   });
   chrome.element("layoutGateAction").onclick();
@@ -615,7 +615,7 @@ test("layout gate manual override stays bypassed on reload", async () => {
   const chrome = await createChromeHarness();
 
   chrome.sendFrameMessage({
-    type: "lavish:layoutWarnings",
+    type: "atelier:layoutWarnings",
     layout_warnings: [{ selector: "html", kind: "content-overlap", severity: "error" }],
   });
   chrome.element("layoutGateAction").onclick();
@@ -625,7 +625,7 @@ test("layout gate manual override stays bypassed on reload", async () => {
   assert.equal(chrome.element("body").classList.contains("layout-gate-active"), false);
 
   chrome.sendFrameMessage({
-    type: "lavish:layoutWarnings",
+    type: "atelier:layoutWarnings",
     layout_warnings: [{ selector: "html", kind: "content-overlap", severity: "error" }],
   });
 
@@ -642,7 +642,7 @@ test("layout gate stays skipped when the session disables it", async () => {
   assert.equal(chrome.element("body").classList.contains("layout-gate-active"), false);
 
   chrome.sendFrameMessage({
-    type: "lavish:layoutWarnings",
+    type: "atelier:layoutWarnings",
     layout_warnings: [{ selector: "html", kind: "content-overlap", severity: "error" }],
   });
   await flushPromises();
@@ -661,13 +661,13 @@ test("chrome client strips the internal queue key before posting prompts", async
   });
 
   chrome.sendFrameMessage({
-    type: "lavish:queuePrompt",
-    prompt: { prompt: "Use plan B", selector: "input#plan-b", tag: "choice", text: "Plan B", _lavishQueueKey: "plan" },
+    type: "atelier:queuePrompt",
+    prompt: { prompt: "Use plan B", selector: "input#plan-b", tag: "choice", text: "Plan B", _atelierQueueKey: "plan" },
   });
   chrome.element("send").onclick();
-  assert.equal(chrome.postedToFrame.at(-1).type, "lavish:requestSnapshot");
+  assert.equal(chrome.postedToFrame.at(-1).type, "atelier:requestSnapshot");
 
-  chrome.sendFrameMessage({ type: "lavish:snapshot", snapshot: "uid=1 body" });
+  chrome.sendFrameMessage({ type: "atelier:snapshot", snapshot: "uid=1 body" });
   await flushPromises();
 
   assert.equal(posts.length, 1);
@@ -689,13 +689,13 @@ test("chrome send and end carries the end intent with queued prompts", async () 
   });
 
   chrome.sendFrameMessage({
-    type: "lavish:queuePrompt",
+    type: "atelier:queuePrompt",
     prompt: { prompt: "Ship this", selector: "button#ship", tag: "choice", text: "Ship" },
   });
   chrome.element("sendAndEnd").onclick();
-  assert.equal(chrome.postedToFrame.at(-1).type, "lavish:requestSnapshot");
+  assert.equal(chrome.postedToFrame.at(-1).type, "atelier:requestSnapshot");
 
-  chrome.sendFrameMessage({ type: "lavish:snapshot", snapshot: "uid=1 body" });
+  chrome.sendFrameMessage({ type: "atelier:snapshot", snapshot: "uid=1 body" });
   await flushPromises();
   await flushPromises();
 
@@ -727,16 +727,16 @@ test("chrome send and end during an in-flight submit still ends after the submit
   });
 
   chrome.sendFrameMessage({
-    type: "lavish:queuePrompt",
+    type: "atelier:queuePrompt",
     prompt: { prompt: "Ship this", selector: "button#ship", tag: "choice", text: "Ship" },
   });
   chrome.element("send").onclick();
-  chrome.sendFrameMessage({ type: "lavish:snapshot", snapshot: "uid=1 body" });
+  chrome.sendFrameMessage({ type: "atelier:snapshot", snapshot: "uid=1 body" });
   await flushPromises();
   assert.equal(posts.length, 1);
 
   chrome.element("sendAndEnd").onclick();
-  chrome.sendFrameMessage({ type: "lavish:snapshot", snapshot: "uid=1 body" });
+  chrome.sendFrameMessage({ type: "atelier:snapshot", snapshot: "uid=1 body" });
   await flushPromises();
   assert.equal(posts.length, 1);
 

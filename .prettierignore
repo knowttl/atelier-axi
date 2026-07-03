@@ -1,9 +1,9 @@
 dist
 node_modules
-.lavish
-.lavish-axi
+.atelier
+.atelier-axi
 .no-mistakes
-lavish-code-review.html
+atelier-code-review.html
 package-lock.json
 CHANGELOG.md
 .agents

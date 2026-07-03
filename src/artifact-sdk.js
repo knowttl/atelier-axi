@@ -1,10 +1,10 @@
 /* global CSS, Element, ResizeObserver, document, getComputedStyle, parent, window */
 
-export const LAVISH_INTERNAL_QUEUE_KEY = "_lavishQueueKey";
+export const ATELIER_INTERNAL_QUEUE_KEY = "_atelierQueueKey";
 
 // Derive the browser-only replacement key used to collapse unsent updates for the same input.
 // The key is stripped by the chrome before prompts are sent to the server or returned by poll.
-export function deriveLavishQueueKey(element, options = {}) {
+export function deriveAtelierQueueKey(element, options = {}) {
   function stringValue(value) {
     return value === null || value === undefined ? "" : String(value);
   }
@@ -53,7 +53,7 @@ export function deriveLavishQueueKey(element, options = {}) {
     const scope = closestElementMatching(el, "form,fieldset") || el?.parentElement || el;
     const tag = tagName(scope) || "scope";
     const explicit = stringValue(
-      attributeValue(scope, "data-lavish-question") || attributeValue(scope, "id") || attributeValue(scope, "name"),
+      attributeValue(scope, "data-atelier-question") || attributeValue(scope, "id") || attributeValue(scope, "name"),
     ).trim();
     if (explicit) return `${tag}:${explicit}`;
     return elementPath(scope) || tag;
@@ -73,8 +73,8 @@ export function deriveLavishQueueKey(element, options = {}) {
     return stringValue(options.queueKey).trim();
   }
 
-  const question = closestElementMatching(element, "[data-lavish-question]");
-  const questionKey = stringValue(attributeValue(question, "data-lavish-question")).trim();
+  const question = closestElementMatching(element, "[data-atelier-question]");
+  const questionKey = stringValue(attributeValue(question, "data-atelier-question")).trim();
   if (questionKey) return `question:${questionKey}`;
 
   const tag = tagName(element);
@@ -272,7 +272,7 @@ export function createArtifactSdk(deriveQueueKey, isNativeInteractive = isNative
     if (range.collapsed || !text) return null;
 
     const ancestor = closestElement(range.commonAncestorContainer);
-    if (isLavishUi(ancestor) || isLavishAction(ancestor) || isInteractiveControl(ancestor)) return null;
+    if (isAtelierUi(ancestor) || isAtelierAction(ancestor) || isInteractiveControl(ancestor)) return null;
 
     const commonAncestorSelector = selector(ancestor);
     const target = {
@@ -295,26 +295,26 @@ export function createArtifactSdk(deriveQueueKey, isNativeInteractive = isNative
     };
   }
 
-  function isLavishUi(el) {
-    return !!(el && el.closest && el.closest("[data-lavish-ui]"));
+  function isAtelierUi(el) {
+    return !!(el && el.closest && el.closest("[data-atelier-ui]"));
   }
 
-  function isLavishAction(el) {
-    return !!(el && el.closest && el.closest("[data-lavish-action]"));
+  function isAtelierAction(el) {
+    return !!(el && el.closest && el.closest("[data-atelier-action]"));
   }
 
   // Native interactive controls (radios, checkboxes, inputs, selects, buttons,
   // labels, disclosure summaries, editable regions) should toggle/focus/type
   // natively instead of triggering annotation, just like elements marked with
-  // data-lavish-action.
+  // data-atelier-action.
   function isInteractiveControl(el) {
     return isNativeInteractive(el);
   }
 
   function highlightElement(el) {
     if (!el) return;
-    el.style.outline = "var(--lavish-annotate-outline,2px solid #f4c95d)";
-    el.style.outlineOffset = "var(--lavish-annotate-offset,2px)";
+    el.style.outline = "var(--atelier-annotate-outline,2px solid #f4c95d)";
+    el.style.outlineOffset = "var(--atelier-annotate-offset,2px)";
   }
 
   function clearHighlight(el) {
@@ -323,7 +323,7 @@ export function createArtifactSdk(deriveQueueKey, isNativeInteractive = isNative
 
   function clearTextHighlight() {
     if (!shadow) return;
-    for (const el of [...shadow.querySelectorAll(".lavish-text-highlight")]) el.remove();
+    for (const el of [...shadow.querySelectorAll(".atelier-text-highlight")]) el.remove();
   }
 
   function highlightTextRange(range) {
@@ -332,7 +332,7 @@ export function createArtifactSdk(deriveQueueKey, isNativeInteractive = isNative
     for (const rect of [...range.getClientRects()]) {
       if (rect.width <= 0 || rect.height <= 0) continue;
       const mark = document.createElement("div");
-      mark.className = "lavish-text-highlight";
+      mark.className = "atelier-text-highlight";
       mark.style.left = rect.left + "px";
       mark.style.top = rect.top + "px";
       mark.style.width = rect.width + "px";
@@ -343,12 +343,12 @@ export function createArtifactSdk(deriveQueueKey, isNativeInteractive = isNative
 
   function setAnnotationMode(enabled) {
     annotationMode = !!enabled;
-    let style = document.getElementById("lavish-cursor-style");
+    let style = document.getElementById("atelier-cursor-style");
     if (annotationMode && !style) {
       style = document.createElement("style");
-      style.id = "lavish-cursor-style";
+      style.id = "atelier-cursor-style";
       style.textContent =
-        ":root{--lavish-accent:#f4c95d;--lavish-annotate-outline:2px solid var(--lavish-accent);--lavish-annotate-offset:2px}*{cursor:default!important}[data-lavish-action],[data-lavish-action] *{cursor:pointer!important}input,textarea,[contenteditable]:not([contenteditable='false']){cursor:text!important}button,select,label,option,input[type='button'],input[type='submit'],input[type='reset'],input[type='checkbox'],input[type='radio'],input[type='file'],input[type='color'],input[type='range'],input[type='image']{cursor:pointer!important}";
+        ":root{--atelier-accent:#f4c95d;--atelier-annotate-outline:2px solid var(--atelier-accent);--atelier-annotate-offset:2px}*{cursor:default!important}[data-atelier-action],[data-atelier-action] *{cursor:pointer!important}input,textarea,[contenteditable]:not([contenteditable='false']){cursor:text!important}button,select,label,option,input[type='button'],input[type='submit'],input[type='reset'],input[type='checkbox'],input[type='radio'],input[type='file'],input[type='color'],input[type='range'],input[type='image']{cursor:pointer!important}";
       document.head.appendChild(style);
     }
     if (!annotationMode && style) style.remove();
@@ -357,13 +357,13 @@ export function createArtifactSdk(deriveQueueKey, isNativeInteractive = isNative
 
   function queuePrompt(prompt, options = {}) {
     const originElement = options.element || document.activeElement || document.body;
-    /** @type {{ uid: string, prompt: string, selector: string, tag: string, text: string, target?: unknown, _lavishQueueKey?: string }} */
+    /** @type {{ uid: string, prompt: string, selector: string, tag: string, text: string, target?: unknown, _atelierQueueKey?: string }} */
     const item = {
       ...context(originElement),
       prompt: String(prompt || ""),
     };
     const queueKey = typeof deriveQueueKey === "function" ? deriveQueueKey(originElement, options) : "";
-    if (queueKey) item._lavishQueueKey = String(queueKey);
+    if (queueKey) item._atelierQueueKey = String(queueKey);
 
     if (options.uid) item.uid = String(options.uid);
     if (options.selector) item.selector = String(options.selector);
@@ -372,22 +372,22 @@ export function createArtifactSdk(deriveQueueKey, isNativeInteractive = isNative
     if (options.target) item.target = options.target;
     if (options.data) item.prompt += "\n\nContext data:\n" + JSON.stringify(options.data, null, 2);
 
-    parent.postMessage({ type: "lavish:queuePrompt", prompt: item }, "*");
+    parent.postMessage({ type: "atelier:queuePrompt", prompt: item }, "*");
   }
 
   function sendQueuedPrompts() {
-    parent.postMessage({ type: "lavish:sendQueuedPrompts" }, "*");
+    parent.postMessage({ type: "atelier:sendQueuedPrompts" }, "*");
   }
 
   function endSession() {
-    parent.postMessage({ type: "lavish:endSession" }, "*");
+    parent.postMessage({ type: "atelier:endSession" }, "*");
   }
 
   function snapshot() {
     const lines = [];
 
     function walk(el, depth) {
-      if (!(el instanceof Element) || depth > 6 || isLavishUi(el)) return;
+      if (!(el instanceof Element) || depth > 6 || isAtelierUi(el)) return;
 
       const c = context(el);
       const name = c.text ? ' "' + c.text.slice(0, 80).replace(/"/g, "'") + '"' : "";
@@ -435,7 +435,7 @@ export function createArtifactSdk(deriveQueueKey, isNativeInteractive = isNative
   }
 
   function isVisibleForLayoutAudit(el, rect = el.getBoundingClientRect()) {
-    if (!el || isLavishUi(el) || rect.width <= 0 || rect.height <= 0) return false;
+    if (!el || isAtelierUi(el) || rect.width <= 0 || rect.height <= 0) return false;
     const style = getComputedStyle(el);
     return style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0";
   }
@@ -478,7 +478,7 @@ export function createArtifactSdk(deriveQueueKey, isNativeInteractive = isNative
     const elements = [];
 
     function walk(el) {
-      if (!(el instanceof Element) || isLavishUi(el)) return;
+      if (!(el instanceof Element) || isAtelierUi(el)) return;
       if (isIntentionalHorizontalScroller(el)) return;
       elements.push(el);
       for (const child of el.children) walk(child);
@@ -624,7 +624,7 @@ export function createArtifactSdk(deriveQueueKey, isNativeInteractive = isNative
         for (const point of points) {
           if (point.x < 0 || point.y < 0 || point.x > viewportWidth || point.y > window.innerHeight) continue;
           const top = document.elementFromPoint(point.x, point.y);
-          if (!(top instanceof Element) || top === el || el.contains(top) || top.contains(el) || isLavishUi(top))
+          if (!(top instanceof Element) || top === el || el.contains(top) || top.contains(el) || isAtelierUi(top))
             continue;
           if (hasIntentionalHorizontalScrollerAncestor(top)) continue;
           if (getComputedStyle(top).position !== "static") continue;
@@ -736,7 +736,7 @@ export function createArtifactSdk(deriveQueueKey, isNativeInteractive = isNative
     const signature = JSON.stringify(layout_warnings);
     if (signature === lastLayoutAuditSignature) return;
     lastLayoutAuditSignature = signature;
-    parent.postMessage({ type: "lavish:layoutWarnings", layout_warnings }, "*");
+    parent.postMessage({ type: "atelier:layoutWarnings", layout_warnings }, "*");
   }
 
   function scheduleLayoutAudit() {
@@ -757,20 +757,20 @@ export function createArtifactSdk(deriveQueueKey, isNativeInteractive = isNative
     if (shadow) return shadow;
 
     const host = document.createElement("div");
-    host.className = "lavish-annotation-root";
-    host.setAttribute("data-lavish-ui", "annotation-root");
+    host.className = "atelier-annotation-root";
+    host.setAttribute("data-atelier-ui", "annotation-root");
     document.documentElement.appendChild(host);
 
     shadow = host.attachShadow({ mode: "open" });
     const style = document.createElement("style");
-    style.textContent = `:host{all:initial;position:fixed;z-index:2147483647;left:0;top:0;color-scheme:dark;--ink-900:#0f1115;--ink-800:#11141a;--ink-700:#171a21;--ink-600:#1c212b;--steel-700:#2a2f3a;--steel-600:#303745;--steel-500:#3c4557;--steel-400:#8c96aa;--steel-300:#aeb6c6;--steel-200:#b9c0cf;--steel-100:#d8deea;--cream-50:#fffbf3;--cream-100:#f7f3ea;--cream-200:#e8e1cf;--brass-500:#f4c95d;--brass-400:#ffd877;--brass-ink:#17130a;--bg:var(--ink-900);--bg-panel:var(--ink-800);--bg-elevated:var(--ink-600);--fg:var(--cream-100);--fg-faint:var(--steel-300);--border:var(--steel-600);--accent:#f4c95d;--accent-hover:#ffd877;--font-sans:Geist,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--font-mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--radius-md:10px;--radius-xl:14px;--shadow-floating:0 20px 70px rgba(0,0,0,.35);font-family:var(--font-sans)}*{box-sizing:border-box}:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.lavish-text-highlight{position:fixed;pointer-events:none;background:rgba(244,201,93,.28);border-radius:2px;box-shadow:0 0 0 1px rgba(244,201,93,.45)}.lavish-annotation-card{position:fixed;width:min(320px,calc(100vw - 24px));padding:12px;border-radius:var(--radius-xl);background:var(--bg-panel);color:var(--fg);border:1px solid var(--accent);box-shadow:var(--shadow-floating);font:14px/1.4 var(--font-sans)}.lavish-heading{font-weight:700;margin-bottom:6px}.lavish-annotation-card textarea{width:100%;min-height:86px;resize:vertical;border-radius:var(--radius-md);border:1px solid var(--border);background:var(--bg);color:var(--fg);padding:9px;font:inherit;font-family:var(--font-sans)}.lavish-annotation-card textarea::placeholder{color:var(--fg-faint)}.lavish-annotation-card .lavish-hint{margin-top:6px;font-size:11px;color:var(--fg-faint)}.lavish-annotation-card .lavish-row{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}.lavish-annotation-card button{border:0;border-radius:var(--radius-md);padding:8px 10px;font-family:var(--font-sans);font-size:13px;font-weight:700;cursor:pointer}.lavish-annotation-card button:active{opacity:.85}.lavish-annotation-card .lavish-send{background:var(--accent);color:var(--brass-ink)}.lavish-annotation-card .lavish-send:hover{background:var(--accent-hover)}.lavish-annotation-card .lavish-cancel{background:var(--steel-700);color:var(--fg)}`;
+    style.textContent = `:host{all:initial;position:fixed;z-index:2147483647;left:0;top:0;color-scheme:dark;--ink-900:#0f1115;--ink-800:#11141a;--ink-700:#171a21;--ink-600:#1c212b;--steel-700:#2a2f3a;--steel-600:#303745;--steel-500:#3c4557;--steel-400:#8c96aa;--steel-300:#aeb6c6;--steel-200:#b9c0cf;--steel-100:#d8deea;--cream-50:#fffbf3;--cream-100:#f7f3ea;--cream-200:#e8e1cf;--brass-500:#f4c95d;--brass-400:#ffd877;--brass-ink:#17130a;--bg:var(--ink-900);--bg-panel:var(--ink-800);--bg-elevated:var(--ink-600);--fg:var(--cream-100);--fg-faint:var(--steel-300);--border:var(--steel-600);--accent:#f4c95d;--accent-hover:#ffd877;--font-sans:Geist,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--font-mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--radius-md:10px;--radius-xl:14px;--shadow-floating:0 20px 70px rgba(0,0,0,.35);font-family:var(--font-sans)}*{box-sizing:border-box}:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.atelier-text-highlight{position:fixed;pointer-events:none;background:rgba(244,201,93,.28);border-radius:2px;box-shadow:0 0 0 1px rgba(244,201,93,.45)}.atelier-annotation-card{position:fixed;width:min(320px,calc(100vw - 24px));padding:12px;border-radius:var(--radius-xl);background:var(--bg-panel);color:var(--fg);border:1px solid var(--accent);box-shadow:var(--shadow-floating);font:14px/1.4 var(--font-sans)}.atelier-heading{font-weight:700;margin-bottom:6px}.atelier-annotation-card textarea{width:100%;min-height:86px;resize:vertical;border-radius:var(--radius-md);border:1px solid var(--border);background:var(--bg);color:var(--fg);padding:9px;font:inherit;font-family:var(--font-sans)}.atelier-annotation-card textarea::placeholder{color:var(--fg-faint)}.atelier-annotation-card .atelier-hint{margin-top:6px;font-size:11px;color:var(--fg-faint)}.atelier-annotation-card .atelier-row{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}.atelier-annotation-card button{border:0;border-radius:var(--radius-md);padding:8px 10px;font-family:var(--font-sans);font-size:13px;font-weight:700;cursor:pointer}.atelier-annotation-card button:active{opacity:.85}.atelier-annotation-card .atelier-send{background:var(--accent);color:var(--brass-ink)}.atelier-annotation-card .atelier-send:hover{background:var(--accent-hover)}.atelier-annotation-card .atelier-cancel{background:var(--steel-700);color:var(--fg)}`;
     shadow.appendChild(style);
     return shadow;
   }
 
   function closeCard() {
     if (shadow) {
-      for (const el of [...shadow.querySelectorAll(".lavish-annotation-card")]) el.remove();
+      for (const el of [...shadow.querySelectorAll(".atelier-annotation-card")]) el.remove();
     }
     clearHighlight(hovered);
     clearHighlight(selected);
@@ -793,20 +793,20 @@ export function createArtifactSdk(deriveQueueKey, isNativeInteractive = isNative
 
     const rect = options.range ? options.range.getBoundingClientRect() : target.getBoundingClientRect();
     const card = document.createElement("div");
-    card.className = "lavish-annotation-card";
+    card.className = "atelier-annotation-card";
     const heading = c.tag === "text" ? "Annotate text" : "Annotate &lt;" + c.tag + "&gt;";
     const placeholder =
       c.tag === "text"
         ? "Tell the agent what to change about this text..."
         : "Tell the agent what to change about this element...";
     card.innerHTML =
-      '<div class="lavish-heading">' +
+      '<div class="atelier-heading">' +
       heading +
       '</div><textarea placeholder="' +
       placeholder +
-      '"></textarea><div class="lavish-hint">Enter to queue &middot; ' +
+      '"></textarea><div class="atelier-hint">Enter to queue &middot; ' +
       (/Mac|iP(hone|ad|od)/.test(navigator.platform) ? "⌘" : "Ctrl") +
-      '+Enter to send now</div><div class="lavish-row"><button class="lavish-cancel" type="button">Cancel</button><button class="lavish-send" type="button">Queue</button></div>';
+      '+Enter to send now</div><div class="atelier-row"><button class="atelier-cancel" type="button">Cancel</button><button class="atelier-send" type="button">Queue</button></div>';
     root.appendChild(card);
 
     const left = Math.min(Math.max(12, rect.left), window.innerWidth - card.offsetWidth - 12);
@@ -815,8 +815,8 @@ export function createArtifactSdk(deriveQueueKey, isNativeInteractive = isNative
     card.style.top = top + "px";
 
     const textarea = /** @type {HTMLTextAreaElement | null} */ (card.querySelector("textarea"));
-    const cancelButton = /** @type {HTMLButtonElement | null} */ (card.querySelector(".lavish-cancel"));
-    const sendButton = /** @type {HTMLButtonElement | null} */ (card.querySelector(".lavish-send"));
+    const cancelButton = /** @type {HTMLButtonElement | null} */ (card.querySelector(".atelier-cancel"));
+    const sendButton = /** @type {HTMLButtonElement | null} */ (card.querySelector(".atelier-send"));
     if (!textarea || !cancelButton || !sendButton) return;
 
     cancelButton.onclick = closeCard;
@@ -837,22 +837,22 @@ export function createArtifactSdk(deriveQueueKey, isNativeInteractive = isNative
     setTimeout(() => textarea.focus(), 0);
   }
 
-  /** @type {Window & { lavish?: unknown }} */ (window).lavish = {
+  /** @type {Window & { atelier?: unknown }} */ (window).atelier = {
     queuePrompt,
     sendQueuedPrompts,
     endSession,
     getQueuedPrompts: () => [],
-    setStatus: (message) => parent.postMessage({ type: "lavish:status", message: String(message) }, "*"),
+    setStatus: (message) => parent.postMessage({ type: "atelier:status", message: String(message) }, "*"),
     snapshot,
   };
 
   window.addEventListener("message", (event) => {
     const msg = event.data || {};
-    if (msg.type === "lavish:setAnnotationMode") setAnnotationMode(msg.enabled);
-    if (msg.type === "lavish:requestSnapshot") {
-      parent.postMessage({ type: "lavish:snapshot", snapshot: snapshot() }, "*");
+    if (msg.type === "atelier:setAnnotationMode") setAnnotationMode(msg.enabled);
+    if (msg.type === "atelier:requestSnapshot") {
+      parent.postMessage({ type: "atelier:snapshot", snapshot: snapshot() }, "*");
     }
-    if (msg.type === "lavish:restoreScroll") {
+    if (msg.type === "atelier:restoreScroll") {
       window.scrollTo(Number(msg.x) || 0, Number(msg.y) || 0);
     }
   });
@@ -866,7 +866,7 @@ export function createArtifactSdk(deriveQueueKey, isNativeInteractive = isNative
       if (scrollFrame) return;
       scrollFrame = window.requestAnimationFrame(() => {
         scrollFrame = 0;
-        parent.postMessage({ type: "lavish:scroll", x: window.scrollX, y: window.scrollY }, "*");
+        parent.postMessage({ type: "atelier:scroll", x: window.scrollX, y: window.scrollY }, "*");
       });
     },
     { passive: true },
@@ -877,8 +877,8 @@ export function createArtifactSdk(deriveQueueKey, isNativeInteractive = isNative
     (event) => {
       if (
         !annotationMode ||
-        isLavishUi(event.target) ||
-        isLavishAction(event.target) ||
+        isAtelierUi(event.target) ||
+        isAtelierAction(event.target) ||
         isInteractiveControl(event.target)
       )
         return;
@@ -906,8 +906,8 @@ export function createArtifactSdk(deriveQueueKey, isNativeInteractive = isNative
     (event) => {
       if (
         !annotationMode ||
-        isLavishUi(event.target) ||
-        isLavishAction(event.target) ||
+        isAtelierUi(event.target) ||
+        isAtelierAction(event.target) ||
         isInteractiveControl(event.target)
       )
         return;
@@ -926,8 +926,8 @@ export function createArtifactSdk(deriveQueueKey, isNativeInteractive = isNative
     (event) => {
       if (
         !annotationMode ||
-        isLavishUi(event.target) ||
-        isLavishAction(event.target) ||
+        isAtelierUi(event.target) ||
+        isAtelierAction(event.target) ||
         isInteractiveControl(event.target)
       )
         return;

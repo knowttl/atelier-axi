@@ -14,10 +14,10 @@ const WILDCARD_BIND_LOOPBACK = new Map([
   ["::", IPV6_LOOPBACK_HOST],
 ]);
 
-// Address the server binds to (LAVISH_AXI_HOST). Defaults to loopback. A wildcard value
+// Address the server binds to (ATELIER_AXI_HOST). Defaults to loopback. A wildcard value
 // (0.0.0.0 or ::) binds every interface.
 export function bindHost(env = process.env) {
-  return env.LAVISH_AXI_HOST?.trim() || LOOPBACK_HOST;
+  return env.ATELIER_AXI_HOST?.trim() || LOOPBACK_HOST;
 }
 
 // Host the CLI uses to reach the server it spawned. A wildcard bind address can't be
@@ -27,10 +27,10 @@ export function clientHost(env = process.env) {
   return WILDCARD_BIND_LOOPBACK.get(host) ?? host;
 }
 
-// Hostname written into the session URLs the server generates (LAVISH_AXI_LINK_HOST).
+// Hostname written into the session URLs the server generates (ATELIER_AXI_LINK_HOST).
 // Defaults to the host the CLI dials.
 export function linkHost(env = process.env) {
-  return env.LAVISH_AXI_LINK_HOST?.trim() || clientHost(env);
+  return env.ATELIER_AXI_LINK_HOST?.trim() || clientHost(env);
 }
 
 // Brackets an IPv6 literal so it can be safely interpolated into a URL authority.
@@ -41,7 +41,7 @@ export function hostForUrl(host) {
 }
 
 export function stateDir() {
-  return process.env.LAVISH_AXI_STATE_DIR || path.join(os.homedir(), ".lavish-axi");
+  return process.env.ATELIER_AXI_STATE_DIR || path.join(os.homedir(), ".atelier-axi");
 }
 
 export function stateFile() {
@@ -57,5 +57,5 @@ export async function ensureStateDir() {
 }
 
 export function defaultPort() {
-  return Number(process.env.LAVISH_AXI_PORT || 4387);
+  return Number(process.env.ATELIER_AXI_PORT || 4387);
 }
