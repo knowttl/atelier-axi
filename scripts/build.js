@@ -15,8 +15,6 @@ await esbuild.build({
   format: "esm",
   target: "node22",
   define: {
-    "process.env.ATELIER_AXI_BUILD_UMAMI_HOST": JSON.stringify(process.env.ATELIER_AXI_UMAMI_HOST || ""),
-    "process.env.ATELIER_AXI_BUILD_UMAMI_WEBSITE_ID": JSON.stringify(process.env.ATELIER_AXI_UMAMI_WEBSITE_ID || ""),
     "process.env.ATELIER_AXI_BUILD_VERSION": JSON.stringify(packageJson.version),
   },
 });

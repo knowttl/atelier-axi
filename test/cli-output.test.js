@@ -40,7 +40,6 @@ import {
   shouldRestartServer,
   startPollWaitReporter,
   stopCommand,
-  telemetryCommandName,
   VERSION,
 } from "../src/cli.js";
 import { serve } from "../src/server.js";
@@ -523,7 +522,7 @@ test("export command writes a portable HTML file next to the artifact", async ()
       [fileURLToPath(new URL("../bin/atelier-axi.js", import.meta.url)), "export", artifact],
       {
         cwd: fileURLToPath(new URL("..", import.meta.url)),
-        env: { ...process.env, ATELIER_AXI_STATE_DIR: dir, ATELIER_AXI_TELEMETRY: "0" },
+        env: { ...process.env, ATELIER_AXI_STATE_DIR: dir },
         encoding: "utf8",
       },
     );
@@ -551,7 +550,7 @@ test("export command treats --out value as an option operand, not the source fil
       [fileURLToPath(new URL("../bin/atelier-axi.js", import.meta.url)), "export", "--out", output, artifact],
       {
         cwd: fileURLToPath(new URL("..", import.meta.url)),
-        env: { ...process.env, ATELIER_AXI_STATE_DIR: dir, ATELIER_AXI_TELEMETRY: "0" },
+        env: { ...process.env, ATELIER_AXI_STATE_DIR: dir },
         encoding: "utf8",
       },
     );
@@ -674,7 +673,6 @@ test("share command publishes the artifact to ht-ml.app and returns the public u
         env: {
           ...process.env,
           ATELIER_AXI_STATE_DIR: dir,
-          ATELIER_AXI_TELEMETRY: "0",
           ATELIER_AXI_HTML_APP_API_URL: `http://127.0.0.1:${htmlApp.port}`,
         },
       },
@@ -719,7 +717,6 @@ test("share command treats a whitespace-only password as public", async () => {
         env: {
           ...process.env,
           ATELIER_AXI_STATE_DIR: dir,
-          ATELIER_AXI_TELEMETRY: "0",
           ATELIER_AXI_HTML_APP_API_URL: `http://127.0.0.1:${htmlApp.port}`,
         },
       },
@@ -1245,15 +1242,6 @@ test("setup hooks exits with an error when hook installation fails", async () =>
     await rm(stateDir, { force: true, recursive: true });
     await rm(homeDir, { force: true, recursive: true });
   }
-});
-
-test("telemetry command names are anonymous and do not include file paths", () => {
-  assert.equal(telemetryCommandName(["report.html"]), "open");
-  assert.equal(telemetryCommandName(["poll", "/tmp/secret/report.html"]), "poll");
-  assert.equal(telemetryCommandName(["end", "/tmp/secret/report.html"]), "end");
-  assert.equal(telemetryCommandName(["playbook", "diagram"]), "playbook");
-  assert.equal(telemetryCommandName(["design"]), "design");
-  assert.equal(telemetryCommandName([]), "home");
 });
 
 test("server spawn options detach without inheriting invalid streams", () => {

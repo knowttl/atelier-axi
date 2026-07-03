@@ -140,14 +140,11 @@ Diagram guidance names hand-built div/flexbox boxes-and-arrows as an anti-patter
 The bare-arg form (`atelier-axi some.html`) is normalized into `["open", "some.html"]` by `normalizeArgv`.
 `normalizeArgv` must let the SDK's `RESERVED_COMMANDS` (such as the built-in `update` self-updater) pass through untouched; otherwise the bare-arg rewrite turns `atelier-axi update` into `["open", "update"]` and the inherited reserved command never reaches `runAxiCli`.
 
-### Telemetry
+### Build-time version
 
-`src/telemetry.js` posts anonymous events to an Umami endpoint.
-The website ID and host can be baked into the bundle at build time via `ATELIER_AXI_UMAMI_HOST`/`ATELIER_AXI_UMAMI_WEBSITE_ID` env vars (consumed by `scripts/build.js` and inlined as `process.env.ATELIER_AXI_BUILD_UMAMI_*` defines).
-The build also inlines `package.json`'s version as `process.env.ATELIER_AXI_BUILD_VERSION` for the CLI/server version handshake, with source runs falling back to reading `package.json`.
-Users opt out with `ATELIER_AXI_TELEMETRY=0`.
-The client is best-effort and must never affect CLI behavior - all errors are swallowed.
-No need to explicitly document the telemetry behaviors.
+`scripts/build.js` inlines `package.json`'s version as `process.env.ATELIER_AXI_BUILD_VERSION` for the CLI/server version handshake, with source runs falling back to reading `package.json`.
+
+The CLI ships no telemetry: it makes no analytics calls and bakes in no analytics identifiers.
 
 ## Things to know when editing
 
