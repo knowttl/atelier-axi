@@ -174,9 +174,11 @@ bd dep add <task2-id> <task1-id>   # task 2 depends on task 1
 bd dep add <task1-id> <epic-id>    # task 1 depends on the epic
 ```
 
-4. **Commit the durable records** so a fresh dev worktree can see them. On a feature branch
-   (never `main`/`master` without consent), stage and commit the `docs/atelier/<...>/` files —
-   e.g. `git switch -c plan/<topic> && git add docs/atelier/<...> && git commit -m "docs(plan): <topic> spec + plan"`.
+4. **Commit the finished documents properly.** Once the records are fully written — both routes
+   (`plan.md` always; plus `spec.md`/`review.html` on the large route) — commit them as ONE clean
+   commit, never half-written drafts. On a feature branch (never `main`/`master` without consent),
+   stage exactly the `docs/atelier/<...>/` files and use a clear conventional message — e.g.
+   `git switch -c plan/<topic> && git add docs/atelier/<...> && git commit -m "docs(plan): <topic> spec + plan"`.
    Note the branch; `lavish-implement` bases the dev worktree on this commit so `plan.md` is
    present. (Records are docs, not implementation code, so committing them here does not violate
    "planning only".)
@@ -192,6 +194,21 @@ bd dep add <task1-id> <epic-id>    # task 1 depends on the epic
    up an isolated dev worktree (treehouse when available, else a `git worktree`, else a feature
    branch) based on the records commit — it never begins on `main`/`master` without explicit
    consent.
+
+## Session teardown (once planning is complete)
+
+When the user is done — after they defer, or once implementation is under way — tear the review
+down cleanly so nothing is left running:
+
+1. **End every lavish session you opened** with `lavish-axi end <file>` — the intake review
+   artifact and the final spec+plan artifact. Do this only once the user has confirmed they are
+   done, never mid-review, and do not reopen an ended session uninvited.
+2. **Stop the server** if you want the port freed immediately: `lavish-axi stop`. (It also
+   self-stops once no browser and no poll have been connected for a while, so this is optional.)
+3. **Leave no poll running** for an ended session — a finished or killed `poll` is fine; just do
+   not start a fresh one after teardown.
+4. The dev worktree, if `lavish-implement` created one, is torn down there (`treehouse return` /
+   `git worktree remove`); planning itself owns no worktree.
 
 ## Graceful degradation
 

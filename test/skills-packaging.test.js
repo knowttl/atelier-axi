@@ -26,6 +26,9 @@ test("lavish-plan skill exists with its reference files and driver anchors", asy
     skill.includes("evidence over claims") || skill.includes("Evidence over claims"),
     "encodes the evidence-over-claims principle",
   );
+  assert.ok(skill.includes("Session teardown"), "documents how to tear down the review session");
+  assert.ok(skill.includes("lavish-axi end"), "ends the lavish session on teardown");
+  assert.ok(skill.includes("Commit the finished documents"), "commits the finished records properly");
 });
 
 test("lavish-implement skill exists and is independently triggerable", async () => {
