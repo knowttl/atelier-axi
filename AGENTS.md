@@ -169,3 +169,51 @@ No need to explicitly document the telemetry behaviors.
   - Overlap detection (`auditOverlappingText`) must compare `getClientRects()` fragments, not `getBoundingClientRect()`. A wrapped inline element (a `<strong>`/`<code>` phrase that breaks across a line) reports one bounding rect spanning both lines, so a bounding-box intersection test false-flags anything sitting in the reflow gap between the two real line fragments as "overlapping-text". `fragmentsSignificantlyOverlap` compares real per-line rects instead.
   - Fixed-size boxes with `overflow: visible` (the default) - badges, pills, buttons - don't clip overflowing content, they let it spill out and overlap neighbors, which is just as broken as `overflow: hidden` clipping it. `classifyVerticalOverflow` flags both, distinguished by its `clips` field. Because a visible spill isn't stopped by any ancestor's box, `scrollHeight` bubbles it up through every unconstrained block ancestor (a badge inside a flex row inside a section all measure the same few px of overflow) - `resolveSpillCandidates` defers non-clipping findings and keeps only the innermost element in each ancestor chain, or a single defect fans out into several redundant warnings pointing at the wrong element.
   - `SessionStore` marks a re-reported layout warning `persistent: true` once its `kind:selector` key has already been delivered to the agent via `takeFeedback` (tracked in `session.delivered_layout_warning_keys`, independent of the `layout_warnings` field that gets cleared on each delivery). `cli.js`'s `createFeedbackNextStep` softens its guidance - permitting the agent to proceed to the human instead of looping fixes and reloads - once every current warning is either `persistent` or below `error` severity (currently only `overlapping-text`, since it stays heuristic even after fragment-aware matching).
+
+<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
+## Beads Issue Tracker
+
+This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
+
+### Quick Reference
+
+```bash
+bd ready              # Find available work
+bd show <id>          # View issue details
+bd update <id> --claim  # Claim work
+bd close <id>         # Complete work
+```
+
+### Rules
+
+- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
+- Run `bd prime` for detailed command reference and session close protocol
+- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
+
+**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
+
+## Session Completion
+
+**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+
+**MANDATORY WORKFLOW:**
+
+1. **File issues for remaining work** - Create issues for anything that needs follow-up
+2. **Run quality gates** (if code changed) - Tests, linters, builds
+3. **Update issue status** - Close finished work, update in-progress items
+4. **PUSH TO REMOTE** - This is MANDATORY:
+   ```bash
+   git pull --rebase
+   git push
+   git status  # MUST show "up to date with origin"
+   ```
+5. **Clean up** - Clear stashes, prune remote branches
+6. **Verify** - All changes committed AND pushed
+7. **Hand off** - Provide context for next session
+
+**CRITICAL RULES:**
+- Work is NOT complete until `git push` succeeds
+- NEVER stop before pushing - that leaves work stranded locally
+- NEVER say "ready to push when you are" - YOU must push
+- If push fails, resolve and retry until it succeeds
+<!-- END BEADS INTEGRATION -->
