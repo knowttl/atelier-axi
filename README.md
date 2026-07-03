@@ -102,7 +102,16 @@ pnpm run build
 pnpm link
 ```
 
-## How It Works
+## The Workflow
+
+The whole loop runs locally — no account, no cloud, nothing to configure:
+
+1. **Ask, or invoke `/atelier`.** Ask your agent for anything easier to grasp visually — a plan, comparison, diagram, table, code view, or report. The agent writes a self-contained HTML artifact (by default `.atelier/<name>.html` in your working directory).
+2. **The agent runs `atelier-axi <file>`.** This spins up a local, loopback-only server on demand and opens the artifact in your browser. An open-time layout gate holds the page behind a curtain until the in-browser audit reports no error-severity layout issues.
+3. **You review in the browser.** Flip on **Annotate** to pin feedback on any element, or select text to comment on an exact range. Queue as many notes as you like, chat with the agent, then **Send to Agent** — or **Send & end session** to do both at once.
+4. **The agent runs `atelier-axi poll <file>`.** It long-polls and stays silent until you send feedback, end the session, or the browser reports fresh layout warnings — then returns your prompts (and any layout findings) as structured, token-efficient output.
+5. **The agent revises and the page reloads.** It edits the same HTML file; Atelier live-reloads the browser and restores your scroll position. Repeat from step 3 until you are happy.
+6. **End the session.** Click **End session** in the browser (or the agent runs `atelier-axi end <file>`). The detached server shuts itself down once nothing is connected.
 
 ```
 ┌───────────────┐
@@ -126,8 +135,16 @@ pnpm link
 │ atelier-axi poll waits  │
 │ and returns prompts    │
 │ or layout warnings     │
-└────────────────────────┘
+└───────┬────────────────┘
+        ▼
+   (agent revises →
+    live reload →
+    repeat or end)
 ```
+
+## How It Works
+
+Under the hood, that loop is built from these pieces:
 
 - **File-path identity** - Sessions are keyed by the canonical HTML file path, so agents do not need opaque IDs.
 - **Portable artifacts** - The artifact runs in an iframe while Atelier injects a small SDK for annotations, snapshots, feedback controls, and render-time layout checks.
