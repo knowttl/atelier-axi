@@ -1,4 +1,4 @@
-# Review rubrics for atelier-plan subagent reviewers
+# Review rubrics for planning-mode subagent reviewers
 
 Dispatch each reviewer as a FRESH subagent. Give it only the inputs listed and the matching
 rubric below. Fix the findings, then re-dispatch. After 3 rounds without a clean pass, stop and

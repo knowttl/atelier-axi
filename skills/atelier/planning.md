@@ -1,19 +1,18 @@
----
-name: atelier-plan
-description: Plan a feature, fix, or change before building it. Instead of a terminal interview, surfaces the clarifying questions, 2-3 candidate approaches with a recommendation, and every open question and edge case as an annotatable visual review surface in the browser (via atelier-axi) — the user reviews and answers them all there — then converges on an approved direction and writes a durable spec.md + plan.md and beads records. Use when the user says "plan this", "let's design X", "write a spec/plan for Y", or is about to jump into implementation without a validated plan.
----
+# Planning mode — visual feature planner
 
-# Atelier Plan — visual feature planner
+> Reference file for the **atelier** skill. Read and follow this when the request is to plan a
+> feature, fix, or change before building it (mode 2 in `SKILL.md`). It is self-contained: you
+> need only this file and the real CLI tools it orchestrates.
 
 Drive a feature from a rough idea to a reviewed, durable spec + implementation plan, using
 atelier-axi as the visual review surface. You ORCHESTRATE real CLI tools (`atelier-axi`, `bd`).
-You do not invoke any other skill except `atelier-implement`, and only in Phase 8 on explicit
-user opt-in.
+Implementation happens later, on explicit user opt-in, by following `implementing.md` (its
+sibling) — never in this flow.
 
 ## Operating rules
 
 - **Planning only — never write implementation code in this flow.** Implementation happens
-  later, on explicit opt-in, via `atelier-implement`.
+  later, on explicit opt-in, via `implementing.md`.
 - **Surface questions in the UI, not the terminal.** Do NOT run a one-question-at-a-time
   terminal interview. Put every clarifying question into the browser review surface so the
   user reviews and answers them all together. Keep the terminal to a one-line framing before
@@ -27,16 +26,16 @@ user opt-in.
 - **Orchestrate, don't reimplement.** All browser review, serving, export, and layout
   auditing is `atelier-axi`; all issue tracking is `bd`. Degrade gracefully when either is
   missing (see Graceful degradation).
-- **Self-contained and portable.** Depend on no other skill; use no hard-coded project paths.
+- **Self-contained and portable.** Use no hard-coded project paths.
 - **Subagents get fresh context.** Dispatch review loops (Phases 5-6) as subagents; construct
   exactly the context each needs — they do not inherit this conversation.
 - **Engineering principles the plan must encode.** The `plan.md` you produce — and the
-  implementation `atelier-implement` drives from it — obey four non-negotiables: **test-driven**
-  (every behavior gets a failing test first, then the minimal code to pass); **systematic over
-  ad-hoc** (a written, reviewable process, not guess-and-check); **complexity reduction**
-  (simplicity is the goal — DRY, YAGNI, build only what the approved scope needs); and
-  **evidence over claims** (verify with real command output before declaring anything done).
-  Write every task so these hold; `atelier-implement` enforces them at execution time.
+  implementation the `implementing.md` flow drives from it — obey four non-negotiables:
+  **test-driven** (every behavior gets a failing test first, then the minimal code to pass);
+  **systematic over ad-hoc** (a written, reviewable process, not guess-and-check); **complexity
+  reduction** (simplicity is the goal — DRY, YAGNI, build only what the approved scope needs);
+  and **evidence over claims** (verify with real command output before declaring anything done).
+  Write every task so these hold; the `implementing.md` flow enforces them at execution time.
 
 ## Phase 1 — Intake & project context
 
@@ -143,13 +142,17 @@ user opt-in.
 
 ## Phase 7 — Durable records
 
+Always write durable records under `docs/atelier/<YYYY-MM-DD>-<type>-<topic>/`, relative to the
+target project root (create parents). This is the required home for spec/plan output — do not
+leave them in `.atelier/` or scattered elsewhere.
+
 1. Export the review artifact — **large route only**:
    `atelier-axi export .atelier/<topic>-review.html --out docs/atelier/<YYYY-MM-DD>-<type>-<topic>/review.html`.
    The small route keeps a reduced record set and skips this export.
 2. Write files into `docs/atelier/<YYYY-MM-DD>-<type>-<topic>/` (create parents):
    - **large:** `spec.md` + `plan.md` + `review.html`.
    - **small:** `plan.md` only (no `spec.md`, no `review.html`); `plan.md` is always written so
-     `atelier-implement` has an executable input.
+     the `implementing.md` flow has an executable input.
    - Never clobber an existing same-date+topic folder: ask the user whether to reuse/overwrite
      or write a disambiguated `<topic>-2`/`-3` sibling; default to the suffixed sibling when
      the user cannot be asked.
@@ -179,21 +182,21 @@ bd dep add <task1-id> <epic-id>    # task 1 depends on the epic
    commit, never half-written drafts. On a feature branch (never `main`/`master` without consent),
    stage exactly the `docs/atelier/<...>/` files and use a clear conventional message — e.g.
    `git switch -c plan/<topic> && git add docs/atelier/<...> && git commit -m "docs(plan): <topic> spec + plan"`.
-   Note the branch; `atelier-implement` bases the dev worktree on this commit so `plan.md` is
-   present. (Records are docs, not implementation code, so committing them here does not violate
+   Note the branch; the `implementing.md` flow bases the dev worktree on this commit so `plan.md`
+   is present. (Records are docs, not implementation code, so committing them here does not violate
    "planning only".)
 
 ## Phase 8 — Hand-back & execution offer
 
 1. Give a terminal summary and open a final atelier artifact of the spec + plan.
-2. Offer exactly two options: **(1) implement now** — invoke `atelier-implement` against the
+2. Offer exactly two options: **(1) implement now** — follow `implementing.md` against the
    written `plan.md`; or **(2) defer** — stop cleanly (the durable `plan.md` lets any fresh
    session implement later).
 3. Durable records (Phase 7) are complete and committed BEFORE this offer, so both options hand
-   off identical artifacts. Never auto-start implementation. On opt-in, `atelier-implement` sets
-   up an isolated dev worktree (treehouse when available, else a `git worktree`, else a feature
-   branch) based on the records commit — it never begins on `main`/`master` without explicit
-   consent.
+   off identical artifacts. Never auto-start implementation. On opt-in, the `implementing.md` flow
+   sets up an isolated dev worktree (treehouse when available, else a `git worktree`, else a
+   feature branch) based on the records commit — it never begins on `main`/`master` without
+   explicit consent.
 
 ## Session teardown (once planning is complete)
 
@@ -207,8 +210,8 @@ down cleanly so nothing is left running:
    self-stops once no browser and no poll have been connected for a while, so this is optional.)
 3. **Leave no poll running** for an ended session — a finished or killed `poll` is fine; just do
    not start a fresh one after teardown.
-4. The dev worktree, if `atelier-implement` created one, is torn down there (`treehouse return` /
-   `git worktree remove`); planning itself owns no worktree.
+4. The dev worktree, if the `implementing.md` flow created one, is torn down there
+   (`treehouse return` / `git worktree remove`); planning itself owns no worktree.
 
 ## Graceful degradation
 

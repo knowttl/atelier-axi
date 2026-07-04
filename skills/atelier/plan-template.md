@@ -1,8 +1,8 @@
 # <Feature> Implementation Plan
 
 > **For agentic workers:** execute this plan task-by-task with a fresh subagent per task and a
-> review between tasks — use the `atelier-implement` skill (or an equivalent subagent-driven
-> loop). Steps use checkbox (`- [ ]`) syntax for tracking.
+> review between tasks — follow the atelier skill's `implementing.md` flow (or an equivalent
+> subagent-driven loop). Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** <one sentence describing what this builds>
 

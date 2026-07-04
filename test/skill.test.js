@@ -58,6 +58,19 @@ test("createSkillMarkdown mirrors the no-args home output", () => {
   }
 });
 
+test("createSkillMarkdown routes to the planning and implementing reference files", () => {
+  const md = createSkillMarkdown();
+  const modes = md.slice(md.indexOf("## Choose your mode"), md.indexOf("## Workflow"));
+
+  assert.ok(modes.length > 0, "has a mode-routing section before the workflow");
+  assert.ok(modes.includes("planning.md"), "routes planning intent to planning.md");
+  assert.ok(modes.includes("implementing.md"), "routes execution intent to implementing.md");
+  assert.ok(
+    modes.includes("docs/atelier/<YYYY-MM-DD>-<type>-<topic>/"),
+    "names docs/atelier as the required spec/plan output home",
+  );
+});
+
 test("createSkillMarkdown requires opening every matching playbook", () => {
   const md = createSkillMarkdown();
   const playbooksSection = md.slice(md.indexOf("## Playbooks"), md.indexOf("## Commands & rules"));

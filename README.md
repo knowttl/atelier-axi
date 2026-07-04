@@ -202,7 +202,7 @@ Known playbook IDs: `diagram`, `table`, `comparison`, `plan`, `code`, `input`, `
 One artifact often combines several playbooks, such as a plan that includes a comparison and a diagram, so agents must match against each `use_when` trigger and open every matching playbook before writing HTML.
 For flows, architecture, state, or sequence diagrams, open the diagram playbook and use the Mermaid tooling from `atelier-axi design` unless SVG is needed for richly annotated nodes; avoid hand-built div/flexbox boxes-and-arrows.
 
-**Feature planning.** Run `atelier-axi playbook plan` to plan a feature or change before building it: the agent surfaces every open question and edge case as an annotatable visual review surface first, converges with you, then writes a durable spec and a bite-sized implementation plan. The companion skills `atelier-plan` (drive planning) and `atelier-implement` (execute a finished `plan.md` with a fresh subagent per task) ship in the package for agents that want the full end-to-end pipeline.
+**Feature planning.** Run `atelier-axi playbook plan` to plan a feature or change before building it: the agent surfaces every open question and edge case as an annotatable visual review surface first, converges with you, then writes a durable spec and a bite-sized implementation plan under `docs/atelier/<date>-<type>-<topic>/`. The full end-to-end pipeline lives inside the single `atelier` skill as two on-demand reference files — `planning.md` (drive the visual planning arc) and `implementing.md` (execute a finished `plan.md` with a fresh subagent per task) — so there is exactly one skill to invoke; it routes to the right mode based on the request.
 
 ### Flags
 
