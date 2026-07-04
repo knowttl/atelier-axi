@@ -106,6 +106,7 @@ export const PLAYBOOKS = [
       "Converge on an explicitly approved direction first - do not write the spec or plan until the user approves, however simple the change looks - then write the spec and a bite-sized TDD implementation plan derived from it.",
       "Structure the plan as bite-sized TDD tasks - write a failing test, run it and see it fail, add the minimal implementation, run it and see it pass, commit - with exact file paths and complete code in every step.",
       "Map the files each task creates or modifies before decomposing, and end the plan self-contained enough that another developer, or a fresh agent session with no planning context, can implement it without asking a follow-up question.",
+      "Write the durable spec and plan under docs/atelier/<YYYY-MM-DD>-<type>-<topic>/ relative to the target project root (spec.md + plan.md on the large route, plan.md only on the small route) - never leave them in .atelier/ or scattered elsewhere.",
     ],
     design_rules: [
       "Verify each claim against the codebase before presenting it as fact.",

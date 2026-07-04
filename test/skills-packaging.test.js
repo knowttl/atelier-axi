@@ -5,37 +5,61 @@ import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 
-test("published package includes the planning and execution skills", async () => {
+test("published package ships the single atelier skill with its planning + implementation reference files", async () => {
   const packageJson = JSON.parse(await readFile(new URL("package.json", root), "utf8"));
 
-  assert.ok(packageJson.files.includes("skills/atelier-plan"), "ships skills/atelier-plan");
-  assert.ok(packageJson.files.includes("skills/atelier-implement"), "ships skills/atelier-implement");
+  assert.ok(packageJson.files.includes("skills/atelier"), "ships skills/atelier");
+  // The plan/implement skills were folded into skills/atelier as reference files - no separate dirs.
+  assert.ok(!packageJson.files.includes("skills/atelier-plan"), "no separate atelier-plan skill dir");
+  assert.ok(!packageJson.files.includes("skills/atelier-implement"), "no separate atelier-implement skill dir");
 });
 
-test("atelier-plan skill exists with its reference files and driver anchors", async () => {
-  assert.ok(existsSync(new URL("skills/atelier-plan/SKILL.md", root)));
-  assert.ok(existsSync(new URL("skills/atelier-plan/plan-template.md", root)));
-  assert.ok(existsSync(new URL("skills/atelier-plan/review-rubrics.md", root)));
+test("the two former skills no longer exist as standalone, separately-triggerable skills", () => {
+  assert.ok(!existsSync(new URL("skills/atelier-plan", root)), "atelier-plan skill dir removed");
+  assert.ok(!existsSync(new URL("skills/atelier-implement", root)), "atelier-implement skill dir removed");
+});
 
-  const skill = await readFile(new URL("skills/atelier-plan/SKILL.md", root), "utf8");
-  assert.match(skill, /^name: atelier-plan$/m);
+test("atelier skill carries planning + implementing reference files and their shared assets", () => {
+  assert.ok(existsSync(new URL("skills/atelier/SKILL.md", root)));
+  assert.ok(existsSync(new URL("skills/atelier/planning.md", root)));
+  assert.ok(existsSync(new URL("skills/atelier/implementing.md", root)));
+  assert.ok(existsSync(new URL("skills/atelier/plan-template.md", root)));
+  assert.ok(existsSync(new URL("skills/atelier/review-rubrics.md", root)));
+});
+
+test("SKILL.md routes to the planning + implementing modes and names the docs/atelier output home", async () => {
+  const skill = await readFile(new URL("skills/atelier/SKILL.md", root), "utf8");
+
+  assert.match(skill, /^name: atelier$/m, "single skill named atelier");
+  assert.ok(skill.includes("Choose your mode"), "has a mode-routing section");
+  assert.ok(skill.includes("planning.md"), "routes planning intent to planning.md");
+  assert.ok(skill.includes("implementing.md"), "routes execution intent to implementing.md");
+  assert.ok(
+    skill.includes("docs/atelier/<YYYY-MM-DD>-<type>-<topic>/"),
+    "carries the docs/atelier output path on the funnel so spec/plan land there",
+  );
+});
+
+test("planning.md drives the visual planning arc and hands off to implementing.md", async () => {
+  const skill = await readFile(new URL("skills/atelier/planning.md", root), "utf8");
+
   assert.ok(skill.includes("atelier-axi playbook plan"), "opens the enriched plan playbook");
-  assert.ok(skill.includes("atelier-implement"), "hands off to the execution skill");
+  assert.ok(skill.includes("implementing.md"), "hands off to the execution flow, not a separate skill");
+  assert.ok(!skill.includes("atelier-implement"), "no dangling reference to the removed skill name");
   assert.ok(skill.includes("test-driven") || skill.includes("Test-driven"), "encodes TDD");
   assert.ok(
     skill.includes("evidence over claims") || skill.includes("Evidence over claims"),
     "encodes the evidence-over-claims principle",
   );
+  assert.ok(skill.includes("docs/atelier/<YYYY-MM-DD>-<type>-<topic>/"), "writes durable records under docs/atelier");
   assert.ok(skill.includes("Session teardown"), "documents how to tear down the review session");
   assert.ok(skill.includes("atelier-axi end"), "ends the atelier session on teardown");
   assert.ok(skill.includes("Commit the finished documents"), "commits the finished records properly");
 });
 
-test("atelier-implement skill exists and is independently triggerable", async () => {
-  assert.ok(existsSync(new URL("skills/atelier-implement/SKILL.md", root)));
+test("implementing.md executes a plan.md task-by-task in an isolated worktree", async () => {
+  const skill = await readFile(new URL("skills/atelier/implementing.md", root), "utf8");
 
-  const skill = await readFile(new URL("skills/atelier-implement/SKILL.md", root), "utf8");
-  assert.match(skill, /^name: atelier-implement$/m);
   assert.ok(skill.includes("plan.md"), "executes a plan.md");
   assert.ok(skill.includes("fresh subagent per task") || skill.includes("FRESH implementer subagent"));
   assert.ok(skill.includes("Iron Law"), "enforces the TDD Iron Law");

@@ -5,8 +5,11 @@ import { PLAYBOOK_ROUTER_HELP } from "./playbooks.js";
 // Kept terse and outcome-focused so it fires on "about to show something visual" intents.
 export const SKILL_DESCRIPTION =
   "Turn complex or visual agent responses into rich, reviewable HTML artifacts the user can " +
-  "annotate and send feedback on, using the atelier-axi CLI. Use when about to give a plan, " +
-  "comparison, diagram, table, code diff, report, or anything easier to grasp visually than as prose.";
+  "annotate and send feedback on, and drive the feature-planning pipeline end to end, using the " +
+  "atelier-axi CLI. Use when about to give a plan, comparison, diagram, table, code diff, or " +
+  'report; when the user says "plan this", "let\'s design X", or "write a spec/plan for Y"; when ' +
+  'asked to "implement plan.md" or execute a finished plan; or for anything easier to grasp ' +
+  "visually than as prose.";
 
 function bullets(items) {
   return items.map((item) => `- ${item}`).join("\n");
@@ -58,6 +61,16 @@ If it is empty, infer what to visualize from the conversation.
 ## When to use
 
 ${home.help[home.help.length - 1]}
+
+## Choose your mode
+
+Atelier is one skill that covers three kinds of work. Decide which the request is before writing anything — the planning and implementation modes live in reference files next to this one, loaded on demand:
+
+1. **Quick visual artifact + review** (default) — the user wants to see a comparison, table, diagram, report, code diff, or any explanation as a rich, annotatable page. Follow the **Workflow** below.
+2. **Plan a feature, fix, or change before building it** — the user says "plan this", "let's design X", "write a spec/plan for Y", or is about to jump into implementation without a validated plan. **Read \`planning.md\` (next to this file) and follow it:** surface every open question, edge case, and candidate approach as an annotatable review surface, converge on an approved direction, then write durable records under \`docs/atelier/<YYYY-MM-DD>-<type>-<topic>/\` — \`spec.md\` + \`plan.md\` on the large route, \`plan.md\` only on the small route — plus beads issues. Spec/plan output ALWAYS goes under \`docs/atelier/\`, never left in \`.atelier/\`.
+3. **Execute an existing \`plan.md\`** — the user points at a finished plan or opts in to build one just produced. **Read \`implementing.md\` (next to this file) and follow it:** one fresh subagent per task, TDD, a review between tasks, and a final whole-branch review, all in an isolated worktree.
+
+Planning and implementation are one continuous arc: \`planning.md\` ends by offering to hand its \`plan.md\` to the \`implementing.md\` flow on explicit user opt-in. Both reference files are self-contained — load the one that matches the request.
 
 ## Workflow
 

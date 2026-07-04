@@ -1,14 +1,13 @@
----
-name: atelier-implement
-description: Execute an existing implementation plan (plan.md) task by task with a fresh subagent per task, TDD, review between tasks, and frequent commits. Use to run a written plan.md, implement a plan produced by atelier-plan, or resume a deferred plan in a fresh session. Give it the path to a plan.md.
----
+# Implementing mode — execute a plan.md
 
-# Atelier Implement — execute a plan.md
+> Reference file for the **atelier** skill. Read and follow this when the request is to execute
+> an existing `plan.md` (mode 3 in `SKILL.md`) — either a plan the planning flow just produced,
+> or a finished `plan.md` from an earlier session. It is self-contained: you need only the
+> `plan.md`, not the planning session's context.
 
 Given a `plan.md` path, implement it task by task by dispatching a fresh implementer subagent
 per task, a task review (spec compliance + code quality) after each, and a broad whole-branch
-review at the end. Self-contained: you need only the `plan.md`, not the planning session's
-context. You orchestrate subagents and invoke no other skill.
+review at the end. You orchestrate subagents.
 
 **Why subagents:** each task runs in isolated context you construct precisely, so subagents
 stay focused and your own context stays free for coordination. A subagent never inherits your
@@ -33,7 +32,7 @@ Hold every task and every subagent to these:
 
 ## Preconditions
 
-1. Locate the `plan.md` — from the argument, the `atelier-plan` hand-off, or by asking the user.
+1. Locate the `plan.md` — from the argument, the planning hand-off, or by asking the user.
 2. Read it in full: goal, architecture, global constraints, file structure, and every task.
 3. **Isolated dev worktree.** Do all work on a feature branch in its own worktree, so parallel
    work stays isolated and never touches `main`/`master` or the user's current checkout without
@@ -141,4 +140,3 @@ do NOT re-dispatch a task already committed/checked; resume at the first uncheck
   Critical/Important findings.
 - Never tell a reviewer what not to flag or pre-rate a finding's severity.
 - Let implementer self-review supplement, not replace, the task review — both are needed.
-- Invoke no other skill.
