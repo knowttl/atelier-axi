@@ -127,6 +127,17 @@ test("artifact SDK script is valid JavaScript", () => {
   assert.doesNotThrow(() => new Function(js));
 });
 
+test("artifact SDK exposes queueAll for batching every input card in one action", () => {
+  const js = createSdkJs("abc");
+
+  // The helper is serialized into the bundle and the public API forwards it.
+  assert.match(js, /const planQueueAllTargets=/);
+  assert.match(js, /function queueAll/);
+  assert.match(js, /querySelectorAll\(["']\[data-atelier-question\]["']\)/);
+  assert.match(js, /atelier:submit/);
+  assert.match(js, /\.atelier\s*=\s*\{[^}]*queueAll,/);
+});
+
 test("artifact SDK ignores Atelier-owned annotation UI", () => {
   const js = createSdkJs("abc");
 

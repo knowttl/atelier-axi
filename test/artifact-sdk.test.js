@@ -7,6 +7,7 @@ import {
   deriveAtelierQueueKey,
   fragmentsSignificantlyOverlap,
   isNativeInteractiveControl,
+  planQueueAllTargets,
   resolveVisibleSpillCandidates,
 } from "../src/artifact-sdk.js";
 
@@ -162,6 +163,49 @@ test("deriveAtelierQueueKey keys named selects as fields", () => {
   node("form", { id: "deploy" }, [select]);
 
   assert.equal(deriveAtelierQueueKey(select), "field:form:deploy:region");
+});
+
+// findForm mirrors the SDK's `el.querySelector("form")` using the mock node tree.
+function firstFormDescendant(el) {
+  for (const child of el.children || []) {
+    if (child.tagName.toLowerCase() === "form") return child;
+    const nested = firstFormDescendant(child);
+    if (nested) return nested;
+  }
+  return null;
+}
+
+test("planQueueAllTargets submits a data-atelier-question form and dispatches an event for a custom card", () => {
+  const form = node("form", { "data-atelier-question": "plan" });
+  const customCard = node("section", { "data-atelier-question": "scope" });
+
+  assert.deepEqual(planQueueAllTargets([form, customCard], firstFormDescendant), [
+    { el: form, method: "submit" },
+    { el: customCard, method: "event" },
+  ]);
+});
+
+test("planQueueAllTargets submits an inner form when the question wrapper is not itself a form", () => {
+  const innerForm = node("form", {});
+  const wrapper = node("div", { "data-atelier-question": "region" }, [innerForm]);
+
+  assert.deepEqual(planQueueAllTargets([wrapper], firstFormDescendant), [{ el: innerForm, method: "submit" }]);
+});
+
+test("planQueueAllTargets de-duplicates a wrapper and its inner form so a form fires once", () => {
+  const innerForm = node("form", { "data-atelier-question": "region" });
+  const wrapper = node("div", { "data-atelier-question": "region-group" }, [innerForm]);
+
+  // Both the wrapper (resolves to innerForm) and the form itself are in the query result.
+  assert.deepEqual(planQueueAllTargets([wrapper, innerForm], firstFormDescendant), [
+    { el: innerForm, method: "submit" },
+  ]);
+});
+
+test("planQueueAllTargets skips nullish entries and tolerates a missing findForm", () => {
+  const customCard = node("div", { "data-atelier-question": "scope" });
+
+  assert.deepEqual(planQueueAllTargets([null, customCard, undefined]), [{ el: customCard, method: "event" }]);
 });
 
 test("fragmentsSignificantlyOverlap ignores the reflow gap in a wrapped inline phrase's bounding box", () => {

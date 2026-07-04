@@ -15,6 +15,7 @@ import {
   deriveAtelierQueueKey,
   fragmentsSignificantlyOverlap,
   isNativeInteractiveControl,
+  planQueueAllTargets,
   resolveVisibleSpillCandidates,
 } from "./artifact-sdk.js";
 import * as mermaidNode from "./mermaid-node.js";
@@ -890,6 +891,7 @@ export function createSdkJs(key) {
 const key=${JSON.stringify(key)};
 void key;
 const deriveQueueKey=${deriveAtelierQueueKey.toString()};
+const planQueueAllTargets=${planQueueAllTargets.toString()};
 const isNativeInteractiveControl=${isNativeInteractiveControl.toString()};
 const fragmentsSignificantlyOverlap=${fragmentsSignificantlyOverlap.toString()};
 const resolveVisibleSpillCandidates=${resolveVisibleSpillCandidates.toString()};

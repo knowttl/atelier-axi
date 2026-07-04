@@ -239,6 +239,7 @@ export const PLAYBOOKS = [
       "Use data-atelier-question on a question wrapper or pass queueKey when multiple pre-send updates should replace the prior unsent answer for the same question.",
       "Pass options such as tag, text, selector, target, data, queueKey, or element when they help the agent understand exactly what the user chose.",
       "Call window.atelier.sendQueuedPrompts() only when the control should immediately send committed feedback instead of waiting for the user to press Send to Agent.",
+      'For a multi-question form, end it with ONE batch control - `<button type="button" data-atelier-action onclick="window.atelier.queueAll()">Queue all answers</button>` - so the user answers every card and queues them in a single click instead of pressing each card\'s own Queue button; keep the per-question submit handlers, since queueAll() triggers each one (unanswered/guarded questions simply skip). Use window.atelier.queueAll({ send: true }) for a \'Queue all & send\' one-click.',
       "Make queued prompts specific enough that the agent can act without asking a follow-up question.",
       "Keep native browser controls accessible and readable on mobile.",
     ],
@@ -251,7 +252,7 @@ export const PLAYBOOKS = [
     atelier_notes: [
       "Atelier is strongest when the artifact becomes a focused review surface and not just a static page.",
       'A native single-choice question should submit the final value: `<form data-atelier-question="plan" onsubmit="event.preventDefault(); const choice = new FormData(event.currentTarget).get(\'plan\'); if (choice) window.atelier.queuePrompt(\'Use the \' + choice + \' plan\', { tag: \'choice\', text: \'Plan: \' + choice, element: event.currentTarget, data: { question: \'plan\', answer: choice } });"><label><input type="radio" name="plan" value="Starter"> Starter</label><label><input type="radio" name="plan" value="Pro"> Pro</label><button type="submit">Queue this answer</button></form>`.',
-      "A custom choice UI should make option buttons update local state, then use a separate Queue answer button with data-atelier-action to queue the final selected value.",
+      "A custom choice UI should make option buttons update local state, then use a separate Queue answer button with data-atelier-action to queue the final selected value. To include it in a queueAll() batch, also queue that final value when the card receives an `atelier:submit` event (queueAll dispatches `atelier:submit` on every non-form [data-atelier-question] element).",
       "Use window.atelier.queuePrompt for user intent, not internal analytics or UI-only state changes.",
       "End input paths with an obvious way for the user to send feedback back to the agent.",
     ],
