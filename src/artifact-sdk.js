@@ -105,6 +105,28 @@ export function deriveAtelierQueueKey(element, options = {}) {
   return "";
 }
 
+// Resolve how `window.atelier.queueAll()` should trigger each question in one action, so a single
+// "Queue all answers" button reuses every per-question submit handler instead of the user pressing
+// each card's own Queue button. A `<form data-atelier-question>` (the canonical input-playbook
+// pattern) - or an element wrapping one - is triggered via `requestSubmit()` so its existing
+// `onsubmit` queues the answer; any other `[data-atelier-question]` element (a custom, non-form
+// choice UI) gets an `atelier:submit` event it can listen for. Targets are de-duplicated so a
+// wrapper and its inner form never both fire. `findForm` is injected for testability.
+export function planQueueAllTargets(elements, findForm) {
+  const targets = [];
+  const seen = new Set();
+  for (const el of elements || []) {
+    if (!el) continue;
+    const tag = String(el.tagName || el.nodeName || "").toLowerCase();
+    const form = tag === "form" ? el : typeof findForm === "function" ? findForm(el) || null : null;
+    const target = form || el;
+    if (seen.has(target)) continue;
+    seen.add(target);
+    targets.push({ el: target, method: form ? "submit" : "event" });
+  }
+  return targets;
+}
+
 export function isNativeInteractiveControl(el) {
   return !!(
     el &&
@@ -556,6 +578,25 @@ export function createArtifactSdk(
 
   function sendQueuedPrompts() {
     parent.postMessage({ type: "atelier:sendQueuedPrompts" }, "*");
+  }
+
+  // Queue every input/question card at once so the user answers a whole form and commits it with a
+  // single button instead of pressing each card's own Queue control. Each question's existing
+  // submit handler runs (guarded questions with no selection simply skip queuing), so per-question
+  // queueKeys still collapse repeat answers. Pass { send: true } to also fire the queued prompts.
+  function queueAll(options = {}) {
+    const elements = document.querySelectorAll ? [...document.querySelectorAll("[data-atelier-question]")] : [];
+    const targets = planQueueAllTargets(elements, (el) => (el && el.querySelector ? el.querySelector("form") : null));
+    for (const { el, method } of targets) {
+      if (method === "submit") {
+        if (typeof el.requestSubmit === "function") el.requestSubmit();
+        else el.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      } else {
+        el.dispatchEvent(new CustomEvent("atelier:submit", { bubbles: true }));
+      }
+    }
+    if (options && options.send) sendQueuedPrompts();
+    return targets.length;
   }
 
   function endSession() {
@@ -1028,6 +1069,7 @@ export function createArtifactSdk(
 
   /** @type {Window & { atelier?: unknown }} */ (window).atelier = {
     queuePrompt,
+    queueAll,
     sendQueuedPrompts,
     endSession,
     getQueuedPrompts: () => [],

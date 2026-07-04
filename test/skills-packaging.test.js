@@ -38,6 +38,7 @@ test("SKILL.md routes to the planning + implementing modes and names the docs/at
     skill.includes("docs/atelier/<YYYY-MM-DD>-<type>-<topic>/"),
     "carries the docs/atelier output path on the funnel so spec/plan land there",
   );
+  assert.ok(skill.includes("Headless mode"), "advertises the headless (no-browser) planning variant");
 });
 
 test("planning.md drives the visual planning arc and hands off to implementing.md", async () => {
@@ -55,6 +56,18 @@ test("planning.md drives the visual planning arc and hands off to implementing.m
   assert.ok(skill.includes("Session teardown"), "documents how to tear down the review session");
   assert.ok(skill.includes("atelier-axi end"), "ends the atelier session on teardown");
   assert.ok(skill.includes("Commit the finished documents"), "commits the finished records properly");
+});
+
+test("planning.md offers a headless chat-only planning mode that keeps the durable output", async () => {
+  const skill = await readFile(new URL("skills/atelier/planning.md", root), "utf8");
+
+  assert.ok(skill.includes("Headless mode"), "documents a headless mode section");
+  assert.ok(skill.includes("one numbered message"), "batches the intake questions instead of dripping them");
+  assert.ok(skill.includes("EXPLICITLY approves"), "keeps the approve-the-design gate in chat");
+  assert.ok(
+    skill.includes("large route writes `spec.md` + `plan.md`") && skill.includes("plan.md` only"),
+    "keeps spec+plan on large and plan-only on small in headless mode",
+  );
 });
 
 test("implementing.md executes a plan.md task-by-task in an isolated worktree", async () => {

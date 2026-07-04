@@ -9,14 +9,21 @@ atelier-axi as the visual review surface. You ORCHESTRATE real CLI tools (`ateli
 Implementation happens later, on explicit user opt-in, by following `implementing.md` (its
 sibling) — never in this flow.
 
+There are two surfaces for the review: the default **visual flow** (a browser artifact the user
+annotates, Phases 3-4 below) and a lightweight **headless mode** (a chat-only question loop, no
+browser) the user can pick to save tokens or plan something quickly. Both produce the same durable
+`spec.md`/`plan.md` records. If the request asks for the lightweight/no-UI path, read
+**Headless mode** below first; otherwise follow the visual flow.
+
 ## Operating rules
 
 - **Planning only — never write implementation code in this flow.** Implementation happens
   later, on explicit opt-in, via `implementing.md`.
-- **Surface questions in the UI, not the terminal.** Do NOT run a one-question-at-a-time
-  terminal interview. Put every clarifying question into the browser review surface so the
-  user reviews and answers them all together. Keep the terminal to a one-line framing before
-  the first artifact opens.
+- **Surface questions in the UI, not the terminal (visual flow).** In the default visual flow,
+  do NOT run a one-question-at-a-time terminal interview: put every clarifying question into the
+  browser review surface so the user reviews and answers them all together, and keep the terminal
+  to a one-line framing before the first artifact opens. (In **Headless mode** there is no browser,
+  so questions go into chat — still batched in one message, never dripped one at a time.)
 - **Propose before you converge.** Once the user has answered the intake questions, present
   2-3 candidate approaches with tradeoffs and a clear recommendation in the UI before writing
   any spec or plan. Lead with the recommended option and say why.
@@ -36,6 +43,51 @@ sibling) — never in this flow.
   reduction** (simplicity is the goal — DRY, YAGNI, build only what the approved scope needs);
   and **evidence over claims** (verify with real command output before declaring anything done).
   Write every task so these hold; the `implementing.md` flow enforces them at execution time.
+
+## Headless mode (chat-only planning)
+
+A lightweight variant of this same flow that runs entirely in chat — no browser, no HTML artifact,
+no `atelier-axi` calls — so it costs far fewer tokens and is quicker for trying an idea out. It is a
+mode the user **deliberately chooses**, not the graceful-degradation fallback (that one fires only
+when `atelier-axi` is unavailable and must announce the degradation). Just state once that you are
+planning in chat mode, then proceed normally.
+
+**Use it when the user explicitly asks for it** — phrases like "quick plan", "plan without UI",
+"headless plan", "plan in chat", or an equivalent ask to skip the browser / save tokens. Otherwise
+default to the visual flow. If it is genuinely unclear which the user wants, ask once.
+
+**What stays the same:** the whole planning arc and the SAME durable output. Scope classification,
+the propose-before-converge discipline, the approve-the-design gate, the fresh-subagent spec/plan
+review loops, durable records, beads, and the git commit all run exactly as written below. Only the
+review _surface_ changes.
+
+**What changes — replace Phases 3-4 with a chat intake + approval loop:**
+
+1. Run **Phases 1-2 unchanged** (read context, enumerate questions, classify large/small and state
+   the call).
+2. Post **all** Phase-1 clarifying questions in **one numbered message**, grouped (purpose,
+   constraints, success criteria, scope), and stop for the user's reply. Do NOT drip them one at a
+   time — batching one message keeps turns and tokens low. Invite a single reply answering by number.
+3. After they answer, ask targeted follow-ups **only** where an answer is missing or ambiguous —
+   again batched in one message, not one-by-one. Skip follow-ups entirely when the answers are clear.
+4. **Propose 2-3 approaches** in chat as a compact comparison: tradeoffs plus a clear recommendation,
+   leading with the recommended option and saying why. Revisit decomposition if the answers reveal
+   the scope is larger than it first looked.
+5. Present each remaining open question, edge case, and decision with your recommendation; let the
+   user accept or defer each. Track each as accepted or explicitly deferred.
+6. Do **not** write a spec or plan until the user **EXPLICITLY approves** a direction — the same
+   approve-the-design gate, just in chat.
+
+**Then run the rest of the flow unchanged, with these headless adjustments:**
+
+- **Phases 5-6** run exactly as written (spec on the large route, plan on both), each with its
+  fresh-context reviewer subagent and the 3-round convergence safeguard.
+- **Phase 7** runs unchanged **except there is no artifact to export**: skip the Phase-7 step-1
+  export. The **large route writes `spec.md` + `plan.md`** (no `review.html`); the **small route
+  writes `plan.md` only**. Beads records and the git commit are unchanged.
+- **Phase 8** gives the two-option hand-off (implement now via `implementing.md`, or defer) as a
+  terminal summary — do **not** open a final atelier artifact.
+- **Session teardown** has nothing to tear down: you opened no atelier session, server, or poll.
 
 ## Phase 1 — Intake & project context
 
