@@ -53,6 +53,11 @@ dolt-server.activity
 # Backup data (auto-exported JSONL, local-only)
 backup/
 
+# JSONL exports (disabled via export.auto=false).
+# Canonical issue data syncs through Dolt (refs/dolt/data on origin), so the
+# passive jsonl export is no longer the transport and is not tracked in git.
+*.jsonl
+
 # Per-project environment file (Dolt connection config, GH#2520)
 .env
 
