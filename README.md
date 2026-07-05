@@ -48,6 +48,8 @@ npx skills add knowttl/atelier-axi --skill atelier
 That is the entire setup - no npm install needed.
 The skill teaches your agent to run Atelier through `npx -y atelier-axi`, so the CLI comes along on demand.
 Its frontmatter also includes Hermes Agent metadata, so Hermes-compatible harnesses can categorize and surface it as a first-class productivity skill.
+This installs the public `atelier` skill.
+The repository also contains an internal `atelier-design` brand skill for maintainers; default `npx skills add ... --list` and skills.sh discovery hide it unless `INSTALL_INTERNAL_SKILLS=1` is set.
 
 Then, in agents that expose skills as slash commands (Claude Code, for example), invoke it directly:
 
@@ -169,6 +171,7 @@ Under the hood, that loop is built from these pieces:
   The browser chrome keeps editing actions in the overflow menu (copy path, reload artifact, copy DOM snapshot, export standalone HTML, publish link, end session) and can submit queued prompts with **Send & end session**, which sends the prompts and user-ended attribution together.
 - **Keyboard shortcuts** - In the chrome composer, Enter sends queued prompts and Shift+Enter inserts a newline.
   In the annotation card, Enter queues the annotation, Shift+Enter inserts a newline, and Ctrl+Enter (Cmd+Enter on macOS) queues it and sends all queued prompts immediately.
+  Cmd+I or Ctrl+I toggles between annotate and explore mode from either the browser chrome or the artifact iframe, including while focus is in a textarea or control.
 - **Agent presence** - The browser shows when no agent is listening, keeps queued feedback and fresh layout warnings for the next successful `atelier-axi poll` send even across reloads, and only blocks human sends while the agent is working on delivered feedback. The no-timeout poll writes an immediate stderr banner and periodic stderr heartbeats while stdout stays reserved for the final response; if the poll is interrupted or times out, re-run it because queued feedback is never lost.
 - **Session end etiquette** - Atelier tracks who ended a session: a human clicking **End session** (or **Send & end session**) in the browser is a user-initiated end, while `atelier-axi end <html-file>` is agent-initiated.
   A plain `atelier-axi <html-file>` after a user-initiated end refuses to reopen the browser and returns guidance instead; pass `--reopen` only when the user asks for further review or something important needs their visual attention.

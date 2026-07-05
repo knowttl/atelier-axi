@@ -4,6 +4,13 @@ import * as mermaidHelpers from "./mermaid-node.js";
 
 export const ATELIER_INTERNAL_QUEUE_KEY = "_atelierQueueKey";
 
+export const MODE_TOGGLE_HOTKEY_KEY = "i";
+
+export function isModeToggleHotkeyEvent(event) {
+  if (event.shiftKey || event.altKey) return false;
+  return Boolean(event.metaKey || event.ctrlKey) && String(event.key || "").toLowerCase() === MODE_TOGGLE_HOTKEY_KEY;
+}
+
 // Derive the browser-only replacement key used to collapse unsent updates for the same input.
 // The key is stripped by the chrome before prompts are sent to the server or returned by poll.
 export function deriveAtelierQueueKey(element, options = {}) {
@@ -1087,6 +1094,20 @@ export function createArtifactSdk(
       window.scrollTo(Number(msg.x) || 0, Number(msg.y) || 0);
     }
   });
+
+  // Capture phase so the mode hotkey fires no matter where focus is inside the artifact -
+  // including a checkbox, button, link, or the annotation-card textarea - without disturbing
+  // normal typing. This SDK doesn't own the mode state; it asks the chrome to toggle the same
+  // state the on-screen switch drives, via the same postMessage protocol as setAnnotationMode.
+  document.addEventListener(
+    "keydown",
+    (event) => {
+      if (!isModeToggleHotkeyEvent(event)) return;
+      event.preventDefault();
+      parent.postMessage({ type: "atelier:toggleAnnotationMode" }, "*");
+    },
+    true,
+  );
 
   // Report scroll position to the chrome so it can be restored across hot reloads.
   // The iframe is sandboxed without same-origin, so the chrome can't read scrollY directly.
