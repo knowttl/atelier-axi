@@ -53,3 +53,8 @@
 # Secret keys (stored in this file but prefer env vars to avoid git exposure):
 # - linear.api_key  → use LINEAR_API_KEY env var instead
 # - github.token    → use GITHUB_TOKEN env var instead
+
+# Disable automatic JSONL export on every write.
+# Canonical issue data syncs through Dolt (refs/dolt/data on origin), so the
+# passive .beads/issues.jsonl export is no longer the transport and is gitignored.
+export.auto: false
