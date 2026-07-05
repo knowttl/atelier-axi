@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.1](https://github.com/knowttl/atelier-axi/compare/atelier-axi-v0.2.0...atelier-axi-v0.2.1) (2026-07-05)
+
+
+### Features
+
+* add zoomable mermaid diagram annotations and annotate/explore mode hotkey ([#8](https://github.com/knowttl/atelier-axi/issues/8)) ([3bd14c4](https://github.com/knowttl/atelier-axi/commit/3bd14c4071825c552560088a1d47e63329748480))
+* **atelier:** realign skill guidance to end-to-end verification ([#9](https://github.com/knowttl/atelier-axi/issues/9)) ([b1fbb88](https://github.com/knowttl/atelier-axi/commit/b1fbb88c0de070737dcb96cca6e22a22fc5f5f5f))
+* **webui,skill:** batch "Queue all answers" button + headless plan mode ([61f3420](https://github.com/knowttl/atelier-axi/commit/61f3420b8f819ef1fecbb30fe5390d7bdb6d8f3e))
+* **webui,skill:** batch "Queue all answers" button + headless plan mode ([6bb87f9](https://github.com/knowttl/atelier-axi/commit/6bb87f92993ba151b441f76b14b78cf67ecdd7a6))
+
 ## [0.2.0](https://github.com/knowttl/atelier-axi/compare/atelier-axi-v0.1.35...atelier-axi-v0.2.0) (2026-07-03)
 
 
