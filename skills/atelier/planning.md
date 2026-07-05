@@ -38,11 +38,13 @@ browser) the user can pick to save tokens or plan something quickly. Both produc
   exactly the context each needs — they do not inherit this conversation.
 - **Engineering principles the plan must encode.** The `plan.md` you produce — and the
   implementation the `implementing.md` flow drives from it — obey four non-negotiables:
-  **test-driven** (every behavior gets a failing test first, then the minimal code to pass);
-  **systematic over ad-hoc** (a written, reviewable process, not guess-and-check); **complexity
-  reduction** (simplicity is the goal — DRY, YAGNI, build only what the approved scope needs);
-  and **evidence over claims** (verify with real command output before declaring anything done).
-  Write every task so these hold; the `implementing.md` flow enforces them at execution time.
+  **end-to-end verification** (every task ends by running the real, running product the way a
+  user would and confirming the observed behavior matches what the user expects — not by
+  writing a failing test first); **systematic over ad-hoc** (a written, reviewable process, not
+  guess-and-check); **complexity reduction** (simplicity is the goal — DRY, YAGNI, build only
+  what the approved scope needs); and **evidence over claims** (verify with the real
+  command/flow and its observed output before declaring anything done). Write every task so
+  these hold; the `implementing.md` flow enforces them at execution time.
 
 ## Headless mode (chat-only planning)
 
@@ -180,9 +182,10 @@ review _surface_ changes.
 1. Write `plan.md` following `plan-template.md`: the agentic-worker header, goal / architecture
    / tech stack / global constraints, a **Decisions resolved during review** section (so the
    review's conclusions survive even when the small route keeps no `review.html`), a **File
-   Structure** map of every file each task touches, then bite-sized TDD tasks (write failing test
-   → run it fail → minimal implementation → run it pass → commit) with exact file paths and
-   complete code — written for an engineer with zero context, NO placeholders.
+   Structure** map of every file each task touches, then bite-sized E2E-verification tasks
+   (implement the change → run the real product end-to-end the way a user would → confirm the
+   observed behavior matches what the user expects → commit) with exact file paths and complete
+   code — written for an engineer with zero context, NO placeholders.
 2. **Self-review first** (your own checklist, not a subagent): (a) spec coverage — every spec
    requirement maps to a task; (b) placeholder scan — no `TBD`/"add error handling"/"similar to
    Task N"; (c) type/signature consistency — names used in later tasks match earlier

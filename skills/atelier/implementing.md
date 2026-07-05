@@ -17,18 +17,21 @@ session history — you hand it exactly what it needs.
 
 Hold every task and every subagent to these:
 
-- **Test-driven — the Iron Law: no production code without a failing test first.** Each task
-  goes RED (one focused failing test) → watch it fail for the RIGHT reason (feature missing, not
-  a typo) → GREEN (the minimal code to pass) → verify → refactor only while green. If any
-  implementation was written before its test, delete it and restart from the test. Exceptions —
-  throwaway prototypes, generated code, pure config/docs — need the user's explicit OK.
+- **End-to-end verification — the Iron Law: no task is done until it's exercised like a real
+  user.** Implement the change, then run the actual product the way a user would (the real CLI
+  command, the real flow, the real browser interaction) and observe the actual outcome against
+  what the user expects. A passing unit test or a clean type-check is not a substitute for that
+  observation. If the observed behavior doesn't match user expectation, the task isn't done —
+  fix it and re-verify. Exceptions — throwaway prototypes, generated code, pure config/docs —
+  need the user's explicit OK.
 - **Systematic over ad-hoc.** Follow the plan and this loop; when something breaks, form a
   hypothesis and test it — never guess-and-check or patch blindly.
 - **Complexity reduction.** Build only what the task needs (YAGNI); prefer the simplest design
-  that passes. A task that is hard to test is a design smell — simplify the interface rather than
-  pile on mocks.
-- **Evidence over claims.** Never report a test passing, a task done, or the build green without
-  the actual command and its output. "It should work" is not evidence.
+  that passes. A task that is hard to verify end-to-end is a design smell — simplify the
+  interface rather than paper over it with mocks.
+- **Evidence over claims.** Never report a task done or the build green without the actual
+  command/flow you ran and the real output/behavior you observed. "It should work" is not
+  evidence.
 
 ## Preconditions
 
@@ -76,11 +79,11 @@ model and silently defeats this.
    Constraints block, Task N's full text (Files, Interfaces, every Step), and any interface or
    decision from earlier tasks it cannot know. Do NOT paste the whole plan or prior-task
    summaries — a dispatch describes one task, not the session's history. Instruct it to follow
-   the Iron Law TDD cycle exactly — no production code before a failing test: write the failing
-   test → run it and confirm it fails for the right reason (feature missing, not a typo) → the
-   minimal implementation to pass → run it and confirm it passes — using the project's test
-   command, report the exact command and its output as evidence, self-review its diff for
-   simplicity (nothing beyond the task), and STOP before committing.
+   the Iron Law exactly: implement the task's change, then verify it end-to-end against the
+   real, running product — run the actual CLI command/flow a user would run and observe the
+   actual outcome — and confirm it matches what the user expects, report the exact command/flow
+   and the observed output as evidence, self-review its diff for simplicity (nothing beyond the
+   task), and STOP before committing.
 2. **Handle the implementer's status:**
    - **DONE** — proceed to review.
    - **DONE_WITH_CONCERNS** — read the concerns first; if about correctness or scope, resolve
@@ -93,12 +96,13 @@ model and silently defeats this.
    uniquely named file and hand over the path so it never enters your context), and the Global
    Constraints copied verbatim as the reviewer's attention lens. It returns a ranked findings
    list plus **two verdicts** — (a) **spec compliance:** every requirement met and nothing
-   extra built (flag both under- and over-building); (b) **code quality:** well-built, tests
-   genuinely pass, no placeholders. Do NOT tell the reviewer what to ignore or pre-rate a
-   finding's severity.
+   extra built (flag both under- and over-building); (b) **code quality:** well-built, the
+   end-to-end verification was genuinely run and its output/behavior genuinely observed, no
+   placeholders. Do NOT tell the reviewer what to ignore or pre-rate a finding's severity.
 4. **Fix loop:** if the reviewer reports Critical/Important findings or spec not met, dispatch a
-   FRESH fix subagent with the complete findings list; it re-runs the tests covering its change
-   and reports the command and output; then re-review. After 3 rounds without a clean pass,
+   FRESH fix subagent with the complete findings list; it re-runs the end-to-end verification
+   covering its change and reports the command/flow and observed output; then re-review. After 3
+   rounds without a clean pass,
    stop and surface the remaining findings to the user. A finding that conflicts with what the
    plan mandates is the user's call — present both and ask which governs.
 5. On a clean review (spec ✅ and quality approved), **commit the task** (frequent commits),
@@ -132,10 +136,11 @@ do NOT re-dispatch a task already committed/checked; resume at the first uncheck
 - Never start on `main`/`master` without consent; work in an isolated worktree/branch (treehouse
   when available, else `git worktree`, else a feature branch) and hand it back for review rather
   than self-merging. Commit frequently.
-- Iron Law: no production code without a failing test you watched fail first; if it happened
-  anyway, delete the code and restart from the test.
-- Evidence over claims: paste the real command and its output; never declare a test, task, or
-  build green without it.
+- Iron Law: no task is done without running the real product end-to-end and observing that the
+  behavior matches what the user expects; if a task was marked done without that, go verify it
+  now.
+- Evidence over claims: paste the real command/flow and the actual observed output or behavior;
+  never declare a task or build green without it.
 - Never skip the task review, accept a report missing either verdict, or move on with open
   Critical/Important findings.
 - Never tell a reviewer what not to flag or pre-rate a finding's severity.

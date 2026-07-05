@@ -171,12 +171,12 @@ You MUST complete each phase before proceeding to the next.
 
 **Fix the root cause, not the symptom:**
 
-1. **Create Failing Test Case**
-   - Simplest possible reproduction
-   - Automated test if possible
-   - One-off test script if no framework
-   - MUST have before fixing
-   - Use the `superpowers:test-driven-development` skill for writing proper failing tests
+1. **Create a Reliable Reproduction**
+   - Simplest possible reproduction of the real, observed failure
+   - Drive it through the actual product/flow a user would hit (the real CLI command, API call,
+     UI interaction) — not a synthetic stand-in
+   - MUST reproduce reliably before fixing, so you have something concrete to re-check the fix
+     against
 
 2. **Implement Single Fix**
    - Address the root cause identified
@@ -184,10 +184,11 @@ You MUST complete each phase before proceeding to the next.
    - No "while I'm here" improvements
    - No bundled refactoring
 
-3. **Verify Fix**
-   - Test passes now?
-   - No other tests broken?
-   - Issue actually resolved?
+3. **Verify Fix End-to-End**
+   - Re-run the same real reproduction — does the actual observed behavior now match what the
+     user expects?
+   - No other behavior broken?
+   - Issue actually resolved, not just quieted?
 
 4. **If Fix Doesn't Work**
    - STOP
@@ -217,8 +218,8 @@ You MUST complete each phase before proceeding to the next.
 If you catch yourself thinking:
 - "Quick fix for now, investigate later"
 - "Just try changing X and see if it works"
-- "Add multiple changes, run tests"
-- "Skip the test, I'll manually verify"
+- "Add multiple changes, then check if it's fixed"
+- "Skip reproducing it, I'll just fix what looks wrong"
 - "It's probably X, let me fix that"
 - "I don't fully understand but this might work"
 - "Pattern says X but I'll adapt it differently"
@@ -249,7 +250,7 @@ If you catch yourself thinking:
 | "Issue is simple, don't need process" | Simple issues have root causes too. Process is fast for simple bugs. |
 | "Emergency, no time for process" | Systematic debugging is FASTER than guess-and-check thrashing. |
 | "Just try this first, then investigate" | First fix sets the pattern. Do it right from the start. |
-| "I'll write test after confirming fix works" | Untested fixes don't stick. Test first proves it. |
+| "I'll skip reproducing it, just fix what looks wrong" | Fixes without a reliable repro can't be verified. Reproduce first. |
 | "Multiple fixes at once saves time" | Can't isolate what worked. Causes new bugs. |
 | "Reference too long, I'll adapt the pattern" | Partial understanding guarantees bugs. Read it completely. |
 | "I see the problem, let me fix it" | Seeing symptoms ≠ understanding root cause. |
@@ -262,7 +263,7 @@ If you catch yourself thinking:
 | **1. Root Cause** | Read errors, reproduce, check changes, gather evidence | Understand WHAT and WHY |
 | **2. Pattern** | Find working examples, compare | Identify differences |
 | **3. Hypothesis** | Form theory, test minimally | Confirmed or new hypothesis |
-| **4. Implementation** | Create test, fix, verify | Bug resolved, tests pass |
+| **4. Implementation** | Reproduce, fix, verify end-to-end | Bug resolved, real behavior matches expectation |
 
 ## When Process Reveals "No Root Cause"
 
@@ -284,7 +285,6 @@ These techniques are part of systematic debugging and available in this director
 - **`condition-based-waiting.md`** - Replace arbitrary timeouts with condition polling
 
 **Related skills:**
-- **superpowers:test-driven-development** - For creating failing test case (Phase 4, Step 1)
 - **superpowers:verification-before-completion** - Verify fix worked before claiming success
 
 ## Real-World Impact

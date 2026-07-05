@@ -86,7 +86,7 @@ Once you have my answers, scan what's currently installed:
 Ask me what I want to uninstall. Present these options:
 
 - **By number** — e.g., "1, 3, 5" (from the table above)
-- **By name or keyword** — e.g., "brainstorming, tdd" (you will match to full names)
+- **By name or keyword** — e.g., "brainstorming, debugging" (you will match to full names)
 - **By group** — e.g., "all obra.superpowers", "all mattpocock.skills", "all local"
 - **"all"** — remove everything
 - **"beads"** — remove the beads integration (both items + optionally the `.beads/` database)

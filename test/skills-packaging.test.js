@@ -47,7 +47,10 @@ test("planning.md drives the visual planning arc and hands off to implementing.m
   assert.ok(skill.includes("atelier-axi playbook plan"), "opens the enriched plan playbook");
   assert.ok(skill.includes("implementing.md"), "hands off to the execution flow, not a separate skill");
   assert.ok(!skill.includes("atelier-implement"), "no dangling reference to the removed skill name");
-  assert.ok(skill.includes("test-driven") || skill.includes("Test-driven"), "encodes TDD");
+  assert.ok(
+    skill.includes("end-to-end verification") || skill.includes("End-to-end verification"),
+    "encodes E2E verification",
+  );
   assert.ok(
     skill.includes("evidence over claims") || skill.includes("Evidence over claims"),
     "encodes the evidence-over-claims principle",
@@ -75,7 +78,7 @@ test("implementing.md executes a plan.md task-by-task in an isolated worktree", 
 
   assert.ok(skill.includes("plan.md"), "executes a plan.md");
   assert.ok(skill.includes("fresh subagent per task") || skill.includes("FRESH implementer subagent"));
-  assert.ok(skill.includes("Iron Law"), "enforces the TDD Iron Law");
+  assert.ok(skill.includes("Iron Law"), "enforces the end-to-end verification Iron Law");
   assert.ok(skill.includes("treehouse"), "acquires an isolated dev worktree via treehouse");
   assert.ok(skill.includes("git worktree"), "falls back to git worktree when treehouse is absent");
   assert.ok(
