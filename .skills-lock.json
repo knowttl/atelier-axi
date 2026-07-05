@@ -141,16 +141,6 @@
       "agents": ["claude-code"],
       "profile": null
     },
-    "obra.superpowers.test-driven-development": {
-      "type": "skill",
-      "version": "1.0.0",
-      "source": "local",
-      "sourceUrl": null,
-      "sourceCommit": null,
-      "installedAt": "2026-07-03T05:38:02Z",
-      "agents": ["claude-code"],
-      "profile": null
-    },
     "obra.superpowers.using-git-worktrees": {
       "type": "skill",
       "version": "1.0.0",

@@ -45,11 +45,11 @@ boundaries below.>
 - Consumes: <exact signatures this task uses from earlier tasks>
 - Produces: <exact names/types later tasks rely on>
 
-- [ ] **Step 1: Write the failing test** — show the complete test code.
-- [ ] **Step 2: Run it and confirm it fails** — exact command + expected failure message.
-- [ ] **Step 3: Write the minimal implementation** — show the complete code.
-- [ ] **Step 4: Run it and confirm it passes** — exact command + expected pass.
-- [ ] **Step 5: Commit** — `git add <paths> && git commit -m "<message>"`.
+- [ ] **Step 1: Implement the change** — show the complete code.
+- [ ] **Step 2: Verify end-to-end** — run the real product the way a user would (exact
+      command/flow) and confirm the observed behavior matches what the user expects; show the
+      expected observed output.
+- [ ] **Step 3: Commit** — `git add <paths> && git commit -m "<message>"`.
 
 ## Rules
 
@@ -57,12 +57,14 @@ boundaries below.>
 - NO placeholders: "TBD", "add error handling", "handle edge cases", "similar to Task N", or a
   step that says what to do without showing how are plan failures.
 - Types, function names, and signatures used in later tasks must match those defined earlier.
-- Right-size tasks: a task is the smallest unit that carries its own test cycle and is worth a
-  fresh reviewer's gate. Fold setup/config/scaffolding/docs into the task whose deliverable
-  needs them; split only where a reviewer could reject one task while approving its neighbor.
-- Write for an engineer with zero context for the codebase and questionable test taste.
-- **Four non-negotiables:** _test-driven_ (a failing test first, always — RED, watch it fail,
-  then the minimal code to pass); _systematic over ad-hoc_ (follow the plan, don't guess);
-  _complexity reduction_ (DRY, YAGNI — the simplest thing that passes); _evidence over claims_
-  (every step shows the real command and its output). Commit frequently; each task ends with an
-  independently testable deliverable.
+- Right-size tasks: a task is the smallest unit that carries its own end-to-end verification and
+  is worth a fresh reviewer's gate. Fold setup/config/scaffolding/docs into the task whose
+  deliverable needs them; split only where a reviewer could reject one task while approving its
+  neighbor.
+- Write for an engineer with zero context for the codebase and questionable engineering taste.
+- **Four non-negotiables:** _end-to-end verification_ (implement, then run the real product the
+  way a user would and confirm the observed behavior matches what the user expects — always);
+  _systematic over ad-hoc_ (follow the plan, don't guess); _complexity reduction_ (DRY, YAGNI —
+  the simplest thing that passes); _evidence over claims_ (every step shows the real command/flow
+  and its observed output). Commit frequently; each task ends with an independently verifiable
+  deliverable.

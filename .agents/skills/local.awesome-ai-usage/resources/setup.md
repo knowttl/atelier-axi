@@ -286,7 +286,7 @@ Present the discovered skills to me in a clear, organized format. Group them log
 Only show skills compatible with at least one of my selected assistants. If a skill is compatible with some but not all of my assistants, note which ones.
 
 Tell me I can select by:
-- Individual names or keywords (e.g., "brainstorming, tdd") — you will match these to the full skill names from registry.json
+- Individual names or keywords (e.g., "brainstorming, debugging") — you will match these to the full skill names from registry.json
 - Group prefix (e.g., "all obra.superpowers skills")
 - "all" for everything compatible
 - "recommend" if I want your suggestion

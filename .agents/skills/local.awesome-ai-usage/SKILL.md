@@ -331,7 +331,7 @@ description: My standard dev workflow skills.
 items:
   - name: obra.superpowers.brainstorming
     source: local
-  - name: obra.superpowers.test-driven-development
+  - name: obra.superpowers.systematic-debugging
     source: local
 ```
 

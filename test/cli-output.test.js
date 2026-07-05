@@ -328,7 +328,7 @@ test("plan playbook detail output encodes the feature-planner arc", () => {
   );
   assert.ok(output.playbook.choose.some((item) => item.includes("full planning arc")));
   assert.ok(output.playbook.structure.some((item) => item.includes("Before writing any spec")));
-  assert.ok(output.playbook.structure.some((item) => item.includes("bite-sized TDD tasks")));
+  assert.ok(output.playbook.structure.some((item) => item.includes("bite-sized E2E-verification tasks")));
   assert.ok(output.playbook.design_rules.some((item) => item.includes("decision-card")));
   assert.ok(output.playbook.design_rules.some((item) => item.includes("data-atelier-question")));
   assert.ok(output.playbook.design_rules.some((item) => item.includes("window.atelier.queuePrompt")));

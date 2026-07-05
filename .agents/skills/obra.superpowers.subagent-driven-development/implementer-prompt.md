@@ -33,11 +33,11 @@ Subagent (general-purpose):
 
     Once you're clear on requirements:
     1. Implement exactly what the task specifies
-    2. Write tests (following TDD if task says to)
-    3. Verify implementation works
-    4. Commit your work
-    5. Self-review (see below)
-    6. Report back
+    2. Verify it end-to-end — run the real product the way a user would and confirm the
+       observed behavior matches what the user expects
+    3. Commit your work
+    4. Self-review (see below)
+    5. Report back
 
     Work from: [directory]
 
@@ -96,11 +96,11 @@ Subagent (general-purpose):
     - Did I only build what was requested?
     - Did I follow existing patterns in the codebase?
 
-    **Testing:**
-    - Do tests actually verify behavior (not just mock behavior)?
-    - Did I follow TDD if required?
-    - Are tests comprehensive?
-    - Is the test output pristine (no stray warnings or noise)?
+    **Verification:**
+    - Did I actually run the real product end-to-end, the way a user would, and observe the
+      outcome — not just check that a unit test passes?
+    - Does the observed behavior match what the user expects?
+    - Is the output pristine (no stray warnings or noise)?
 
     If you find issues during self-review, fix them now before reporting.
 
@@ -114,10 +114,8 @@ Subagent (general-purpose):
 
     Write your full report to [REPORT_FILE]:
     - What you implemented (or what you attempted, if blocked)
-    - What you tested and test results
-    - **TDD Evidence** (if TDD was required for this task):
-      - RED: command run, relevant failing output before implementation, and why the failure was expected
-      - GREEN: command run and relevant passing output after implementation
+    - **End-to-end verification evidence**: the exact command/flow you ran against the real
+      product and the actual output/behavior you observed, compared against what the user expects
     - Files changed
     - Self-review findings (if any)
     - Any issues or concerns

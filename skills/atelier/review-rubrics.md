@@ -47,8 +47,8 @@ Check:
    missing their code.
 4. **Type/signature consistency** — names and signatures used in later tasks match earlier
    definitions.
-5. **Bite-sized TDD structure** — each task is failing test → run fail → minimal impl → run
-   pass → commit, with exact paths and complete code.
+5. **Bite-sized E2E-verification structure** — each task is implement → verify end-to-end
+   against real user-expected behavior → commit, with exact paths and complete code.
 6. **Independently testable** — each task ends with a deliverable a fresh reviewer could gate.
 7. **Buildability** — could an engineer with zero context follow this plan end to end without
    getting stuck? Flag any step that assumes unstated knowledge.
