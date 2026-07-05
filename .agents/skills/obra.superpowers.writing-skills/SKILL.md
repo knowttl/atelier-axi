@@ -34,7 +34,7 @@ A **skill** is a reference guide for proven techniques, patterns, or tools. Skil
 | **Test fails (RED)** | Agent violates rule without skill (baseline) |
 | **Test passes (GREEN)** | Agent complies with skill present |
 | **Refactor** | Close loopholes while maintaining compliance |
-| **Write test first** | Run baseline scenario BEFORE writing skill |
+| **Baseline first** | Run baseline scenario BEFORE writing skill |
 | **Watch it fail** | Document exact rationalizations agent uses |
 | **Minimal code** | Write skill addressing those specific violations |
 | **Watch it pass** | Verify agent now complies |
@@ -42,7 +42,7 @@ A **skill** is a reference guide for proven techniques, patterns, or tools. Skil
 
 The entire skill creation process follows RED-GREEN-REFACTOR — a cycle this skill uses for
 testing skill documents against real agent behavior; it does not require or imply code-level
-test-first development in the project the skill is being written for.
+test-before-implementation discipline in the project the skill is being written for.
 
 ## When to Create a Skill
 
@@ -162,7 +162,7 @@ When the description was changed to just "Use when executing implementation plan
 description: Use when executing plans - dispatches subagent per task with code review between tasks
 
 # ❌ BAD: Too much process detail
-description: Use for TDD - write test first, watch it fail, write minimal code, refactor
+description: Use for verification discipline - run baseline, write guidance, re-test compliance, refactor
 
 # ✅ GOOD: Just triggering conditions, no workflow summary
 description: Use when executing implementation plans with independent tasks in the current session
@@ -393,7 +393,7 @@ Edit skill without testing? Same violation.
 **Why this matters:** a skill's "production code" is behavioral compliance — you cannot verify a
 skill teaches the right thing by reading it, only by running an agent against it. That is a
 property specific to authoring skill documents, not a claim that the projects those skills serve
-must also practice code-level test-first development.
+must also practice code-level test-before-implementation discipline.
 
 ## Testing All Skill Types
 
@@ -490,19 +490,19 @@ Don't just state the rule - forbid specific workarounds:
 
 <Bad>
 ```markdown
-Write code before test? Delete it.
+Skipped end-to-end verification? Go verify.
 ```
 </Bad>
 
 <Good>
 ```markdown
-Write code before test? Delete it. Start over.
+Skipped end-to-end verification? Run the real flow now.
 
 **No exceptions:**
-- Don't keep it as "reference"
-- Don't "adapt" it while writing tests
-- Don't look at it
-- Delete means delete
+- Don't accept "I checked manually earlier" as a substitute
+- Don't defer it to "tomorrow"
+- Don't treat a passing unit test as equivalent
+- Verification means observing the real current behavior
 ```
 </Good>
 
@@ -690,4 +690,4 @@ Cycle: RED (baseline) → GREEN (write skill) → REFACTOR (close loopholes).
 Benefits: Better quality, fewer surprises, bulletproof results.
 
 This cycle is specific to authoring skill documents — it is not a claim that the projects those
-skills serve must also practice code-level test-first development.
+skills serve must also practice code-level test-before-implementation discipline.

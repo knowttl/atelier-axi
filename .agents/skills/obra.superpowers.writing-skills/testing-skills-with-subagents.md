@@ -36,15 +36,16 @@ Don't test:
 | **REFACTOR** | Plug holes | Find new rationalizations, add counters |
 | **Stay GREEN** | Re-verify | Test again, ensure still compliant |
 
-Same cycle shape as code TDD, applied here to a different artifact (a skill document instead of
-source code) — this does not require or imply that the project the skill serves practices
-code-level test-first development.
+Same cycle shape as code-level verification discipline, applied here to a different artifact (a
+skill document instead of source code) — this does not require or imply any particular coding
+methodology in the project the skill serves.
 
 ## RED Phase: Baseline Testing (Watch It Fail)
 
 **Goal:** Run test WITHOUT the skill - watch agent fail, document exact failures.
 
-This is the same discipline as writing a failing test before the code that satisfies it - you MUST see what agents naturally do before writing the skill.
+This is the same baseline-before-solution discipline: you MUST see what agents naturally do
+before writing the skill.
 
 **Process:**
 

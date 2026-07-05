@@ -81,10 +81,10 @@ Created 4 validation tests following skills/meta/testing-skills-with-subagents:
 - Anti-patterns section
 - Flowchart for "fix failed" decision
 
-### Enhancement 1: TDD Reference
-- Added link to skills/testing/test-driven-development
-- Note explaining TDD's "simplest code" ≠ debugging's "root cause"
-- Prevents confusion between methodologies
+### Enhancement 1: Reproduction Reference
+- Added guidance for creating a reliable reproduction before fixing
+- Note explaining why the real observed failure matters more than a synthetic stand-in
+- Prevents confusion between quieting a symptom and fixing the root cause
 
 ## Final Outcome
 
@@ -94,7 +94,7 @@ Bulletproof skill that:
 - ✅ Provides concrete steps for each phase
 - ✅ Shows anti-patterns explicitly
 - ✅ Tested under multiple pressure scenarios
-- ✅ Clarifies relationship to TDD
+- ✅ Clarifies relationship to reliable reproduction
 - ✅ Ready for use
 
 ## Key Insight
