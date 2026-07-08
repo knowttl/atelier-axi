@@ -15,14 +15,11 @@ function isModeToggleHotkeyEvent(event) {
 }
 
 const frame = /** @type {HTMLIFrameElement} */ (document.getElementById("artifact"));
+const panelScroll = /** @type {HTMLDivElement} */ (document.getElementById("panelScroll"));
 const annotationPills = /** @type {HTMLDivElement} */ (document.getElementById("annotationPills"));
 const chatLog = /** @type {HTMLDivElement} */ (document.getElementById("chatLog"));
 const chatInput = /** @type {HTMLTextAreaElement} */ (document.getElementById("chatInput"));
 const sendButton = /** @type {HTMLButtonElement} */ (document.getElementById("send"));
-const sendCaret = /** @type {HTMLButtonElement} */ (document.getElementById("sendCaret"));
-const sendActions = /** @type {HTMLDivElement} */ (document.getElementById("sendActions"));
-const sendMenu = /** @type {HTMLDivElement} */ (document.getElementById("sendMenu"));
-const sendFromMenuButton = /** @type {HTMLButtonElement} */ (document.getElementById("sendFromMenu"));
 const sendAndEndButton = /** @type {HTMLButtonElement} */ (document.getElementById("sendAndEnd"));
 const annotationSwitch = /** @type {HTMLButtonElement} */ (document.getElementById("annotation"));
 const moreWrap = /** @type {HTMLDivElement} */ (document.getElementById("moreWrap"));
@@ -55,7 +52,7 @@ const layoutGateTitle = /** @type {HTMLDivElement} */ (document.getElementById("
 const layoutGateCopy = /** @type {HTMLParagraphElement} */ (document.getElementById("layoutGateCopy"));
 const layoutGateAction = /** @type {HTMLButtonElement} */ (document.getElementById("layoutGateAction"));
 const layoutIssueBanner = /** @type {HTMLDivElement} */ (document.getElementById("layoutIssueBanner"));
-const sendHint = /** @type {HTMLSpanElement} */ (document.getElementById("sendHint"));
+const sendHint = /** @type {HTMLDivElement} */ (document.getElementById("sendHint"));
 const artifactSrc = frame.dataset.artifactSrc || frame.getAttribute?.("data-artifact-src") || frame.src || "";
 
 const queued = loadQueuedPrompts();
@@ -146,12 +143,12 @@ function render() {
     closeButton.addEventListener("click", (event) => removeQueuedPrompt(Number(closeButton.dataset.index), event));
   }
   updateSendState();
+  scrollPanelToBottom();
 }
 
 function updateSendState() {
   sendButton.disabled = ended || agentPresence === "working";
-  sendCaret.disabled = ended || agentPresence === "working";
-  sendFromMenuButton.disabled = sendButton.disabled;
+  sendAndEndButton.disabled = sendButton.disabled;
 }
 
 function showSendHint() {
@@ -175,7 +172,6 @@ function setMenuOpen(button, menu, open) {
 
 function closeMenus() {
   setMenuOpen(moreButton, moreMenu, false);
-  setMenuOpen(sendCaret, sendMenu, false);
 }
 
 function toggleMenu(button, menu) {
@@ -204,14 +200,15 @@ async function copyText(text) {
   return true;
 }
 
-function addChat(role, text) {
+function addChat(role, text, shouldScroll = true) {
   if (!text) return;
 
   const el = document.createElement("div");
   el.className = "bubble " + role;
   el.innerHTML = "<small>" + (role === "agent" ? "Agent" : "You") + "</small><div>" + escapeHtml(text) + "</div>";
   chatLog.appendChild(el);
-  chatLog.scrollTop = chatLog.scrollHeight;
+  if (shouldScroll) scrollElementIntoView(el);
+  return el;
 }
 
 function syncChat(chat) {
@@ -219,9 +216,14 @@ function syncChat(chat) {
     el.remove();
   }
 
-  for (const item of chat) addChat(item.role, item.text);
-  if (workingBubble) chatLog.appendChild(workingBubble);
-  chatLog.scrollTop = chatLog.scrollHeight;
+  let lastChatBubble = null;
+  for (const item of chat) lastChatBubble = addChat(item.role, item.text, false) || lastChatBubble;
+  if (workingBubble) {
+    chatLog.appendChild(workingBubble);
+    scrollElementIntoView(workingBubble);
+  } else if (lastChatBubble) {
+    scrollElementIntoView(lastChatBubble);
+  }
 }
 
 function setAgentPresence(state) {
@@ -241,7 +243,15 @@ function setAgentPresence(state) {
     workingBubble.innerHTML = '<span class="spinner"></span><span>Working...</span>';
     chatLog.appendChild(workingBubble);
   }
-  chatLog.scrollTop = chatLog.scrollHeight;
+  scrollElementIntoView(workingBubble);
+}
+
+function scrollPanelToBottom() {
+  panelScroll.scrollTop = panelScroll.scrollHeight;
+}
+
+function scrollElementIntoView(el) {
+  el.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 
 function removeQueuedPrompt(index, event) {
@@ -303,11 +313,7 @@ function sendQueued(endAfter) {
     render();
   }
   if (!queued.length) {
-    if (endAfter) {
-      endSession();
-    } else {
-      showSendHint();
-    }
+    showSendHint();
     return;
   }
   hideSendHint();
@@ -722,9 +728,7 @@ function toggleAnnotationMode() {
 annotationSwitch.onclick = toggleAnnotationMode;
 
 sendButton.onclick = () => sendQueued(false);
-sendFromMenuButton.onclick = () => sendQueued(false);
 sendAndEndButton.onclick = () => sendQueued(true);
-sendCaret.onclick = () => toggleMenu(sendCaret, sendMenu);
 moreButton.onclick = () => toggleMenu(moreButton, moreMenu);
 chatInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
@@ -753,7 +757,6 @@ endButton.onclick = () => {
 document.addEventListener("mousedown", (event) => {
   const target = /** @type {Node} */ (event.target);
   if (!moreMenu.hidden && !moreWrap.contains(target)) setMenuOpen(moreButton, moreMenu, false);
-  if (!sendMenu.hidden && !sendActions.contains(target)) setMenuOpen(sendCaret, sendMenu, false);
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {

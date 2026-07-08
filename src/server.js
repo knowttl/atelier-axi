@@ -114,7 +114,7 @@ export async function serve({
       const key = sessionKey(file);
       const reopen = Boolean(req.body.reopen);
       const existing = await store.findByKey(key);
-      // A user-initiated end (browser "End session"/"Send & end session") means the human
+      // A user-initiated end (browser "End session"/"Send & End") means the human
       // deliberately closed the review surface. Silently reopening it on the next
       // `atelier-axi <file>` is the exact behavior this route exists to prevent - require an
       // explicit `reopen` opt-in instead of reviving it automatically. Agent-initiated ends
@@ -366,7 +366,15 @@ export async function serve({
         return;
       }
       await watchSession(session, watchers, events, logEvent);
-      res.type("html").send(createChromeHtml(session, { layoutGateEnabled: shouldEnableLayoutGate(req.query || {}) }));
+      const artifactHtml = await readFile(session.file, "utf8").catch(() => "");
+      const { faviconTag, title } = extractArtifactHead(artifactHtml);
+      res.type("html").send(
+        createChromeHtml(session, {
+          layoutGateEnabled: shouldEnableLayoutGate(req.query || {}),
+          faviconTag,
+          title: title ? `${title} · Atelier` : "Atelier Editor",
+        }),
+      );
     } catch (error) {
       next(error);
     }
@@ -795,8 +803,6 @@ const chromeIcons = {
     '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
     15,
   ),
-  send: chromeIcon('<path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/>', 14),
-  caret: chromeIcon('<path d="m6 9 6 6 6-6"/>', 13, 2),
 };
 
 // Display the path with the home directory shortened to "~", split so the directory part can
@@ -851,7 +857,54 @@ function normalizeFlagValue(value) {
   return value === undefined || value === null ? "" : String(value).trim().toLowerCase();
 }
 
-export function createChromeHtml(session, { layoutGateEnabled = true } = {}) {
+const ATELIER_DEFAULT_FAVICON =
+  "<link rel=\"icon\" href=\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>\u{1F48E}</text></svg>\">";
+
+function readTagAttr(tag, name) {
+  // Tokenize real attributes rather than searching for the bare name anywhere in
+  // the tag: a `\b`-anchored name matches attribute-name suffixes (e.g. `href`
+  // inside `data-href`) and names that appear inside another attribute's quoted
+  // value (e.g. `href=` inside a `title="... href=x"`), both of which would make
+  // us adopt the wrong href. Walking whole `name="value"` pairs consumes each
+  // value as one unit, so only genuine attribute names are matched.
+  const attrRe = /([a-z][\w:-]*)\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi;
+  const target = name.toLowerCase();
+  let match;
+  while ((match = attrRe.exec(tag)) !== null) {
+    if (match[1].toLowerCase() === target) {
+      return (match[3] ?? match[4] ?? match[5] ?? "").trim();
+    }
+  }
+  return "";
+}
+
+// Pull a tab favicon + title out of the artifact's own <head>. Atelier renders the
+// artifact in a sandboxed iframe, so the artifact's own <link rel="icon"> and
+// <title> never reach the browser tab; surfacing them here makes a wall of Atelier
+// tabs identifiable. Falls back to the Atelier default favicon. Only data: and
+// absolute (http/https/protocol-relative) icon hrefs are adopted verbatim;
+// artifact-relative hrefs would not resolve against the chrome page, so they fall
+// back to the default.
+export function extractArtifactHead(html) {
+  const head = String(html || "").slice(0, 10000);
+  let faviconTag = ATELIER_DEFAULT_FAVICON;
+  const linkTags = head.match(/<link\b(?:"[^"]*"|'[^']*'|[^"'>])*>/gi) || [];
+  const iconTag = linkTags.find((tag) => /(^|\s)icon(\s|$)/i.test(readTagAttr(tag, "rel")));
+  const iconHref = iconTag ? readTagAttr(iconTag, "href") : "";
+  if (iconHref && /^(data:|https?:|\/\/)/i.test(iconHref)) {
+    const safeHref = iconHref.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+    faviconTag = `<link rel="icon" href="${safeHref}">`;
+  }
+  let title = "";
+  const titleMatch = head.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  if (titleMatch) title = titleMatch[1].replace(/\s+/g, " ").trim();
+  return { faviconTag, title };
+}
+
+export function createChromeHtml(
+  session,
+  { layoutGateEnabled = true, faviconTag = ATELIER_DEFAULT_FAVICON, title = "Atelier Editor" } = {},
+) {
   const sessionJson = jsonScript({
     key: session.key,
     file: session.file,
@@ -869,14 +922,16 @@ export function createChromeHtml(session, { layoutGateEnabled = true } = {}) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Atelier Editor</title>
+<title>${escapeHtml(title)}</title>
+${faviconTag}
 <link rel="stylesheet" href="/chrome.css">
 </head>
 <body class="${bodyClass}">
 <div class="bar"><div class="brand"><span class="brand-mark">Atelier</span><span class="brand-support">Editor</span></div><div class="spacer" aria-hidden="true"></div><button class="annotate-switch" id="annotation" type="button" aria-pressed="true" title="${escapeHtml(modeToggleHint)}"><span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span><span>Annotate</span></button><div class="more-wrap" id="moreWrap"><button class="more-button" id="moreButton" type="button" title="More" aria-haspopup="menu" aria-expanded="false">${chromeIcons.more}</button><div class="menu more-menu" id="moreMenu" hidden><div class="menu-head"><div class="menu-label">Editing</div><button class="menu-file" id="copyPath" type="button" title="Copy path · ${escapeHtml(session.file)}">${chromeIcons.file}<span class="menu-file-text"><span class="path-head">${escapeHtml(pathHead)}</span><span class="path-tail">${escapeHtml(pathTail)}</span></span><span class="copy-hint" id="copyHint"><span class="icon-copy">${chromeIcons.copy}</span><span class="icon-check">${chromeIcons.check}</span><span id="copyHintText">Copy</span></span></button></div><div class="menu-rule"></div><button class="menu-item" id="reloadArtifact" type="button">${chromeIcons.refresh}<span>Reload artifact</span></button><button class="menu-item" id="copySnapshot" type="button">${chromeIcons.camera}<span>Copy DOM snapshot</span></button><button class="menu-item" id="exportArtifact" type="button">${chromeIcons.download}<span>Export standalone HTML</span></button><button class="menu-item" id="shareArtifact" type="button">${chromeIcons.globe}<span>Publish link</span></button><div class="menu-rule"></div><button class="menu-item danger" id="end" type="button">${chromeIcons.exit}<span>End session</span></button></div></div></div>
-<div class="layout"><div class="frame"><iframe id="artifact" sandbox="allow-scripts allow-forms allow-popups allow-downloads" data-artifact-src="/artifact/${session.key}/index.html"></iframe><div class="layout-issue-banner" id="layoutIssueBanner" hidden>This surface may have layout issues. Your agent has been notified.</div></div><aside class="panel"><h2>Conversation</h2><div class="chat" id="chatLog"></div><div class="composer"><div class="presence-banner" id="presenceBanner" hidden>Your agent is not listening. If this persists, ask your agent to poll for updates from Atelier.</div><div class="annotation-pills" id="annotationPills"></div><textarea id="chatInput" placeholder="Write a message for the agent..."></textarea><div class="actions" id="sendActions"><span class="send-hint" id="sendHint" hidden>Write a message or annotate an element first.</span><div class="split"><button class="button send-main" id="send">Send to Agent</button><button class="button send-caret" id="sendCaret" type="button" title="Send options" aria-haspopup="menu" aria-expanded="false">${chromeIcons.caret}</button></div><div class="menu send-menu" id="sendMenu" hidden><button class="menu-item" id="sendFromMenu" type="button">${chromeIcons.send}<span>Send to Agent</span></button><button class="menu-item danger" id="sendAndEnd" type="button">${chromeIcons.exit}<span>Send &amp; end session</span></button></div></div></div></aside></div>
+<div class="layout"><div class="frame"><iframe id="artifact" sandbox="allow-scripts allow-forms allow-popups allow-downloads" data-artifact-src="/artifact/${session.key}/index.html"></iframe><div class="layout-issue-banner" id="layoutIssueBanner" hidden>This surface may have layout issues. Your agent has been notified.</div></div><aside class="panel"><h2>Conversation</h2><div class="panel-scroll" id="panelScroll"><div class="chat" id="chatLog"></div><div class="annotation-pills" id="annotationPills"></div></div><div class="composer"><div class="presence-banner" id="presenceBanner" hidden>Your agent is not listening. If this persists, ask your agent to poll for updates from Atelier.</div><textarea id="chatInput" placeholder="Write a message for the agent..."></textarea><div class="send-hint" id="sendHint" hidden>Write a message or annotate an element first.</div><div class="actions" id="sendActions"><button class="button button-danger" id="sendAndEnd" type="button">${chromeIcons.exit}<span>Send &amp; End</span></button><button class="button" id="send">Send to Agent</button></div></div></aside></div>
 <div class="share-overlay" id="shareDialog" role="dialog" aria-modal="true" aria-labelledby="shareTitleText" hidden><form class="share-card" id="shareForm"><div class="share-head"><div><div class="share-kicker">Publish to <a class="share-link" href="https://ht-ml.app" target="_blank" rel="noopener noreferrer">ht-ml.app</a></div><h2 id="shareTitleText">Publish artifact</h2></div><button class="share-close" id="shareClose" type="button" aria-label="Close publish dialog"><svg width="14" height="14" viewBox="0 0 10 10" fill="none" aria-hidden="true" focusable="false"><path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div><p class="share-note">ht-ml.app is a separate, third-party hosting service, not part of Atelier. Publishing sends this artifact to its servers.</p><p class="share-copy">This uploads this artifact to ht-ml.app with local assets inlined. Without a password, the page is PUBLIC and anyone with the link can open it. With a password, the page is PRIVATE and viewers must supply the password to view.</p><p class="share-note">Do not publish secrets. The Atelier annotation SDK is not included.</p><div class="share-grid"><label>Password (optional)<input id="sharePassword" name="password" type="password" autocomplete="new-password" placeholder="Leave blank for a public page"></label></div><div class="share-status" id="shareStatus" role="status"></div><div class="share-result" id="shareResult" hidden><label>Share URL<div class="share-copy-row"><input id="shareUrl" readonly><button class="share-copy-btn" id="copyShareUrl" type="button">Copy URL</button></div></label><label>Update key (secret)<div class="share-copy-row"><input id="shareUpdateKey" readonly><button class="share-copy-btn" id="copyUpdateKey" type="button">Copy key</button></div></label><p class="share-note">Keep the update key private. ht-ml.app returns it once and it is the only way to update or delete this page later.</p></div><div class="share-actions"><button class="share-cancel" id="shareCancel" type="button">Cancel</button><button class="button" id="sharePublish" type="submit">Publish</button></div></form></div>
-<div class="ended-overlay layout-gate-overlay" id="layoutGateOverlay"${layoutGateHidden}><div class="ended-card"><div class="ended-title" id="layoutGateTitle">Checking layout.<br>One moment.</div><p class="ended-copy" id="layoutGateCopy">Atelier is waiting for fonts and final geometry before revealing this artifact.</p><button class="button ended-action" id="layoutGateAction" type="button">Show anyway</button></div></div><div class="ended-overlay" id="endedOverlay" hidden><div class="ended-card"><div class="ended-title">Session ended.<br>Return to your agent to continue.</div><p class="ended-copy">${escapeHtml(session.file)}</p></div></div>
+<div class="ended-overlay layout-gate-overlay" id="layoutGateOverlay"${layoutGateHidden}><div class="ended-card"><div class="ended-title" id="layoutGateTitle">Checking layout.<br>One moment.</div><p class="ended-copy" id="layoutGateCopy">Atelier is waiting for fonts and final geometry before revealing this artifact.</p><button class="button ended-action" id="layoutGateAction" type="button">Show anyway</button></div></div>
+<div class="ended-overlay" id="endedOverlay" hidden><div class="ended-card"><div class="ended-title">Session ended.<br>Return to your agent to continue.</div><p class="ended-copy">${escapeHtml(session.file)}</p></div></div>
 <script id="atelier-session" type="application/json">${sessionJson}</script>
 <script src="/chrome-client.js"></script>
 </body>
