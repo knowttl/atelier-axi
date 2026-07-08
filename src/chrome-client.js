@@ -350,6 +350,16 @@ async function submitQueuedOnce() {
     body: JSON.stringify(body),
   });
   if (!response.ok) throw new Error("failed to submit queued prompts");
+  // Tell the artifact which prompts actually reached the agent so input cards can flip to a
+  // "completed" state. Only fires after the POST succeeds, so a failed submit leaves cards pending.
+  postToFrame({
+    type: "atelier:promptsSent",
+    prompts: prompts.map((prompt) => ({
+      uid: prompt.uid || "",
+      queueKey: promptQueueKey(prompt),
+      tag: prompt.tag || "",
+    })),
+  });
   for (const prompt of prompts) {
     const index = queued.indexOf(prompt);
     if (index !== -1) queued.splice(index, 1);

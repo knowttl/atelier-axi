@@ -16,6 +16,7 @@ import {
   fragmentsSignificantlyOverlap,
   isNativeInteractiveControl,
   planQueueAllTargets,
+  resolveSentPromptOrigins,
   resolveVisibleSpillCandidates,
 } from "./artifact-sdk.js";
 import * as mermaidNode from "./mermaid-node.js";
@@ -892,6 +893,7 @@ const key=${JSON.stringify(key)};
 void key;
 const deriveQueueKey=${deriveAtelierQueueKey.toString()};
 const planQueueAllTargets=${planQueueAllTargets.toString()};
+const resolveSentPromptOrigins=${resolveSentPromptOrigins.toString()};
 const isNativeInteractiveControl=${isNativeInteractiveControl.toString()};
 const fragmentsSignificantlyOverlap=${fragmentsSignificantlyOverlap.toString()};
 const resolveVisibleSpillCandidates=${resolveVisibleSpillCandidates.toString()};
