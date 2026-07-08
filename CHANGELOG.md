@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.2](https://github.com/knowttl/atelier-axi/compare/atelier-axi-v0.2.1...atelier-axi-v0.2.2) (2026-07-08)
+
+
+### Features
+
+* **input:** reflect confirmed-sent decisions in input-card UI ([42e12b7](https://github.com/knowttl/atelier-axi/commit/42e12b7ea36e3f4475dec5e52ee543fcb1255a21))
+* **server:** surface artifact favicon and title on the Lavish tab ([#116](https://github.com/knowttl/atelier-axi/issues/116)) ([8b9f79f](https://github.com/knowttl/atelier-axi/commit/8b9f79f0c36523403cec8e05b89b500a2e8902bd))
+
+
+### Bug Fixes
+
+* **chrome:** add conversation empty state ([#155](https://github.com/knowttl/atelier-axi/issues/155)) ([6c81509](https://github.com/knowttl/atelier-axi/commit/6c81509c098cafc646c0c3d5fd7e4f462cf30cb1))
+* **chrome:** keep composer visible with long feedback queues ([#146](https://github.com/knowttl/atelier-axi/issues/146)) ([a36aeb6](https://github.com/knowttl/atelier-axi/commit/a36aeb676eef161bd58b227a1e171fa2f6b5e071))
+* make Send & End a top-level composer action ([#153](https://github.com/knowttl/atelier-axi/issues/153)) ([094bb40](https://github.com/knowttl/atelier-axi/commit/094bb40170e1718f3f8badbd627dbea6dd0b9536))
+
 ## [0.2.1](https://github.com/knowttl/atelier-axi/compare/atelier-axi-v0.2.0...atelier-axi-v0.2.1) (2026-07-05)
 
 
