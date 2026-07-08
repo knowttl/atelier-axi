@@ -9,6 +9,7 @@ import {
   isModeToggleHotkeyEvent,
   isNativeInteractiveControl,
   planQueueAllTargets,
+  resolveSentPromptOrigins,
   resolveVisibleSpillCandidates,
 } from "../src/artifact-sdk.js";
 
@@ -207,6 +208,43 @@ test("planQueueAllTargets skips nullish entries and tolerates a missing findForm
   const customCard = node("div", { "data-atelier-question": "scope" });
 
   assert.deepEqual(planQueueAllTargets([null, customCard, undefined]), [{ el: customCard, method: "event" }]);
+});
+
+test("resolveSentPromptOrigins matches sent prompts to their tracked question elements", () => {
+  const planEl = node("form", { "data-atelier-question": "plan" });
+  const scopeEl = node("form", { "data-atelier-question": "scope" });
+  const originByKey = new Map([
+    ["question:plan", planEl],
+    ["question:scope", scopeEl],
+  ]);
+
+  const resolved = resolveSentPromptOrigins(
+    [
+      { uid: "1", queueKey: "question:plan", tag: "choice" },
+      { uid: "", queueKey: "", tag: "message" },
+      { uid: "2", queueKey: "question:unknown", tag: "choice" },
+    ],
+    originByKey,
+    () => true,
+  );
+
+  assert.deepEqual(
+    resolved.map((entry) => ({ el: entry.element, key: entry.prompt.queueKey })),
+    [{ el: planEl, key: "question:plan" }],
+  );
+});
+
+test("resolveSentPromptOrigins drops tracked elements that left the document", () => {
+  const staleEl = node("form", { "data-atelier-question": "plan" });
+  const originByKey = new Map([["question:plan", staleEl]]);
+
+  const resolved = resolveSentPromptOrigins(
+    [{ uid: "1", queueKey: "question:plan", tag: "choice" }],
+    originByKey,
+    () => false,
+  );
+
+  assert.deepEqual(resolved, []);
 });
 
 test("fragmentsSignificantlyOverlap ignores the reflow gap in a wrapped inline phrase's bounding box", () => {

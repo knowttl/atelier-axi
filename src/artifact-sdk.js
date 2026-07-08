@@ -134,6 +134,23 @@ export function planQueueAllTargets(elements, findForm) {
   return targets;
 }
 
+// Resolve which tracked question elements a batch of just-sent prompts belongs to, so the SDK can
+// flip only those cards to a "sent" state. A prompt matches when its queueKey maps to an element
+// that is still in the document (isConnected). Prompts without a queueKey (freeform messages, ad-hoc
+// annotations) or with a stale/unknown key are skipped. `originByKey` is the SDK's queueKey ->
+// origin-element map and `isConnected` is injected for testability.
+export function resolveSentPromptOrigins(sentPrompts, originByKey, isConnected) {
+  const resolved = [];
+  for (const prompt of sentPrompts || []) {
+    const queueKey = prompt && typeof prompt.queueKey === "string" ? prompt.queueKey.trim() : "";
+    if (!queueKey || !originByKey || !originByKey.has(queueKey)) continue;
+    const element = originByKey.get(queueKey);
+    if (!element || (typeof isConnected === "function" && !isConnected(element))) continue;
+    resolved.push({ element, prompt });
+  }
+  return resolved;
+}
+
 export function isNativeInteractiveControl(el) {
   return !!(
     el &&
@@ -233,6 +250,10 @@ export function createArtifactSdk(
   let shadow = null;
   let counter = 0;
   const ids = new WeakMap();
+  // queueKey -> the element whose answer was last queued under it, so a sent-confirmation from the
+  // chrome can flip exactly that question's card to a "sent" state. Mirrors the chrome's queueKey
+  // dedup: re-queuing the same question replaces the tracked element and clears its prior sent mark.
+  const sentOriginByKey = new Map();
 
   function uid(el) {
     if (!ids.has(el)) ids.set(el, String(++counter));
@@ -571,7 +592,15 @@ export function createArtifactSdk(
       prompt: String(prompt || ""),
     };
     const queueKey = typeof deriveQueueKey === "function" ? deriveQueueKey(originElement, options) : "";
-    if (queueKey) item._atelierQueueKey = String(queueKey);
+    if (queueKey) {
+      item._atelierQueueKey = String(queueKey);
+      // A freshly queued answer is pending again, not yet sent: track its origin and drop any stale
+      // sent mark so the card only shows "sent" after this new answer is confirmed delivered.
+      if (originElement && originElement.nodeType === 1) {
+        sentOriginByKey.set(String(queueKey), originElement);
+        if (originElement.removeAttribute) originElement.removeAttribute("data-atelier-sent");
+      }
+    }
 
     if (options.uid) item.uid = String(options.uid);
     if (options.selector) item.selector = String(options.selector);
@@ -1092,6 +1121,24 @@ export function createArtifactSdk(
     }
     if (msg.type === "atelier:restoreScroll") {
       window.scrollTo(Number(msg.x) || 0, Number(msg.y) || 0);
+    }
+    if (msg.type === "atelier:promptsSent") {
+      const sent = Array.isArray(msg.prompts) ? msg.prompts : [];
+      // Flip each tracked question's card to a "sent" state: mark the origin element so authors can
+      // style [data-atelier-sent] purely in CSS, and fire a bubbling atelier:sent event on it for
+      // any custom per-card handling.
+      for (const { element, prompt } of resolveSentPromptOrigins(sent, sentOriginByKey, (el) => el.isConnected)) {
+        if (element.setAttribute) element.setAttribute("data-atelier-sent", "");
+        element.dispatchEvent(
+          new CustomEvent("atelier:sent", {
+            bubbles: true,
+            detail: { uid: prompt.uid || "", queueKey: prompt.queueKey || "", tag: prompt.tag || "" },
+          }),
+        );
+      }
+      // Also broadcast the full batch on window so flows that don't map to a single tracked element
+      // (freeform messages, dynamically rebuilt cards) can react.
+      window.dispatchEvent(new CustomEvent("atelier:sent", { detail: { prompts: sent } }));
     }
   });
 

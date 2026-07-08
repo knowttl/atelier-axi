@@ -230,6 +230,7 @@ export const PLAYBOOKS = [
       "Keep reversible selection state local in the artifact until the user explicitly submits that question.",
       "Pair each question with a Submit or Queue answer control that sends exactly one prompt for the final answer.",
       "Show selected state separately from queued state so the user trusts what will be sent back.",
+      "Track three states per decision - selected, queued, and sent - and flip a decision to a completed 'sent' state only after the agent confirms delivery, never merely when it is queued.",
     ],
     design_rules: [
       "Native controls - radios, checkboxes, text inputs, selects, textareas, buttons, options, labels, disclosure summaries, and contenteditable regions - are interactive automatically: clicks toggle, focus, and type instead of annotating, so they do not need data-atelier-action. Build choice and option UIs from these whenever you can.",
@@ -241,12 +242,16 @@ export const PLAYBOOKS = [
       "Call window.atelier.sendQueuedPrompts() only when the control should immediately send committed feedback instead of waiting for the user to press Send to Agent.",
       'For a multi-question form, end it with ONE batch control - `<button type="button" data-atelier-action onclick="window.atelier.queueAll()">Queue all answers</button>` - so the user answers every card and queues them in a single click instead of pressing each card\'s own Queue button; keep the per-question submit handlers, since queueAll() triggers each one (unanswered/guarded questions simply skip). Use window.atelier.queueAll({ send: true }) for a \'Queue all & send\' one-click.',
       "Make queued prompts specific enough that the agent can act without asking a follow-up question.",
+      "Reflect delivered answers: after any successful send (the artifact's own send control or the chrome's Send to Agent button), the SDK marks each answered question's origin element with a data-atelier-sent attribute and fires a bubbling atelier:sent CustomEvent on it, plus a window-level atelier:sent carrying the whole batch as detail.prompts of { uid, queueKey, tag }. Style [data-atelier-sent] (or a parent via :has([data-atelier-sent])) to show a clear completed state and lock that control so the decision reads as done.",
+      "For the sent mark to target the right card, pass the question element as queuePrompt's options.element (the form or card wrapper) and give each question a stable identity - an explicit queueKey or data-atelier-question - so batched and re-sent answers map back to their card.",
+      "Handle batched sends: the user may answer and send some decisions now and the rest later, so flip only the decisions in each atelier:sent batch and leave the others pending; re-queuing a changed answer clears its sent mark until it is delivered again.",
       "Keep native browser controls accessible and readable on mobile.",
     ],
     pitfalls: [
       "Do not queue one prompt per radio change, checkbox toggle, dropdown change, or choice-button click when the user can still change their mind.",
       "Do not create controls whose queued prompt is unclear or too vague to execute.",
       "Do not hide the difference between selected locally and queued for the agent.",
+      "Do not mark a decision completed the moment it is queued - it is only truly done once the atelier:sent confirmation arrives, and the user may still edit it or send the rest in a later batch.",
       "Do not require interaction for content the user only needs to read.",
     ],
     atelier_notes: [
@@ -254,6 +259,7 @@ export const PLAYBOOKS = [
       'A native single-choice question should submit the final value: `<form data-atelier-question="plan" onsubmit="event.preventDefault(); const choice = new FormData(event.currentTarget).get(\'plan\'); if (choice) window.atelier.queuePrompt(\'Use the \' + choice + \' plan\', { tag: \'choice\', text: \'Plan: \' + choice, element: event.currentTarget, data: { question: \'plan\', answer: choice } });"><label><input type="radio" name="plan" value="Starter"> Starter</label><label><input type="radio" name="plan" value="Pro"> Pro</label><button type="submit">Queue this answer</button></form>`.',
       "A custom choice UI should make option buttons update local state, then use a separate Queue answer button with data-atelier-action to queue the final selected value. To include it in a queueAll() batch, also queue that final value when the card receives an `atelier:submit` event (queueAll dispatches `atelier:submit` on every non-form [data-atelier-question] element).",
       "Use window.atelier.queuePrompt for user intent, not internal analytics or UI-only state changes.",
+      'To show completed decisions, style the sent state in CSS - e.g. `[data-atelier-sent] { opacity: .6 } [data-atelier-sent] button { pointer-events: none }` and a `[data-atelier-sent] .status::after { content: " - Sent" }` badge - and/or listen once with `window.addEventListener("atelier:sent", (e) => { for (const p of e.detail.prompts) markDone(p.queueKey); })`; for a single card the bubbling atelier:sent event (event.target is the answered question element) is the simplest hook.',
       "End input paths with an obvious way for the user to send feedback back to the agent.",
     ],
   },

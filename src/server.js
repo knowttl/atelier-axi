@@ -18,6 +18,7 @@ import {
   isNativeInteractiveControl,
   MODE_TOGGLE_HOTKEY_KEY,
   planQueueAllTargets,
+  resolveSentPromptOrigins,
   resolveVisibleSpillCandidates,
 } from "./artifact-sdk.js";
 import * as mermaidNode from "./mermaid-node.js";
@@ -951,6 +952,7 @@ const key=${JSON.stringify(key)};
 void key;
 const deriveQueueKey=${deriveAtelierQueueKey.toString()};
 const planQueueAllTargets=${planQueueAllTargets.toString()};
+const resolveSentPromptOrigins=${resolveSentPromptOrigins.toString()};
 const isNativeInteractiveControl=${isNativeInteractiveControl.toString()};
 const MODE_TOGGLE_HOTKEY_KEY=${JSON.stringify(MODE_TOGGLE_HOTKEY_KEY)};
 const isModeToggleHotkeyEvent=${isModeToggleHotkeyEvent.toString()};

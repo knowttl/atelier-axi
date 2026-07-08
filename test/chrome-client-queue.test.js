@@ -728,6 +728,39 @@ test("chrome client strips the internal queue key before posting prompts", async
   assert.equal(chrome.queued().length, 0);
 });
 
+test("chrome client tells the artifact which prompts were sent after a successful submit", async () => {
+  const chrome = await createChromeHarness({
+    fetchImpl: async () => ({ ok: true }),
+  });
+
+  chrome.sendFrameMessage({
+    type: "atelier:queuePrompt",
+    prompt: {
+      prompt: "Use plan B",
+      uid: "7",
+      selector: "input#plan-b",
+      tag: "choice",
+      text: "Plan B",
+      _atelierQueueKey: "question:plan",
+    },
+  });
+  chrome.sendFrameMessage({
+    type: "atelier:queuePrompt",
+    prompt: { prompt: "Freeform note", uid: "", selector: "", tag: "message", text: "Note" },
+  });
+  chrome.element("send").onclick();
+  chrome.sendFrameMessage({ type: "atelier:snapshot", snapshot: "uid=1 body" });
+  await flushPromises();
+
+  const sent = chrome.postedToFrame.filter((message) => message.type === "atelier:promptsSent");
+  assert.equal(sent.length, 1);
+  // The chrome runs in a vm context, so round-trip through JSON to compare across realms.
+  assert.deepEqual(JSON.parse(JSON.stringify(sent[0].prompts)), [
+    { uid: "7", queueKey: "question:plan", tag: "choice" },
+    { uid: "", queueKey: "", tag: "message" },
+  ]);
+});
+
 test("chrome send and end carries the end intent with queued prompts", async () => {
   const posts = [];
   const chrome = await createChromeHarness({
