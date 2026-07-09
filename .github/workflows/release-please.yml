@@ -51,10 +51,12 @@ jobs:
       - run: pnpm run build
         if: ${{ steps.release.outputs.release_created }}
 
-      # OIDC trusted publishing (tokenless auth) requires npm >= 11.5.1;
-      # Node 24's bundled npm can predate that, so upgrade explicitly.
-      - run: npm install -g npm@latest
-        if: ${{ steps.release.outputs.release_created }}
+      # OIDC trusted publishing (tokenless auth) requires npm >= 11.5.1. Node 24's
+      # bundled npm already satisfies this, so we rely on it rather than running
+      # `npm install -g npm@latest`: that global self-reinstall left the toolcache
+      # npm with a broken tree missing the bundled `sigstore` module, so
+      # `npm publish --provenance` failed with `Cannot find module 'sigstore'`
+      # and 0.2.2 never reached npm.
 
       # setup-node's registry-url writes `_authToken=${NODE_AUTH_TOKEN}` into
       # the npmrc, and npm uses that placeholder token instead of OIDC trusted
