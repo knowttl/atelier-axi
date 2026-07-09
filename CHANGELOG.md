@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/knowttl/atelier-axi/compare/atelier-axi-v0.2.2...atelier-axi-v0.2.3) (2026-07-09)
+
+
+### Features
+
+* **cli:** refresh the atelier skill on update ([1b898f8](https://github.com/knowttl/atelier-axi/commit/1b898f8d0429d79942840d29797bbde4d1424ba9))
+
 ## [0.2.2](https://github.com/knowttl/atelier-axi/compare/atelier-axi-v0.2.1...atelier-axi-v0.2.2) (2026-07-08)
 
 
