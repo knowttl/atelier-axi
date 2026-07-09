@@ -83,7 +83,11 @@ review _surface_ changes.
 **Then run the rest of the flow unchanged, with these headless adjustments:**
 
 - **Phases 5-6** run exactly as written (spec on the large route, plan on both), each with its
-  fresh-context reviewer subagent and the 3-round convergence safeguard.
+  fresh-context reviewer subagent and the 3-round convergence safeguard — with one adjustment:
+  Phase 5's **grill step (step 2)** has no webui, so post the grill cards as one batched, numbered
+  message in chat, each with your recommended answer and a one-line why. Let the user accept or defer
+  each, open a follow-up round only when an answer unlocks a genuinely new decision, and fold every
+  resolution back into `spec.md` before the self-review/subagent pass.
 - **Phase 7** runs unchanged **except there is no artifact to export**: skip the Phase-7 step-1
   export. The **large route writes `spec.md` + `plan.md`** (no `review.html`); the **small route
   writes `plan.md` only**. Beads records and the git commit are unchanged.
@@ -164,18 +168,40 @@ review _surface_ changes.
    confirmed vs. still open, and ask whether to (a) proceed to durable records from what was
    confirmed (marking unresolved cards as deferred) or (b) hold without writing records.
 
-## Phase 5 — Spec + review loop (LARGE route only; small route skips this phase)
+## Phase 5 — Spec: draft, grill, then review loop (LARGE route only; small route skips this phase)
 
-1. Write `spec.md` capturing the confirmed decisions, architecture, components, and an
-   explicit edge-case pass.
-2. **Self-review first** (your own pass, not a subagent): scan for placeholders/`TBD`, internal
+1. Write the first `spec.md` draft capturing the confirmed decisions, architecture, components,
+   and an explicit edge-case pass.
+2. **Grill the draft (user-facing, in the webui).** Writing the spec always exposes decisions the
+   intake did not — unresolved dependencies between choices, unexamined assumptions, edge cases the
+   approved direction never pinned down. Interrogate your own draft branch by branch, walking down
+   the design tree and resolving dependent decisions in order, to surface every such gap BEFORE the
+   quality review. Discipline (adapted from the grilling technique):
+   - **Research first, ask second.** Anything factual and discoverable — how the subject project
+     already does X, what a config allows, an existing convention — you look up yourself and fold
+     into the draft. Only genuine _strategic_ decisions, the ones only the user can make, become
+     questions.
+   - **One recommended answer each.** For every question, give your recommended answer with a
+     one-line why, so the user is confirming a default rather than starting from a blank.
+   - **All cards at once.** Surface the whole batch as decision cards in the SAME atelier artifact,
+     reusing Phase 4's machinery (the `plan` playbook decision-card template: problem →
+     recommendation → example → Accept/Defer control; `data-atelier-question` so a re-answer
+     replaces the earlier one). Update the artifact, then re-open and poll (Phase 4 steps 1-2) so an
+     active poll wakes on the answers. Do not drip questions one at a time.
+   - **Follow-up rounds only when earned.** Open another round only if an answer genuinely unlocks a
+     new dependent decision the first batch could not have asked. Stop once a round surfaces nothing
+     new.
+   - **Fold every resolution back into `spec.md`** — accepted answers become spec; deferred ones are
+     recorded as explicitly deferred. Do not start the quality review while grill cards are still
+     unanswered.
+3. **Self-review first** (your own pass, not a subagent): scan for placeholders/`TBD`, internal
    contradictions, requirements ambiguous enough to build the wrong thing, and whether the
    scope is focused enough for one plan. Fix inline.
-3. Dispatch a **fresh spec-reviewer subagent** with the `spec.md` text + confirmed decisions +
+4. Dispatch a **fresh spec-reviewer subagent** with the `spec.md` text + confirmed decisions +
    the Spec rubric from `review-rubrics.md` (calibration + output format included). Fix its
    findings.
-4. Repeat until a clean pass. Convergence safeguard: after 3 rounds without a clean pass, stop
-   and surface the remaining findings to the user for a call.
+5. Repeat steps 3-4 until a clean pass. Convergence safeguard: after 3 rounds without a clean
+   pass, stop and surface the remaining findings to the user for a call.
 
 ## Phase 6 — Plan + consistency loop
 
