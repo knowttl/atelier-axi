@@ -1,6 +1,6 @@
 {
   "name": "atelier-axi",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "packageManager": "pnpm@11.1.1",
   "description": "HTML is the new markdown. Atelier is the new editor for your HTML artifacts.",
   "type": "module",
