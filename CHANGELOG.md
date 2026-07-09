@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.4](https://github.com/knowttl/atelier-axi/compare/atelier-axi-v0.2.3...atelier-axi-v0.2.4) (2026-07-09)
+
+
+### Features
+
+* **planning:** grill the spec draft before the review loop ([6693962](https://github.com/knowttl/atelier-axi/commit/66939623866f24656a6c9cfdb837ee07048c9a16))
+
 ## [0.2.3](https://github.com/knowttl/atelier-axi/compare/atelier-axi-v0.2.2...atelier-axi-v0.2.3) (2026-07-09)
 
 
