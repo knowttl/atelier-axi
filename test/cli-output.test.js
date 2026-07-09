@@ -32,6 +32,7 @@ import {
   pollInterruptedText,
   pollWaitBannerText,
   pollWaitTickText,
+  refreshAtelierSkill,
   resolveCopilotHookDir,
   resolveHookHomeDir,
   resolveServerEntry,
@@ -55,6 +56,28 @@ function setupHooksEnv(homeDir, stateDir) {
 test("CLI version tracks package.json so release-please bumps reach the published binary", async () => {
   const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
   assert.equal(VERSION, packageJson.version);
+});
+
+test("update refreshes the atelier skill through the skills CLI it was installed with", () => {
+  const refreshed = refreshAtelierSkill(() => ({ status: 0 }));
+  assert.equal(refreshed.status, "attempted");
+  assert.equal(refreshed.run, "npx -y skills update --yes atelier");
+});
+
+test("update reports manual skill-refresh guidance instead of failing when the skills CLI is unavailable", () => {
+  const missing = refreshAtelierSkill(() => ({ error: new Error("spawn npx ENOENT"), status: null }));
+  assert.equal(missing.status, "skipped");
+  assert.match(missing.help, /npx -y skills update --yes atelier/);
+
+  const nonZero = refreshAtelierSkill(() => ({ status: 1 }));
+  assert.equal(nonZero.status, "skipped");
+});
+
+test("update command help documents the skill refresh so users know it is not npm-only", () => {
+  const help = getCommandHelp("update");
+  assert.ok(help, "update help should be registered");
+  assert.match(help, /--check/);
+  assert.match(help, /npx -y skills update --yes atelier/);
 });
 
 test("home output teaches agents when and how to use Atelier Editor", () => {

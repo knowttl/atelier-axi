@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { AxiError, installSessionStartHooks, RESERVED_COMMANDS, runAxiCli } from "axi-sdk-js";
+import { AxiError, installSessionStartHooks, RESERVED_COMMANDS, runAxiCli, runUpdate } from "axi-sdk-js";
 
 import { createDesignOutput, DESIGN_SYSTEM_HINT } from "./design-reference.js";
 import {
@@ -58,6 +58,7 @@ export async function run(argv) {
       server: serverCommand,
       export: exportCommand,
       share: shareCommand,
+      update: updateCommand,
     },
     getCommandHelp,
   });
@@ -584,6 +585,50 @@ async function setupCommand(args) {
   };
 }
 
+// The atelier agent skill installs separately from the npm package (via
+// `npx skills add knowttl/atelier-axi --skill atelier`), so a plain npm
+// self-update never refreshes it. This shadows the SDK's reserved `update`
+// built-in: self-update the CLI through the SDK, then delegate to the same
+// skills CLI the skill was installed with so both move to the new release.
+const ATELIER_SKILL_NAME = "atelier";
+
+async function updateCommand(args) {
+  const result = await runUpdate({ args, stdout: process.stdout, version: VERSION });
+  const checkOnly = args.some((arg) => arg === "--check" || arg === "--dry-run");
+  if (checkOnly) {
+    return result;
+  }
+  const base = typeof result === "object" && result !== null ? result : { update: result };
+  return { ...base, skill: refreshAtelierSkill() };
+}
+
+// Refresh the installed atelier skill through the `skills` CLI. Never throws: a
+// skill-refresh failure must not undo a successful CLI self-update, so it
+// returns manual-recovery guidance instead of failing the whole command.
+/**
+ * @param {() => { error?: unknown; status?: number | null }} [spawnSkillUpdate]
+ */
+export function refreshAtelierSkill(spawnSkillUpdate = defaultSpawnSkillUpdate) {
+  const command = `npx -y skills update --yes ${ATELIER_SKILL_NAME}`;
+  const result = spawnSkillUpdate();
+  if (result.error || result.status !== 0) {
+    return { status: "skipped", run: command, help: `Refresh the atelier skill manually with \`${command}\`` };
+  }
+  // A clean exit is not proof a matching skill existed - the skills CLI exits 0
+  // even when nothing was installed to update - and its output is inherited, not
+  // inspected, so report "attempted" rather than overclaiming a refresh.
+  return { status: "attempted", run: command };
+}
+
+function defaultSpawnSkillUpdate() {
+  // `--yes` skips the skills CLI's scope prompt so the inherited-stdio child can
+  // never block `atelier-axi update` waiting on a TTY answer.
+  return spawnSync("npx", ["-y", "skills", "update", "--yes", ATELIER_SKILL_NAME], {
+    stdio: "inherit",
+    shell: process.platform === "win32",
+  });
+}
+
 export function resolveHookHomeDir(env = process.env, fallback = os.homedir()) {
   return env.HOME || fallback;
 }
@@ -1076,7 +1121,7 @@ export function getCommandHelp(command) {
   return COMMAND_HELP[command] || null;
 }
 
-const TOP_LEVEL_HELP = `atelier-axi - Atelier Editor AXI\n\nUsage:\n  atelier-axi\n  atelier-axi <html-file> [--no-open] [--no-gate] [--reopen]\n  atelier-axi poll <html-file> [--agent-reply "..."]\n  atelier-axi end <html-file>\n  atelier-axi export <html-file> [--out <path>]\n  atelier-axi share <html-file> [--password <pw>] [--token <t>]\n  atelier-axi stop\n  atelier-axi playbook [playbook_id]\n  atelier-axi design\n  atelier-axi setup hooks\n\n${DESIGN_SYSTEM_HINT}\n\nNote: poll long-polls indefinitely by default until the user sends feedback, ends the session, or the browser reports fresh layout_warnings, staying silent while it waits - never kill it. Fix and re-check fresh error-severity layout_warnings before involving the human; persistent or low-severity findings may be surfaced with a note when the cause is not obvious. Do not pass --timeout-ms during normal agent use; it is for tests and debugging only. If your harness limits how long a foreground command may run, run the poll as a background task; if it gets killed or times out anyway, just re-run it - queued feedback is never lost. When the user ends a session from the browser, stop polling and do not reopen it uninvited - pass --reopen to <html-file> only when the user asks for further review or something important needs their visual attention.\n\n`;
+const TOP_LEVEL_HELP = `atelier-axi - Atelier Editor AXI\n\nUsage:\n  atelier-axi\n  atelier-axi <html-file> [--no-open] [--no-gate] [--reopen]\n  atelier-axi poll <html-file> [--agent-reply "..."]\n  atelier-axi end <html-file>\n  atelier-axi export <html-file> [--out <path>]\n  atelier-axi share <html-file> [--password <pw>] [--token <t>]\n  atelier-axi stop\n  atelier-axi playbook [playbook_id]\n  atelier-axi design\n  atelier-axi setup hooks\n  atelier-axi update [--check]\n\n${DESIGN_SYSTEM_HINT}\n\nNote: poll long-polls indefinitely by default until the user sends feedback, ends the session, or the browser reports fresh layout_warnings, staying silent while it waits - never kill it. Fix and re-check fresh error-severity layout_warnings before involving the human; persistent or low-severity findings may be surfaced with a note when the cause is not obvious. Do not pass --timeout-ms during normal agent use; it is for tests and debugging only. If your harness limits how long a foreground command may run, run the poll as a background task; if it gets killed or times out anyway, just re-run it - queued feedback is never lost. When the user ends a session from the browser, stop polling and do not reopen it uninvited - pass --reopen to <html-file> only when the user asks for further review or something important needs their visual attention.\n\n`;
 
 const COMMAND_HELP = {
   open: `Usage: atelier-axi <html-file> [--no-open] [--no-gate] [--reopen]\n\nOpen or resume a Atelier Editor review session for an HTML artifact. Use --no-open when you need to ensure the server/session exists without opening another browser window. Use --no-gate to skip the open-time layout curtain for this browser open. If the user explicitly ended the session from the browser, this refuses to reopen it and returns guidance instead - pass --reopen to force it open when the user asks for further review or something important needs their visual attention. Sessions ended by the agent (\`atelier-axi end\`) reopen normally without the flag.\n`,
@@ -1088,6 +1133,7 @@ const COMMAND_HELP = {
   playbook: `Usage: atelier-axi playbook [playbook_id]\n\nList focused artifact guidance playbooks, or show one playbook by ID. Known IDs: diagram, table, comparison, plan, code, input, slides.\n\n${PLAYBOOK_ROUTER_HELP}\n\nExamples:\n  atelier-axi playbook\n  atelier-axi playbook diagram\n  atelier-axi playbook input\n`,
   design: `Usage: atelier-axi design\n\nShow a copy-pasteable CDN snippet for Tailwind CSS browser runtime v4 + DaisyUI v5 + themes, Mermaid diagram tooling, a content-to-playbook router, an optional layout safety CSS snippet, plus technical reference for DaisyUI components. ${PLAYBOOK_ROUTER_HELP} Atelier artifacts stay portable HTML. This CDN snippet is the design fallback, not the default: inspect the subject project before falling back, and paste the layout safety CSS only when useful for dense nested grid/flex layouts, badges, wide fonts, or local media. The strict priority order is: (1) if the user asked for a specific look or named design system, follow that; (2) otherwise, match the design system of the project the artifact is about, not necessarily your current working directory. If the artifact previews, proposes, or mocks a specific app's UI, use that app's own design system; (3) only when both come up empty, prefer the Atelier-recommended Tailwind + DaisyUI CDN snippet over hand-writing styles unless explicitly instructed otherwise by the user.\n`,
   setup: `Usage: atelier-axi setup hooks\n\nInstall or repair agent SessionStart hooks for atelier-axi ambient context in Claude Code, Codex, OpenCode, and GitHub Copilot CLI. Restart your agent session afterward to receive the context.\n`,
+  update: `Usage: atelier-axi update [--check]\n\nUpgrade atelier-axi to the latest published npm version, then refresh the installed atelier agent skill through the skills CLI it was installed with (\`npx -y skills update --yes ${ATELIER_SKILL_NAME}\`). The skill installs separately from the npm package, so a plain package upgrade never refreshes it. Pass --check (or --dry-run) to report current vs latest and exit without installing or touching the skill. The skill refresh is best-effort: if the skills CLI is unavailable it prints manual-recovery guidance rather than failing the update.\n`,
   server: `Usage: atelier-axi server [--port 4387] [--verbose]\n\nRun the local Atelier Editor server. Pass --verbose (or set ATELIER_AXI_DEBUG=1) to log session and watcher events to stderr. Detached server output is appended to ~/.atelier-axi/server.log, or ATELIER_AXI_STATE_DIR/server.log when set, for startup and crash diagnostics.\n\nATELIER_AXI_HOST sets the bind address (default 127.0.0.1; a wildcard 0.0.0.0 or :: binds every interface). Binding beyond loopback exposes an unauthenticated server that can read and serve arbitrary local files to anything that can reach it, so only do so on a trusted network. ATELIER_AXI_LINK_HOST sets the hostname written into generated session links (default: the bind address, or loopback when bound to a wildcard). ATELIER_AXI_NO_OPEN=1 (or --no-open) suppresses the local browser launch.\n`,
 };
 
