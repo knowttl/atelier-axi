@@ -93,7 +93,7 @@ ${bullets(home.visual_guidance)}
 
 Run \`npx -y atelier-axi playbook <id>\` for focused, detailed guidance on any of these.
 ${PLAYBOOK_ROUTER_HELP}
-For flows, architecture, state, or sequence diagrams, do not hand-build boxes-and-arrows from div/flexbox; open the diagram playbook and use Mermaid unless SVG is needed for richly annotated nodes.
+For flows, architecture, state, or sequence diagrams, do not hand-build boxes-and-arrows from div/flexbox; open the diagram playbook and use the theme-aware Mermaid snippet from \`npx -y atelier-axi design\` unless SVG is needed for richly annotated nodes.
 
 ${playbookList(home.playbooks)}
 

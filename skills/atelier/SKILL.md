@@ -62,7 +62,7 @@ Planning and implementation are one continuous arc: `planning.md` ends by offeri
 
 Run `npx -y atelier-axi playbook <id>` for focused, detailed guidance on any of these.
 One artifact often combines several playbooks (for example a plan that includes a comparison and a diagram), so MUST open each matching playbook before writing HTML.
-For flows, architecture, state, or sequence diagrams, do not hand-build boxes-and-arrows from div/flexbox; open the diagram playbook and use Mermaid unless SVG is needed for richly annotated nodes.
+For flows, architecture, state, or sequence diagrams, do not hand-build boxes-and-arrows from div/flexbox; open the diagram playbook and use the theme-aware Mermaid snippet from `npx -y atelier-axi design` unless SVG is needed for richly annotated nodes.
 
 - `diagram` - Map relationships, flows, state, and architecture
 - `table` - Turn dense records into scan-friendly review surfaces
