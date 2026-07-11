@@ -31,7 +31,7 @@ function skillCommandText(text) {
  * @returns {string} full SKILL.md contents including YAML frontmatter
  */
 export function createSkillMarkdown() {
-  const home = createHomeOutput({ bin: "atelier-axi", sessions: [], includeSessions: false });
+  const home = createHomeOutput({ bin: "atelier-axi", sessions: [], includeSessions: false, agent: "static" });
 
   return `---
 name: atelier
@@ -50,6 +50,7 @@ ${skillCommandText(home.description)}
 
 You do not need atelier-axi installed globally - invoke it with \`npx -y atelier-axi <html-file>\`.
 If atelier-axi output shows a follow-up command starting with \`atelier-axi\`, run it as \`npx -y atelier-axi ...\` instead.
+In restricted subprocess sandboxes, CI, or agent harnesses where \`npx -y\` exits opaquely (for example with status 216), use an already-installed copy directly: \`node "$(npm root)/atelier-axi/dist/cli.mjs" <html-file>\` for a local install, \`node "$(npm root -g)/atelier-axi/dist/cli.mjs" <html-file>\` for a global install, or the bare \`atelier-axi <html-file>\` bin after installing once.
 
 ## Request
 
@@ -79,7 +80,7 @@ Planning and implementation are one continuous arc: \`planning.md\` ends by offe
 3. Run \`npx -y atelier-axi poll <html-file>\` to long-poll for the user's annotations, queued prompts, and browser-reported \`layout_warnings\`.
    On the first poll, prefer \`--agent-reply "<one-line summary of what you built and what to review first>"\` so the conversation panel opens with context.
    The poll stays silent until the user acts or the real browser reports fresh layout warnings - leave it running, never kill it.
-   If your harness limits how long a foreground command may run, run the poll as a background task; if it gets killed or times out anyway, just re-run it - queued feedback is never lost.
+   If the poll gets killed or times out anyway, just re-run it - queued feedback is never lost.
 4. If poll returns \`layout_warnings\`, follow the returned \`next_step\`: fix and re-check fresh error-severity findings, but proceed with a note instead of looping when every current warning is persistent or low-severity.
 5. Apply human feedback, then poll again with \`--agent-reply "<message>"\` to reply in the browser and keep the loop going.
 6. Run \`npx -y atelier-axi end <html-file>\` when the review is finished.
