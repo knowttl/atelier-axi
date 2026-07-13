@@ -25,10 +25,10 @@ HTML is the new markdown. Atelier is the new editor for your HTML artifacts.
 Agents are good at producing rich HTML artifacts, but the human-agent collaboration loop on such artifacts is lacking and falls back into screenshots and long responses for “tell me what to change.”
 That loses the thing HTML is best at: interactivity.
 
-Atelier Editor opens agent-generated HTML files in a local browser, lets you pinpoint elements, selected text, or Mermaid diagram nodes and send feedback to the agent to address.
+Atelier Editor opens agent-generated HTML files in a local browser, lets you pinpoint elements, selected text, or Mermaid diagram nodes, edit rendered Mermaid diagrams as whiteboards, and send feedback to the agent to address.
 
 - **Local-first** - Review local HTML artifacts with a local CLI and no cloud dependency in the core feedback loop; hosted sharing through third-party ht-ml.app is explicit and opt-in.
-- **Human-AI collaboration** - Annotate elements, selected text ranges, and Mermaid diagram nodes, and send messages to the agent without leaving Atelier Editor.
+- **Human-AI collaboration** - Annotate elements, selected text ranges, and Mermaid diagram nodes, edit Mermaid diagrams as whiteboards, and send messages to the agent without leaving Atelier Editor.
 - **Battery included** - Atelier Editor teaches your agent good visualization for common use cases such as product or technical plans, design explorations and more out of the box.
 
 Atelier Editor is an [AXI](https://axi.md), which means -
@@ -47,6 +47,7 @@ npx skills add knowttl/atelier-axi --skill atelier
 
 That is the entire setup - no npm install needed.
 The skill teaches your agent to run Atelier through `npx -y atelier-axi`, so the CLI comes along on demand.
+In restricted subprocess sandboxes, CI, or agent harnesses where `npx -y` exits opaquely, the skill also documents direct installed-copy fallbacks through the local or global npm install path.
 Its frontmatter also includes Hermes Agent metadata, so Hermes-compatible harnesses can categorize and surface it as a first-class productivity skill.
 This installs the public `atelier` skill.
 The repository also contains an internal `atelier-design` brand skill for maintainers; default `npx skills add ... --list` and skills.sh discovery hide it unless `INSTALL_INTERNAL_SKILLS=1` is set.
@@ -71,7 +72,7 @@ Atelier is an AXI, so any capable agent can run the CLI directly with nothing in
 Just tell your agent:
 
 ```
-Use `npx atelier-axi` to write a product or technical plan for what we discussed.
+Use `npx -y atelier-axi` to write a product or technical plan for what we discussed.
 ```
 
 ### Session hook
@@ -148,7 +149,8 @@ Under the hood, that loop is built from these pieces:
   Before writing HTML, choose a design system in strict priority order: follow a user-requested look first; otherwise inspect the project the artifact is about - the subject or product whose content or UI it represents, which may differ from your current working directory - and match that project's Tailwind or theme config, CSS variables or design tokens, component library, brand assets, or existing styled pages.
   If the artifact previews, proposes, or mocks a specific app's UI, render it in that app's own design system so it faithfully shows the product, even when you are running in a different repo.
   Only when both come up empty, run `atelier-axi design` for a copy-pasteable Tailwind CSS v4 + DaisyUI v5 CDN fallback, a content-to-playbook router, and Mermaid diagram tooling.
-  That fallback guidance recommends DaisyUI's `luxury` theme by default, warns not to `@apply` DaisyUI classes inside Tailwind browser-runtime style blocks, includes an optional layout safety CSS snippet for dense nested grid/flex layouts, and provides a pinned Mermaid CDN snippet with initialization for flows, architecture, state, and sequence diagrams.
+  That fallback guidance recommends DaisyUI's `luxury` theme by default, warns not to `@apply` DaisyUI classes inside Tailwind browser-runtime style blocks, includes an optional layout safety CSS snippet for dense nested grid/flex layouts, and provides a pinned, theme-aware Mermaid CDN snippet for flows, architecture, state, and sequence diagrams.
+  The Mermaid snippet waits for page styles, chooses its light or dark rendering from the effective page background, and keeps diagrams in sync with page-theme and OS appearance changes.
 - **Open-time layout gate** - The browser chrome masks each artifact until the real in-iframe layout audit reports no error-severity findings.
   Warning-only artifacts reveal normally; error findings notify the agent through the same `layout_warnings` poll path and keep the curtain up until a clean reload.
   The user can click **Show anyway**, and a bounded safety timeout reveals with a persistent layout-issues banner so review is never blocked indefinitely.
@@ -173,17 +175,25 @@ Under the hood, that loop is built from these pieces:
 - **Keyboard shortcuts** - In the chrome composer, Enter sends queued prompts and Shift+Enter inserts a newline.
   In the annotation card, Enter queues the annotation, Shift+Enter inserts a newline, and Ctrl+Enter (Cmd+Enter on macOS) queues it and sends all queued prompts immediately.
   Cmd+I or Ctrl+I toggles between annotate and explore mode from either the browser chrome or the artifact iframe, including while focus is in a textarea or control.
-- **Agent presence** - The browser shows when no agent is listening, keeps queued feedback and fresh layout warnings for the next successful `atelier-axi poll` send even across reloads, and only blocks human sends while the agent is working on delivered feedback. The no-timeout poll writes an immediate stderr banner and periodic stderr heartbeats while stdout stays reserved for the final response; if the poll is interrupted or times out, re-run it because queued feedback is never lost.
+- **Agent presence** - The browser shows when no agent is listening, keeps queued feedback and fresh layout warnings for the next successful `atelier-axi poll` send even across reloads, and only blocks human sends while the agent is working on delivered feedback. The no-timeout poll writes an immediate stderr banner and periodic stderr heartbeats while stdout stays reserved for the final response; if the poll is interrupted or times out, re-run it because queued feedback is never lost. Codex-specific guidance keeps that poll attached to the active turn instead of hiding it in a background task, because completed background tasks may not resume the agent.
 - **Session end etiquette** - Atelier tracks who ended a session: a human clicking **End session** (or **Send & End**) in the browser is a user-initiated end, while `atelier-axi end <html-file>` is agent-initiated.
   A plain `atelier-axi <html-file>` after a user-initiated end refuses to reopen the browser and returns guidance instead; pass `--reopen` only when the user asks for further review or something important needs their visual attention.
   Agent-initiated ends keep reopening normally, same as before.
   `atelier-axi poll`'s `ended` response and the `feedback` response for the final batch before an end both carry `next_step` guidance telling the agent to stop polling and deliver remaining updates in chat instead of reopening.
 - **Precise targets** - Text annotations include selected text plus range anchors, so agents are not limited to whole-element selectors.
-- **Mermaid diagrams** - Rendered Mermaid diagrams become pannable and zoomable while you explore (drag to pan, scroll to zoom) and freeze when you turn on annotation so a click lands on a single node. Clicking a node annotates the whole node and sends the agent its diagram id, node id, and rendered label instead of just a CSS selector. Atelier only enhances the live render, so the saved HTML still opens identically anywhere.
+- **Mermaid diagrams** - The `atelier-axi design` Mermaid snippet matches diagram rendering to the effective artifact page background and re-renders when a page-theme or OS appearance change alters that appearance.
+  In the Atelier browser, every rendered Mermaid diagram in a `.mermaid` container becomes an embedded editable Excalidraw whiteboard: click a diagram to unlock editing, use its Fullscreen action to edit it over the whole viewport, and scenes autosave locally.
+  If a live reload changes the Mermaid source, the whiteboard shows that its edits are stale; reopening it lets the reviewer re-convert and discard the saved edits or keep editing the saved scene.
+  Use **Queue feedback** to add a bounded edit summary plus local `.excalidraw` scene and PNG preview paths to the Conversation panel, then click **Send to Agent** to deliver it; the agent updates the artifact's Mermaid source, which remains authoritative.
+  Flowchart, sequence, class, ER, and state diagrams convert to editable shapes; other diagram types are images that reviewers can draw and annotate.
+  Rendered Mermaid SVGs outside `.mermaid` containers stay pannable and zoomable while you explore (drag to pan, scroll to zoom) and freeze for single-node annotation when you turn on annotation, sending the agent the diagram id, node id, and rendered label instead of just a CSS selector.
+  Atelier changes only the browser view, so saved, standalone, and exported artifacts still render plain Mermaid.
 - **Server cleanup** - The detached server stops after the last session ends when nothing is connected, or after `ATELIER_AXI_IDLE_TIMEOUT_MS` (default 30 minutes) with no browser or poll connections.
   Set `ATELIER_AXI_IDLE_TIMEOUT_MS=0` or `off` to disable idle self-shutdown.
 - **Local-first state** - Session state stays under `~/.atelier-axi/` by default, or `ATELIER_AXI_STATE_DIR` when set.
+- **Server port** - Set `ATELIER_AXI_PORT` to choose the server port; it defaults to `4387`.
 - **Network binding** - The server binds to loopback (`127.0.0.1`) by default. Set `ATELIER_AXI_HOST` to bind elsewhere; a wildcard (`0.0.0.0` or `::`) binds every interface. Binding beyond loopback exposes an unauthenticated server that can read and serve arbitrary local files to anything that can reach it, so only do so on a trusted network. Set `ATELIER_AXI_LINK_HOST` to control the hostname written into generated session links (defaults to the bind address, or loopback when bound to a wildcard).
+- **Browser opening** - Set `ATELIER_AXI_NO_OPEN=1`, equivalent to `--no-open`, to create or resume a session without launching a browser window.
 
 ## CLI Reference
 
@@ -192,19 +202,19 @@ Under the hood, that loop is built from these pieces:
 | `atelier-axi`                    | Show current sessions and usage guidance.                                                                                                                                                                                                                                                                               |
 | `atelier-axi update`             | Apply the latest npm release through the AXI SDK self-updater, then refresh the installed `atelier` skill via `npx -y skills update --yes atelier` (the skill installs separately, so a package upgrade alone never refreshes it). Pass `--check` to report current vs latest without installing or touching the skill. |
 | `atelier-axi <html-file>`        | Open or resume a Atelier Editor session, with the open-time layout gate enabled by default. Refuses to reopen a session the user explicitly ended from the browser unless `--reopen` is passed.                                                                                                                         |
-| `atelier-axi poll <html-file>`   | Long-poll until the user sends feedback, ends the session, or the browser reports fresh `layout_warnings`; leave no-timeout polls running, or re-run them if interrupted. On `status: ended`, stop polling and do not reopen uninvited.                                                                                 |
+| `atelier-axi poll <html-file>`   | Long-poll until the user sends feedback, ends the session, or the browser reports fresh `layout_warnings`; leave no-timeout polls running, or re-run them if interrupted. Codex guidance keeps polls attached to the active turn. On `status: ended`, stop polling and do not reopen uninvited.                         |
 | `atelier-axi end <html-file>`    | End a session as the agent; unlike a user-initiated end from the browser, this still allows a plain reopen later.                                                                                                                                                                                                       |
 | `atelier-axi export <html-file>` | Write a portable copy of the artifact: one HTML file with its local assets inlined, so it opens with no server and no sibling files. Remote CDN/font references are left as links.                                                                                                                                      |
 | `atelier-axi share <html-file>`  | Publish the artifact (local assets inlined) to [ht-ml.app](https://ht-ml.app), a third-party host not part of Atelier, and print a visitable URL plus a secret update key; shares are public by default, and `--password` makes viewers enter the password before viewing.                                              |
 | `atelier-axi stop`               | Shut down the background server.                                                                                                                                                                                                                                                                                        |
 | `atelier-axi playbook [id]`      | List focused artifact guidance or show one playbook; agents must open each matching playbook before writing HTML.                                                                                                                                                                                                       |
-| `atelier-axi design`             | Show the Tailwind + DaisyUI CDN fallback, content-to-playbook router, Mermaid diagram tooling, `luxury` default theme, DaisyUI `@apply` warning, and layout safety snippet.                                                                                                                                             |
+| `atelier-axi design`             | Show the Tailwind + DaisyUI CDN fallback, content-to-playbook router, theme-aware Mermaid diagram tooling, `luxury` default theme, DaisyUI `@apply` warning, and layout safety snippet.                                                                                                                                 |
 | `atelier-axi setup hooks`        | Install or repair optional SessionStart hooks for Claude Code, Codex, OpenCode, and GitHub Copilot CLI; restart the agent session afterward.                                                                                                                                                                            |
 | `atelier-axi server`             | Run the local Atelier Editor server.                                                                                                                                                                                                                                                                                    |
 
 Known playbook IDs: `diagram`, `table`, `comparison`, `plan`, `code`, `input`, `slides`.
 One artifact often combines several playbooks, such as a plan that includes a comparison and a diagram, so agents must match against each `use_when` trigger and open every matching playbook before writing HTML.
-For flows, architecture, state, or sequence diagrams, open the diagram playbook and use the Mermaid tooling from `atelier-axi design` unless SVG is needed for richly annotated nodes; avoid hand-built div/flexbox boxes-and-arrows.
+For flows, architecture, state, or sequence diagrams, open the diagram playbook and use the theme-aware Mermaid tooling from `atelier-axi design` unless SVG is needed for richly annotated nodes; avoid hand-built div/flexbox boxes-and-arrows.
 
 **Feature planning.** Run `atelier-axi playbook plan` to plan a feature or change before building it: the agent surfaces every open question and edge case as an annotatable visual review surface first, converges with you, then writes a durable spec and a bite-sized implementation plan under `docs/atelier/<date>-<type>-<topic>/`. The full end-to-end pipeline lives inside the single `atelier` skill as two on-demand reference files — `planning.md` (drive the visual planning arc) and `implementing.md` (execute a finished `plan.md` with a fresh subagent per task) — so there is exactly one skill to invoke; it routes to the right mode based on the request.
 

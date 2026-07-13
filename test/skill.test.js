@@ -39,7 +39,7 @@ test("createSkillMarkdown handles explicit /atelier invocation arguments", () =>
 
 test("createSkillMarkdown mirrors the no-args home output", () => {
   const md = createSkillMarkdown();
-  const home = createHomeOutput({ bin: "atelier-axi", sessions: [], includeSessions: false });
+  const home = createHomeOutput({ bin: "atelier-axi", sessions: [], includeSessions: false, agent: "static" });
 
   assert.ok(md.includes(skillCommandText(home.description)), "includes the product description");
 
@@ -71,6 +71,15 @@ test("createSkillMarkdown routes to the planning and implementing reference file
   );
 });
 
+test("createSkillMarkdown keeps static poll guidance agent-neutral", () => {
+  const md = createSkillMarkdown();
+
+  assert.doesNotMatch(md, /keep the poll attached to the active turn/i);
+  assert.doesNotMatch(md, /run the poll as a background task/);
+  assert.doesNotMatch(md, /Codex detected/);
+  assert.match(md, /queued feedback is never lost/);
+});
+
 test("createSkillMarkdown requires opening every matching playbook", () => {
   const md = createSkillMarkdown();
   const playbooksSection = md.slice(md.indexOf("## Playbooks"), md.indexOf("## Commands & rules"));
@@ -99,4 +108,14 @@ test("createSkillMarkdown uses non-interactive npx commands", () => {
   assert.match(md, /run it as `npx -y atelier-axi/);
   assert.doesNotMatch(md, /`npx atelier-axi/);
   assert.doesNotMatch(md, /Run `atelier-axi/);
+});
+
+test("createSkillMarkdown documents installed-copy fallback for restricted sandboxes", () => {
+  const md = createSkillMarkdown();
+
+  assert.match(md, /restricted subprocess sandboxes/);
+  assert.match(md, /status 216/);
+  assert.match(md, /`node "\$\(npm root\)\/atelier-axi\/dist\/cli\.mjs" <html-file>`/);
+  assert.match(md, /`node "\$\(npm root -g\)\/atelier-axi\/dist\/cli\.mjs" <html-file>`/);
+  assert.match(md, /bare `atelier-axi <html-file>` bin/);
 });
