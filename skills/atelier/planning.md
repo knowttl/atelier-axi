@@ -203,7 +203,15 @@ review _surface_ changes.
 5. Repeat steps 3-4 until a clean pass. Convergence safeguard: after 3 rounds without a clean
    pass, stop and surface the remaining findings to the user for a call.
 
-## Phase 6 — Plan + consistency loop
+## Phase 6 — Plan + cross-document consistency loop
+
+**Right after `plan.md` is written, reconcile the documents against each other before anything is
+committed.** On the large route both `spec.md` and `plan.md` now exist and must agree two-way; on
+the small route there is no `spec.md`, so `plan.md` must instead agree with the confirmed decisions
+from the Phase 4 review (and, if the spec grill ran, its resolutions). This consistency loop runs
+on **BOTH routes**. It complements — it does not replace — the Phase 5 spec grill: the grill
+interrogates the spec in isolation; this phase reconciles the finished spec and plan against each
+other.
 
 1. Write `plan.md` following `plan-template.md`: the agentic-worker header, goal / architecture
    / tech stack / global constraints, a **Decisions resolved during review** section (so the
@@ -212,14 +220,20 @@ review _surface_ changes.
    (implement the change → run the real product end-to-end the way a user would → confirm the
    observed behavior matches what the user expects → commit) with exact file paths and complete
    code — written for an engineer with zero context, NO placeholders.
-2. **Self-review first** (your own checklist, not a subagent): (a) spec coverage — every spec
-   requirement maps to a task; (b) placeholder scan — no `TBD`/"add error handling"/"similar to
-   Task N"; (c) type/signature consistency — names used in later tasks match earlier
-   definitions. Fix inline.
-3. Dispatch a **fresh plan-reviewer subagent** with `spec.md` (if any) + `plan.md` + the Plan
-   rubric from `review-rubrics.md` (spec↔plan coverage, project fit, buildability, no
-   placeholders). Fix its findings.
-4. Repeat until clean, with the same 3-round safeguard.
+2. **Self-review first** (your own checklist, not a subagent): (a) **forward coverage** — every
+   spec requirement (large route) or confirmed decision (small route) maps to at least one plan
+   task; (b) **backward coverage** — no plan task contradicts, silently drops, or invents scope
+   beyond the spec / confirmed decisions; (c) placeholder scan — no `TBD`/"add error
+   handling"/"similar to Task N"; (d) type/signature consistency — names used in later tasks
+   match earlier definitions and the spec. Fix inline.
+3. Dispatch a **fresh consistency-reviewer subagent** with `plan.md` + the Plan rubric from
+   `review-rubrics.md`, plus `spec.md` on the large route (on the small route, pass the confirmed
+   decisions from the Phase 4 review in its place). Its FIRST job is the **two-way spec↔plan
+   reconciliation** — every spec requirement covered by a plan task AND no plan task drifting from
+   or contradicting the spec — then project fit, buildability, and no placeholders. Fix its
+   findings.
+4. Repeat steps 2-3 until a clean pass, with the same 3-round convergence safeguard (after 3
+   rounds without a clean pass, stop and surface the remaining findings to the user for a call).
 
 ## Phase 7 — Durable records
 

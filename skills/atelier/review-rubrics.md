@@ -38,10 +38,15 @@ Check:
 
 ## Plan rubric (Phase 6)
 
-Inputs to pass: the `spec.md` (if any) and the `plan.md`.
+Inputs to pass: the `plan.md`, plus the `spec.md` (large route) or the confirmed decisions from
+the atelier review (small route, no `spec.md`). Treat that spec / decision set as the reference
+the plan must stay consistent with.
 Check:
 
-1. **Spec↔plan coverage** — every spec requirement maps to at least one plan task; list gaps.
+1. **Spec↔plan consistency (two-way)** — forward: every spec requirement (or, on the small route
+   with no `spec.md`, every confirmed decision from the review) maps to at least one plan task;
+   backward: no plan task contradicts, silently drops, or invents scope beyond the spec /
+   confirmed decisions. List gaps in BOTH directions.
 2. **Project fit** — tasks follow the target project's conventions, commands, and file layout.
 3. **No placeholders** — no "TBD", "add error handling", "similar to Task N", or code steps
    missing their code.
