@@ -1,7 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
-import crypto from "node:crypto";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
-import { access, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { access, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,23 +15,12 @@ import {
   splitExportWarnings,
 } from "./export-bundle.js";
 import { publishToHtmlApp } from "./html-app.js";
-import {
-  clientHost,
-  defaultPort,
-  ensureStateDir,
-  hostForUrl,
-  isServerStartupNonce,
-  serverLogFile,
-  serverStartupFailureFile,
-  stateFile,
-} from "./paths.js";
+import { clientHost, defaultPort, ensureStateDir, hostForUrl, serverLogFile, stateFile } from "./paths.js";
 import { findPlaybook, listPlaybooks, playbookIds, PLAYBOOK_ROUTER_HELP } from "./playbooks.js";
 import { resolveDesignAssetPath, serve } from "./server.js";
 import { canonicalFile, sessionKey, SessionStore } from "./session-store.js";
 
 const COMMANDS = new Set(["open", "poll", "end", "stop", "server", "playbook", "design", "setup", "export", "share"]);
-const SERVER_STARTUP_TIMEOUT_MS = 5_000;
-const SERVER_STARTUP_RESULT_HEADROOM_MS = 1_000;
 // SDK-reserved built-ins (e.g. `update`) must reach runAxiCli untouched; otherwise
 // the bare-arg normalization below would rewrite them into the hidden `open` command.
 const RESERVED = new Set(RESERVED_COMMANDS);
@@ -779,21 +767,7 @@ async function serverCommand(args) {
   assertKnownFlags(args, { command: "server", valueFlags: ["--port"], booleanFlags: ["--verbose", "--no-open"] });
   const port = Number(flagValue(args, "--port") || defaultPort());
   const debug = args.includes("--verbose") || process.env.ATELIER_AXI_DEBUG === "1";
-  const startupNonce = process.env.ATELIER_AXI_STARTUP_NONCE;
-  const startupDeadlineMs = Number(process.env.ATELIER_AXI_STARTUP_DEADLINE_MS);
-  const stateGuardDeadlineMs =
-    isServerStartupNonce(startupNonce) && Number.isSafeInteger(startupDeadlineMs) && startupDeadlineMs > 0
-      ? startupDeadlineMs
-      : undefined;
-  let server;
-  try {
-    server = await serve({ port, stateFile: stateFile(), version: VERSION, debug, stateGuardDeadlineMs });
-  } catch (error) {
-    if (error && error.code === "STATE_FILE_IN_USE" && isServerStartupNonce(startupNonce)) {
-      await writeServerStartupFailure(port, startupNonce, error);
-    }
-    throw error;
-  }
+  const server = await serve({ port, stateFile: stateFile(), version: VERSION, debug });
   await server.done;
   return "";
 }
@@ -847,28 +821,18 @@ async function ensureServer({ forceRestart = false } = {}) {
       }
     }
   }
-  const startupNonce = crypto.randomUUID();
-  const deadline = Date.now() + SERVER_STARTUP_TIMEOUT_MS;
-  const childDeadline = deadline - SERVER_STARTUP_RESULT_HEADROOM_MS;
-  try {
-    await startServer(port, startupNonce, childDeadline);
-    while (Date.now() < deadline) {
-      const startupFailure = await takeServerStartupFailure(port, startupNonce);
-      if (startupFailure) throw startupFailure;
-      const health = await fetchHealth(baseUrl);
-      if (health && !shouldRestartServer(VERSION, health)) {
-        return baseUrl;
-      }
-      await delay(100);
+  await startServer(port);
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    const health = await fetchHealth(baseUrl);
+    if (health && !shouldRestartServer(VERSION, health)) {
+      return baseUrl;
     }
-    const startupFailure = await takeServerStartupFailure(port, startupNonce);
-    if (startupFailure) throw startupFailure;
-    throw new AxiError("Atelier Editor server did not start", "SERVER_ERROR", [
-      `Run \`atelier-axi server --port ${port}\` to inspect server startup`,
-    ]);
-  } finally {
-    await clearServerStartupFailure(port, startupNonce);
+    await delay(100);
   }
+  throw new AxiError("Atelier Editor server did not start", "SERVER_ERROR", [
+    `Run \`atelier-axi server --port ${port}\` to inspect server startup`,
+  ]);
 }
 
 // Pure helper so the upgrade-detection logic is unit-testable without spinning up HTTP.
@@ -973,9 +937,8 @@ function processOnPortMatchesAtelier(port) {
   return false;
 }
 
-async function startServer(port, startupNonce, startupDeadlineMs) {
+async function startServer(port) {
   await ensureStateDir();
-  await clearServerStartupFailure(port, startupNonce);
   const entry = resolveServerEntry();
   let logFd = null;
   try {
@@ -984,60 +947,11 @@ async function startServer(port, startupNonce, startupDeadlineMs) {
     // If logging cannot be initialized, keep the server behavior unchanged.
   }
   try {
-    const child = spawn(
-      process.execPath,
-      [entry, "server", "--port", String(port)],
-      createServerSpawnOptions(logFd, startupNonce, startupDeadlineMs),
-    );
+    const child = spawn(process.execPath, [entry, "server", "--port", String(port)], createServerSpawnOptions(logFd));
     child.unref();
   } finally {
     if (logFd !== null) closeSync(logFd);
   }
-}
-
-async function writeServerStartupFailure(port, startupNonce, error) {
-  const file = serverStartupFailureFile(port, startupNonce);
-  const temporary = `${file}.${process.pid}.${crypto.randomUUID()}.tmp`;
-  try {
-    await writeFile(
-      temporary,
-      `${JSON.stringify({
-        code: String(error.code || "SERVER_ERROR"),
-        message: error instanceof Error ? error.message : String(error),
-        suggestions: Array.isArray(error.suggestions) ? error.suggestions.map(String) : [],
-      })}\n`,
-      { flag: "wx", mode: 0o600 },
-    );
-    await rename(temporary, file);
-  } catch (writeError) {
-    await unlink(temporary).catch(ignoreMissingFile);
-    throw writeError;
-  }
-}
-
-async function takeServerStartupFailure(port, startupNonce) {
-  const file = serverStartupFailureFile(port, startupNonce);
-  try {
-    const failure = JSON.parse(await readFile(file, "utf8"));
-    await unlink(file).catch(ignoreMissingFile);
-    if (failure?.code !== "STATE_FILE_IN_USE" || typeof failure.message !== "string") return null;
-    return new AxiError(
-      failure.message,
-      "STATE_FILE_IN_USE",
-      Array.isArray(failure.suggestions) ? failure.suggestions.map(String) : [],
-    );
-  } catch (error) {
-    if (error && error.code === "ENOENT") return null;
-    throw error;
-  }
-}
-
-async function clearServerStartupFailure(port, startupNonce) {
-  await unlink(serverStartupFailureFile(port, startupNonce)).catch(ignoreMissingFile);
-}
-
-function ignoreMissingFile(error) {
-  if (!error || error.code !== "ENOENT") throw error;
 }
 
 // The detached server child must point at a node-executable entry that actually invokes
@@ -1052,25 +966,16 @@ export function resolveServerEntry() {
 
 /**
  * @param {number | null} logFd
- * @param {string} startupNonce
- * @param {number} startupDeadlineMs
  * @returns {import("node:child_process").SpawnOptions}
  */
-export function createServerSpawnOptions(logFd = null, startupNonce = "", startupDeadlineMs = 0) {
+export function createServerSpawnOptions(logFd = null) {
   const stdio = /** @type {import("node:child_process").StdioOptions} */ (
     logFd === null ? "ignore" : ["ignore", logFd, logFd]
   );
   return {
     detached: true,
     stdio,
-    env: {
-      ...process.env,
-      ATELIER_AXI_NO_OPEN: "1",
-      ...(isServerStartupNonce(startupNonce) ? { ATELIER_AXI_STARTUP_NONCE: startupNonce } : {}),
-      ...(Number.isSafeInteger(startupDeadlineMs) && startupDeadlineMs > 0
-        ? { ATELIER_AXI_STARTUP_DEADLINE_MS: String(startupDeadlineMs) }
-        : {}),
-    },
+    env: { ...process.env, ATELIER_AXI_NO_OPEN: "1" },
   };
 }
 

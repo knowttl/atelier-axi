@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
@@ -1512,81 +1512,6 @@ test("POST /shutdown stops the listener so the client can spawn a fresh server",
     await server.done;
     await assert.rejects(() => fetch(`http://127.0.0.1:${server.port}/health`), /fetch failed|ECONNREFUSED/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("server holds one state-file guard until shutdown", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "atelier-serve-"));
-  const stateFile = path.join(dir, "state.json");
-  const server = await serve({ port: 0, stateFile, version: "9.9.9-test" });
-  try {
-    assert.equal((await readdir(dir)).filter((name) => name.includes(".server-guard.")).length, 1);
-  } finally {
-    await server.close();
-    assert.deepEqual(
-      (await readdir(dir)).filter((name) => name.includes(".server-guard.")),
-      [],
-    );
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("second server fails loudly when the state file already has a live owner", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "atelier-serve-"));
-  const stateFile = path.join(dir, "state.json");
-  const server = await serve({ port: 0, stateFile, version: "9.9.9-test" });
-  try {
-    await assert.rejects(
-      serve({ port: 0, stateFile, version: "9.9.9-test" }),
-      (error) => error?.code === "STATE_FILE_IN_USE" && error.message.includes(stateFile),
-    );
-  } finally {
-    await server.close();
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("server never reclaims a live guard with unavailable birth identity", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "atelier-serve-"));
-  const stateFile = path.join(dir, "state.json");
-  const liveGuard = `${stateFile}.server-guard.${process.pid}-00000000-0000-4000-8000-000000000002`;
-  await writeFile(
-    liveGuard,
-    JSON.stringify({
-      pid: process.pid,
-      birth: { kind: "unavailable", value: null },
-      choosing: false,
-      ticket: 1,
-      status: "held",
-    }),
-  );
-
-  try {
-    await assert.rejects(
-      serve({ port: 0, stateFile, version: "9.9.9-test" }),
-      (error) => error?.code === "STATE_FILE_IN_USE" && error.message.includes(stateFile),
-    );
-    await access(liveGuard);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("server startup reclaims a dead state-file guard", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "atelier-serve-"));
-  const stateFile = path.join(dir, "state.json");
-  const deadGuard = `${stateFile}.server-guard.99999999-00000000-0000-4000-8000-000000000001`;
-  await writeFile(
-    deadGuard,
-    JSON.stringify({ pid: 99999999, birth: "dead-process", choosing: false, ticket: 1, status: "held" }),
-  );
-
-  const server = await serve({ port: 0, stateFile, version: "9.9.9-test" });
-  try {
-    await assert.rejects(access(deadGuard), { code: "ENOENT" });
-  } finally {
-    await server.close();
     await rm(dir, { recursive: true, force: true });
   }
 });

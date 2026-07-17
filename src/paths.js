@@ -52,17 +52,6 @@ export function serverLogFile() {
   return path.join(stateDir(), "server.log");
 }
 
-const SERVER_STARTUP_NONCE_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-export function isServerStartupNonce(value) {
-  return SERVER_STARTUP_NONCE_PATTERN.test(String(value || ""));
-}
-
-export function serverStartupFailureFile(port, nonce) {
-  if (!isServerStartupNonce(nonce)) throw new Error("Invalid server startup nonce");
-  return path.join(stateDir(), `server-startup-${Number(port)}-${nonce}.json`);
-}
-
 export async function ensureStateDir() {
   await mkdir(stateDir(), { recursive: true });
 }

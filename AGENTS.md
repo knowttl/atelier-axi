@@ -186,7 +186,7 @@ The CLI ships no telemetry: it makes no analytics calls and bakes in no analytic
 - For reversible input controls, prefer local selection state plus one per-question submit that calls `window.atelier.queuePrompt()` with the final answer. Use `data-atelier-question` on the question wrapper or `queueKey` in `queuePrompt` options when pre-send updates for the same question should replace each other in the browser queue.
 - For text annotations, `prompt.selector` is the common ancestor/container selector, not the complete identity. Use the `target` range boundaries and snapshot context to locate the exact selected text.
 - For non-whiteboard Mermaid diagram nodes, a click annotates the whole rendered `<g>` node - not the sub-shape under the cursor - and hover highlights the same node; the prompt uses `tag: "mermaid-node"` with a `target` carrying `type`, `diagramId`, `nodeId`, `label`, and `selector`, so it anchors to node identity rather than a structural path. `SessionStore.normalizeTarget` routes these through `normalizeMermaidNodeTarget`, which strips them to that fixed shape, while text-range and other/legacy targets pass through unchanged.
-- `SessionStore` re-reads and re-writes the entire `state.json` on every operation. There's no in-memory cache, but every method funnels its read-modify-write through the instance promise chain in `serialize()`, so operations within the server never interleave. Writes atomically rename a same-directory temporary file over `state.json`, so CLI readers never observe a partial write. `serve()` holds a process-lifetime singleton guard for the state file and rejects a second live server using that file; this keeps the in-process lock sufficient without an unsafe expiring per-operation lease. Keep any new store method inside `serialize()`.
+- `SessionStore` re-reads and re-writes the entire `state.json` on every operation. There's no in-memory cache, but every method funnels its read-modify-write through the instance promise chain in `serialize()`, so operations within the server never interleave. Keep any new store method inside `serialize()`.
 - The chrome and the sandboxed artifact document cannot see each other's keyboard events (no `allow-same-origin`), so any keyboard shortcut that must work regardless of focus needs its own capture-phase `document.addEventListener("keydown", ..., true)` in _both_ `src/chrome-client.js` and `src/artifact-sdk.js`, not just one.
   The annotate/explore mode toggle hotkey (`MODE_TOGGLE_HOTKEY_KEY`, Cmd/Ctrl+I) is the reference implementation: the chrome owns the mode state and toggles it directly; the SDK side has no mode state of its own, so on catching the hotkey it `postMessage`s `{ type: "atelier:toggleAnnotationMode" }` to the chrome, which drives the exact same `toggleAnnotationMode()` function the on-screen switch's `onclick` calls.
   Requiring a modifier (`metaKey || ctrlKey`) is what lets the listener safely call `preventDefault()` without breaking plain typing (including typing the bound letter itself) in the chat box or an annotation-card textarea.
@@ -272,10 +272,3 @@ Record every lesson with `bd remember` in this exact shape so memories are searc
 Before recording, search with `bd memories <keyword>`; if a close memory exists, reuse its `--key` to refine it rather than adding a near-duplicate. Full procedure: the `local.beads-workflow` skill (Operation 4).
 
 <!-- END: local.beads-memory-format -->
-
-## Maintaining this file
-
-Keep this file for knowledge useful to almost every future agent session in this project.
-Do not repeat what the codebase already shows; point to the authoritative file or command instead.
-Prefer rewriting or pruning existing entries over appending new ones.
-When updating this file, preserve this bar for all agents and keep entries concise.

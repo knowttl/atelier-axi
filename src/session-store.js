@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { readFile, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { readFile, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { normalizeMermaidNodeTarget } from "./mermaid-node.js";
@@ -232,34 +232,11 @@ export class SessionStore {
   }
 
   async writeState(state) {
-    const temporary = `${this.file}.${process.pid}.${crypto.randomUUID()}.tmp`;
-    try {
-      await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`, {
-        flag: "wx",
-        mode: await stateFileMode(this.file),
-      });
-      await rename(temporary, this.file);
-    } catch (error) {
-      await unlink(temporary).catch(ignoreMissingFile);
-      throw error;
-    }
+    await writeFile(this.file, `${JSON.stringify(state, null, 2)}\n`);
   }
 }
 
 function noop() {}
-
-async function stateFileMode(file) {
-  try {
-    return (await stat(file)).mode & 0o777;
-  } catch (error) {
-    if (error && error.code === "ENOENT") return 0o600;
-    throw error;
-  }
-}
-
-function ignoreMissingFile(error) {
-  if (!error || error.code !== "ENOENT") throw error;
-}
 
 export async function canonicalFile(file) {
   const absolute = path.resolve(file);

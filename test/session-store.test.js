@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -700,49 +700,3 @@ test("batch send never loses answers when racing a concurrent store writer", asy
     await rm(dir, { recursive: true, force: true });
   }
 });
-
-test("atomic writes never expose partial state to independent readers", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "atelier-store-"));
-  try {
-    const stateFile = path.join(dir, "state.json");
-    const artifact = path.join(dir, "artifact.html");
-    await writeFile(artifact, "<h1>Hello</h1>");
-
-    const writer = new SessionStore(stateFile);
-    const reader = new SessionStore(stateFile);
-    const session = await writer.upsertSession(artifact, "http://localhost:4387/session/test");
-    const writes = Array.from({ length: 40 }, (_, index) => writer.addAgentReply(session.key, `Reply ${index}`));
-    const reads = Array.from({ length: 80 }, () => reader.listSessions());
-
-    const results = await Promise.all([...writes, ...reads]);
-    for (const sessions of results.slice(writes.length)) {
-      assert.equal(sessions.length, 1);
-      assert.equal(sessions[0].key, session.key);
-    }
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test(
-  "atomic state writes use secure permissions and preserve existing mode",
-  { skip: process.platform === "win32" },
-  async () => {
-    const dir = await mkdtemp(path.join(tmpdir(), "atelier-store-"));
-    try {
-      const stateFile = path.join(dir, "state.json");
-      const artifact = path.join(dir, "artifact.html");
-      await writeFile(artifact, "<h1>Hello</h1>");
-
-      const store = new SessionStore(stateFile);
-      const session = await store.upsertSession(artifact, "http://localhost:4387/session/test");
-      assert.equal((await stat(stateFile)).mode & 0o777, 0o600);
-
-      await chmod(stateFile, 0o640);
-      await store.addAgentReply(session.key, "Preserve permissions");
-      assert.equal((await stat(stateFile)).mode & 0o777, 0o640);
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  },
-);
