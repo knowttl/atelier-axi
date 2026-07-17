@@ -1,11 +1,14 @@
 import crypto from "node:crypto";
-import { readFile, readdir, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { readFile, readdir, realpath, rename, stat, unlink, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { normalizeMermaidNodeTarget } from "./mermaid-node.js";
 import { EXCALIDRAW_SCENE_TARGET_TYPE, normalizeExcalidrawSceneTarget } from "./whiteboard-core.js";
 
 const LOCK_RETRY_TIMEOUT_MS = 5_000;
+const LOCK_STALE_MS = 30_000;
+const LOCK_HEARTBEAT_MS = 5_000;
+const FALLBACK_PROCESS_BIRTH_ID = `${Date.now() - Math.round(process.uptime() * 1_000)}-${crypto.randomUUID()}`;
 
 export class SessionStore {
   constructor(file) {
@@ -256,6 +259,7 @@ async function withFileLock(file, operation) {
   try {
     return await operation();
   } finally {
+    lock.stopHeartbeat();
     await releaseFileLock(lock);
   }
 }
@@ -264,14 +268,20 @@ async function acquireFileLock(file) {
   const startedAt = Date.now();
   const token = `${process.pid}-${crypto.randomUUID()}`;
   const entry = lockEntryFile(file, token);
+  const owner = {
+    pid: process.pid,
+    birth: (await kernelProcessBirthId(process.pid)) || FALLBACK_PROCESS_BIRTH_ID,
+  };
   let retryDelayMs = 5;
-  await writeFile(entry, JSON.stringify({ choosing: true }), { flag: "wx", mode: 0o600 });
+  await writeFile(entry, JSON.stringify({ ...owner, choosing: true }), { flag: "wx", mode: 0o600 });
+  const stopHeartbeat = startLockHeartbeat(entry);
   try {
     const initialRecords = await lockRecords(file);
     const ticket = initialRecords.reduce((maximum, record) => Math.max(maximum, record.ticket || 0), 0) + 1;
-    await replaceLockRecord(entry, { choosing: false, ticket });
+    await replaceLockRecord(entry, { ...owner, choosing: false, ticket });
     while (true) {
       const records = await lockRecords(file);
+      if (!records.some((record) => record.token === token)) throw lockLostError(file);
       const blocked = records.some(
         (record) =>
           record.token !== token &&
@@ -279,12 +289,13 @@ async function acquireFileLock(file) {
             record.ticket < ticket ||
             (record.ticket === ticket && record.token.localeCompare(token) < 0)),
       );
-      if (!blocked) return { file: entry };
+      if (!blocked) return { file: entry, stopHeartbeat };
       if (Date.now() - startedAt >= LOCK_RETRY_TIMEOUT_MS) throw lockTimeoutError(file);
       await delay(retryDelayMs);
       retryDelayMs = Math.min(retryDelayMs * 2, 100);
     }
   } catch (error) {
+    stopHeartbeat();
     await unlink(entry).catch(ignoreMissingFile);
     throw error;
   }
@@ -313,11 +324,17 @@ async function lockRecords(file) {
 
 async function readLockRecord(file, token) {
   try {
-    const raw = await readFile(file, "utf8");
+    const [raw, fileStat] = await Promise.all([readFile(file, "utf8"), stat(file)]);
     const pid = Number.parseInt(token.split("-", 1)[0], 10);
+    if (Date.now() - fileStat.mtimeMs >= LOCK_STALE_MS) return { token, stale: true };
     if (!processIsAlive(pid)) return { token, stale: true };
     try {
       const parsed = JSON.parse(raw);
+      if (parsed.pid !== pid || typeof parsed.birth !== "string" || parsed.birth.length === 0) {
+        return { token, stale: false, choosing: true, ticket: 0 };
+      }
+      const currentBirth = await kernelProcessBirthId(pid);
+      if (currentBirth && currentBirth !== parsed.birth) return { token, stale: true };
       return {
         token,
         stale: false,
@@ -331,6 +348,33 @@ async function readLockRecord(file, token) {
     if (error && error.code === "ENOENT") return null;
     throw error;
   }
+}
+
+async function kernelProcessBirthId(pid) {
+  if (process.platform !== "linux") return null;
+  try {
+    const [bootId, processStat] = await Promise.all([
+      readFile("/proc/sys/kernel/random/boot_id", "utf8"),
+      readFile(`/proc/${pid}/stat`, "utf8"),
+    ]);
+    const fields = processStat
+      .slice(processStat.lastIndexOf(")") + 2)
+      .trim()
+      .split(/\s+/);
+    const startTicks = fields[19];
+    return startTicks ? `${bootId.trim()}:${startTicks}` : null;
+  } catch {
+    return null;
+  }
+}
+
+function startLockHeartbeat(entry) {
+  const timer = setInterval(() => {
+    const now = new Date();
+    void utimes(entry, now, now).catch(noop);
+  }, LOCK_HEARTBEAT_MS);
+  timer.unref();
+  return () => clearInterval(timer);
 }
 
 function processIsAlive(pid) {
@@ -364,6 +408,10 @@ function lockEntryFile(file, token) {
 
 function lockTimeoutError(file) {
   return Object.assign(new Error(`Timed out waiting for state lock: ${file}`), { code: "ELOCKED" });
+}
+
+function lockLostError(file) {
+  return Object.assign(new Error(`Lost ownership of state lock: ${file}`), { code: "ELOCKLOST" });
 }
 
 async function stateFileMode(file) {

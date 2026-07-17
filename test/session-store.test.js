@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, chmod, mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { access, chmod, mkdtemp, readdir, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -745,6 +745,42 @@ test("store reads retry contended locks and recover stale locks", async () => {
     await writeFile(staleLock, JSON.stringify({ choosing: false, ticket: 1 }));
     assert.deepEqual(await store.listSessions(), []);
     await assert.rejects(access(staleLock), { code: "ENOENT" });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("store reclaims a reused PID with a different process birth", { skip: process.platform !== "linux" }, async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "atelier-store-"));
+  try {
+    const stateFile = path.join(dir, "state.json");
+    const reusedPidLock = `${stateFile}.lock.${process.pid}-00000000-0000-4000-8000-000000000004`;
+    await writeFile(
+      reusedPidLock,
+      JSON.stringify({ pid: process.pid, birth: "different-process-birth", choosing: false, ticket: 1 }),
+    );
+
+    assert.deepEqual(await new SessionStore(stateFile).listSessions(), []);
+    await assert.rejects(access(reusedPidLock), { code: "ENOENT" });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("store reclaims a live-PID contender after its heartbeat expires", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "atelier-store-"));
+  try {
+    const stateFile = path.join(dir, "state.json");
+    const expiredLock = `${stateFile}.lock.${process.pid}-00000000-0000-4000-8000-000000000005`;
+    await writeFile(
+      expiredLock,
+      JSON.stringify({ pid: process.pid, birth: "abandoned-process", choosing: false, ticket: 1 }),
+    );
+    const expiredAt = new Date(Date.now() - 60_000);
+    await utimes(expiredLock, expiredAt, expiredAt);
+
+    assert.deepEqual(await new SessionStore(stateFile).listSessions(), []);
+    await assert.rejects(access(expiredLock), { code: "ENOENT" });
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
