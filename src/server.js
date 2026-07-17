@@ -41,6 +41,7 @@ import { publishToHtmlApp } from "./html-app.js";
 import { injectAtelierSdk } from "./html-transform.js";
 import { bindHost, hostForUrl, linkHost } from "./paths.js";
 import { canonicalFile, SessionStore, sessionKey } from "./session-store.js";
+import { acquireStateFileGuard } from "./state-file-guard.js";
 
 const chromeClientUrl = new URL("./chrome-client.js", import.meta.url);
 const chromeCssUrl = new URL("./chrome.css", import.meta.url);
@@ -712,12 +713,19 @@ export async function serve({
     res.status(status).json({ error: error instanceof Error ? error.message : String(error) });
   });
 
-  const httpServer = await new Promise((resolve, reject) => {
-    const s = app.listen(port, host, () => {
-      if (s.address()) resolve(s);
+  const stateGuard = await acquireStateFileGuard(stateFile);
+  let httpServer;
+  try {
+    httpServer = await new Promise((resolve, reject) => {
+      const s = app.listen(port, host, () => {
+        if (s.address()) resolve(s);
+      });
+      s.once("error", reject);
     });
-    s.once("error", reject);
-  });
+  } catch (error) {
+    await stateGuard.release();
+    throw error;
+  }
   publicPort = httpServer.address().port;
 
   let shuttingDown = false;
@@ -744,7 +752,9 @@ export async function serve({
       w.close().catch(() => {});
     }
     watchers.clear();
-    httpServer.close(() => shutdownResolve());
+    httpServer.close(() => {
+      stateGuard.release().then(shutdownResolve, shutdownResolve);
+    });
     // Force-close keep-alive sockets so SSE / long-polls don't keep us alive.
     if (typeof httpServer.closeAllConnections === "function") {
       httpServer.closeAllConnections();
