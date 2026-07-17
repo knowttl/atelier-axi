@@ -1,20 +1,19 @@
 import crypto from "node:crypto";
-import { readFile, realpath, writeFile } from "node:fs/promises";
+import { open, readFile, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { normalizeMermaidNodeTarget } from "./mermaid-node.js";
 import { EXCALIDRAW_SCENE_TARGET_TYPE, normalizeExcalidrawSceneTarget } from "./whiteboard-core.js";
 
+const LOCK_RETRY_TIMEOUT_MS = 5_000;
+const STALE_LOCK_MS = 30_000;
+let temporaryFileId = 0;
+
 export class SessionStore {
   constructor(file) {
     this.file = file;
-    // Every read and write funnels through this promise chain so no two operations
-    // interleave their read-modify-write of the whole state.json. Without serialization a
-    // batch send (queuePrompts) racing a concurrent writer - the fresh-session layout audit
-    // (recordLayoutWarnings) or an active poll's drain (takeFeedback) - loses the later
-    // read's clobbered changes (dropping queued prompts) and interleaved writeFile calls can
-    // corrupt the file outright. AGENTS.md's "serialized through the single server process"
-    // assumption only holds because of this lock.
+    // Every read and write funnels through this promise chain and a cross-process file lock so
+    // no two operations interleave their read-modify-write of the whole state.json.
     /** @type {Promise<unknown>} */
     this.tail = Promise.resolve();
   }
@@ -27,7 +26,8 @@ export class SessionStore {
    * @returns {Promise<T>}
    */
   serialize(operation) {
-    const result = this.tail.then(operation, operation);
+    const lockedOperation = () => withFileLock(this.file, operation);
+    const result = this.tail.then(lockedOperation, lockedOperation);
     this.tail = result.then(noop, noop);
     return result;
   }
@@ -237,11 +237,104 @@ export class SessionStore {
   }
 
   async writeState(state) {
-    await writeFile(this.file, `${JSON.stringify(state, null, 2)}\n`);
+    const temporary = `${this.file}.${process.pid}.${++temporaryFileId}.tmp`;
+    try {
+      await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`);
+      await rename(temporary, this.file);
+    } catch (error) {
+      await unlink(temporary).catch(ignoreMissingFile);
+      throw error;
+    }
   }
 }
 
 function noop() {}
+
+async function withFileLock(file, operation) {
+  const lock = await acquireFileLock(`${file}.lock`);
+  try {
+    return await operation();
+  } finally {
+    await releaseFileLock(lock);
+  }
+}
+
+async function acquireFileLock(lockFile) {
+  const startedAt = Date.now();
+  let retryDelayMs = 5;
+  while (true) {
+    const token = `${process.pid}:${crypto.randomUUID()}`;
+    let handle;
+    try {
+      handle = await open(lockFile, "wx");
+    } catch (error) {
+      if (!error || error.code !== "EEXIST") throw error;
+      if (await removeStaleLock(lockFile)) continue;
+      if (Date.now() - startedAt >= LOCK_RETRY_TIMEOUT_MS) {
+        const timeoutError = new Error(`Timed out waiting for state lock: ${lockFile}`);
+        timeoutError.code = "ELOCKED";
+        throw timeoutError;
+      }
+      await delay(retryDelayMs);
+      retryDelayMs = Math.min(retryDelayMs * 2, 100);
+      continue;
+    }
+    try {
+      await handle.writeFile(token);
+      await handle.close();
+      return { file: lockFile, token };
+    } catch (error) {
+      await handle.close().catch(noop);
+      await unlink(lockFile).catch(ignoreMissingFile);
+      throw error;
+    }
+  }
+}
+
+async function removeStaleLock(lockFile) {
+  try {
+    const token = await readFile(lockFile, "utf8");
+    const lockStat = await stat(lockFile);
+    if (Date.now() - lockStat.mtimeMs < STALE_LOCK_MS) return false;
+    if (lockOwnerIsAlive(token)) return false;
+    if ((await readFile(lockFile, "utf8")) !== token) return false;
+    const staleFile = `${lockFile}.${process.pid}.${crypto.randomUUID()}.stale`;
+    await rename(lockFile, staleFile);
+    await unlink(staleFile).catch(ignoreMissingFile);
+    return true;
+  } catch (error) {
+    if (error && error.code === "ENOENT") return true;
+    throw error;
+  }
+}
+
+function lockOwnerIsAlive(token) {
+  const pid = Number.parseInt(token.split(":", 1)[0], 10);
+  if (!Number.isSafeInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return Boolean(error && error.code === "EPERM");
+  }
+}
+
+async function releaseFileLock(lock) {
+  try {
+    if ((await readFile(lock.file, "utf8")) !== lock.token) return;
+    await unlink(lock.file);
+  } catch (error) {
+    if (!error || error.code !== "ENOENT") throw error;
+  }
+}
+
+function ignoreMissingFile(error) {
+  if (!error || error.code !== "ENOENT") throw error;
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export async function canonicalFile(file) {
   const absolute = path.resolve(file);

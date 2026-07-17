@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readdir, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -696,6 +696,70 @@ test("batch send never loses answers when racing a concurrent store writer", asy
       const drained = await store.findByKey(session.key);
       assert.equal((drained?.prompts || []).length, 0, `round ${round}: queue should be empty after draining`);
     }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("separate store instances preserve every concurrent state update", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "atelier-store-"));
+  try {
+    const stateFile = path.join(dir, "state.json");
+    const artifact = path.join(dir, "artifact.html");
+    await writeFile(artifact, "<h1>Hello</h1>");
+
+    const firstStore = new SessionStore(stateFile);
+    const secondStore = new SessionStore(stateFile);
+    const session = await firstStore.upsertSession(artifact, "http://localhost:4387/session/test");
+    const updates = Array.from({ length: 20 }, (_, index) =>
+      (index % 2 === 0 ? firstStore : secondStore).addAgentReply(session.key, `Reply ${index}`),
+    );
+
+    await Promise.all(updates);
+
+    const stored = await firstStore.findByKey(session.key);
+    assert.ok(stored);
+    assert.deepEqual(
+      stored.chat.map((item) => item.text).sort(),
+      Array.from({ length: 20 }, (_, index) => `Reply ${index}`).sort(),
+    );
+    assert.deepEqual((await readdir(dir)).sort(), ["artifact.html", "state.json"]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("store reads retry contended locks and recover stale locks", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "atelier-store-"));
+  try {
+    const stateFile = path.join(dir, "state.json");
+    const lockFile = `${stateFile}.lock`;
+    const store = new SessionStore(stateFile);
+
+    await writeFile(lockFile, "contended");
+    const release = setTimeout(() => rm(lockFile, { force: true }), 30);
+    assert.deepEqual(await store.listSessions(), []);
+    clearTimeout(release);
+
+    await writeFile(lockFile, "stale");
+    const staleTime = new Date(Date.now() - 60_000);
+    await utimes(lockFile, staleTime, staleTime);
+    assert.deepEqual(await store.listSessions(), []);
+    await assert.rejects(access(lockFile), { code: "ENOENT" });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("store releases its lock when an operation fails", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "atelier-store-"));
+  try {
+    const stateFile = path.join(dir, "state.json");
+    await writeFile(stateFile, "not-json");
+
+    const store = new SessionStore(stateFile);
+    await assert.rejects(store.listSessions(), SyntaxError);
+    await assert.rejects(access(`${stateFile}.lock`), { code: "ENOENT" });
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
