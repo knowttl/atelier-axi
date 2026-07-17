@@ -1743,11 +1743,13 @@ test("server spawn options detach without inheriting invalid streams", () => {
 
 test("server spawn options can persist detached server output to a log fd", () => {
   const startupNonce = "12345678-1234-1234-1234-123456789abc";
-  const options = createServerSpawnOptions(17, startupNonce);
+  const startupDeadlineMs = Date.now() + 4_000;
+  const options = createServerSpawnOptions(17, startupNonce, startupDeadlineMs);
 
   assert.equal(options.detached, true);
   assert.deepEqual(options.stdio, ["ignore", 17, 17]);
   assert.equal(options.env.ATELIER_AXI_STARTUP_NONCE, startupNonce);
+  assert.equal(options.env.ATELIER_AXI_STARTUP_DEADLINE_MS, String(startupDeadlineMs));
 });
 
 test("server entry resolves to a node-executable script that actually invokes run()", () => {
@@ -1998,12 +2000,20 @@ test("stop command reports when no server is running", async () => {
   }
 });
 
-test("concurrent detached startups each report their state-file guard conflict", async () => {
+test("concurrent detached startups report a blocked state-file guard before timeout", async () => {
   const dir = await mkdtemp(`${os.tmpdir()}/atelier-axi-guard-conflict-`);
   const stateFile = path.join(dir, "state.json");
   const artifact = path.join(dir, "artifact.html");
   await writeFile(artifact, "<!doctype html><html><body></body></html>");
-  const owner = await serve({ port: 0, stateFile, version: VERSION });
+  const blocker = `${stateFile}.server-guard.${process.pid}-00000000-0000-4000-8000-000000000003`;
+  await writeFile(
+    blocker,
+    JSON.stringify({
+      pid: process.pid,
+      birth: { kind: "unavailable", value: null },
+      choosing: true,
+    }),
+  );
   const probe = createServer();
   await new Promise((resolve) => probe.listen(0, "127.0.0.1", resolve));
   const address = probe.address();
@@ -2044,8 +2054,6 @@ test("concurrent detached startups each report their state-file guard conflict",
     const startupFiles = (await readdir(dir)).filter((name) => name.startsWith(`server-startup-${port}-`));
     assert.deepEqual(startupFiles, []);
   } finally {
-    await fetch(`http://127.0.0.1:${port}/shutdown`, { method: "POST" }).catch(() => {});
-    await owner.close();
     await rm(dir, { force: true, recursive: true });
   }
 });

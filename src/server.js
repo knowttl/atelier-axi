@@ -123,6 +123,7 @@ export async function serve({
   log = null,
   pollHeartbeatMs = 15_000,
   idleTimeoutMs = resolveIdleTimeoutMs(),
+  stateGuardDeadlineMs,
   host = bindHost(),
   linkHost: linkHostName = linkHost(),
   whiteboardAssetsDir = defaultWhiteboardAssetsDir(),
@@ -713,7 +714,10 @@ export async function serve({
     res.status(status).json({ error: error instanceof Error ? error.message : String(error) });
   });
 
-  const stateGuard = await acquireStateFileGuard(stateFile);
+  const stateGuard = await acquireStateFileGuard(
+    stateFile,
+    stateGuardDeadlineMs === undefined ? undefined : { deadlineMs: stateGuardDeadlineMs },
+  );
   let httpServer;
   try {
     httpServer = await new Promise((resolve, reject) => {

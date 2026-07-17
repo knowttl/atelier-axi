@@ -8,8 +8,7 @@ import path from "node:path";
 const execFileAsync = promisify(execFile);
 const STARTUP_TIMEOUT_MS = 5_000;
 
-export async function acquireStateFileGuard(stateFile) {
-  const startedAt = Date.now();
+export async function acquireStateFileGuard(stateFile, { deadlineMs = Date.now() + STARTUP_TIMEOUT_MS } = {}) {
   const token = `${process.pid}-${crypto.randomUUID()}`;
   const file = guardFile(stateFile, token);
   const owner = {
@@ -34,11 +33,11 @@ export async function acquireStateFileGuard(stateFile) {
             record.ticket < ticket ||
             (record.ticket === ticket && record.token.localeCompare(token) < 0)),
       );
+      if (Date.now() >= deadlineMs) throw guardConflictError(stateFile);
       if (!blocked) {
         await replaceGuardRecord(file, { ...owner, choosing: false, ticket, status: "held" });
         return createGuardHandle(file);
       }
-      if (Date.now() - startedAt >= STARTUP_TIMEOUT_MS) throw guardConflictError(stateFile);
       await delay(retryDelayMs);
       retryDelayMs = Math.min(retryDelayMs * 2, 100);
     }
