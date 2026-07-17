@@ -1996,6 +1996,50 @@ test("stop command reports when no server is running", async () => {
   }
 });
 
+test("detached startup reports a state-file guard conflict to the invoking CLI", async () => {
+  const dir = await mkdtemp(`${os.tmpdir()}/atelier-axi-guard-conflict-`);
+  const stateFile = path.join(dir, "state.json");
+  const artifact = path.join(dir, "artifact.html");
+  await writeFile(artifact, "<!doctype html><html><body></body></html>");
+  const owner = await serve({ port: 0, stateFile, version: VERSION });
+  const probe = createServer();
+  await new Promise((resolve) => probe.listen(0, "127.0.0.1", resolve));
+  const address = probe.address();
+  if (!address || typeof address === "string") throw new Error("test server did not bind to a TCP port");
+  const port = address.port;
+  await new Promise((resolve) => probe.close(resolve));
+
+  try {
+    const child = spawn(
+      process.execPath,
+      [fileURLToPath(new URL("../bin/atelier-axi.js", import.meta.url)), artifact, "--no-open"],
+      {
+        cwd: fileURLToPath(new URL("..", import.meta.url)),
+        env: { ...process.env, ATELIER_AXI_STATE_DIR: dir, ATELIER_AXI_PORT: String(port) },
+      },
+    );
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    const code = await new Promise((resolve) => child.on("close", resolve));
+    const output = `${stdout}\n${stderr}`;
+
+    assert.notEqual(code, 0);
+    assert.match(output, /State file is already owned by another Atelier server/);
+    assert.match(output, new RegExp(stateFile.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(output, /ATELIER_AXI_STATE_DIR/);
+  } finally {
+    await fetch(`http://127.0.0.1:${port}/shutdown`, { method: "POST" }).catch(() => {});
+    await owner.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
 async function startFakeHtmlApp(requests) {
   const server = createServer((req, res) => {
     let raw = "";

@@ -52,6 +52,10 @@ export function serverLogFile() {
   return path.join(stateDir(), "server.log");
 }
 
+export function serverStartupFailureFile(port) {
+  return path.join(stateDir(), `server-startup-${Number(port)}.json`);
+}
+
 export async function ensureStateDir() {
   await mkdir(stateDir(), { recursive: true });
 }

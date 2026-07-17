@@ -7,7 +7,6 @@ import path from "node:path";
 
 const execFileAsync = promisify(execFile);
 const STARTUP_TIMEOUT_MS = 5_000;
-const FALLBACK_BIRTH_ID = `${Date.now() - Math.round(process.uptime() * 1_000)}-${crypto.randomUUID()}`;
 
 export async function acquireStateFileGuard(stateFile) {
   const startedAt = Date.now();
@@ -15,7 +14,7 @@ export async function acquireStateFileGuard(stateFile) {
   const file = guardFile(stateFile, token);
   const owner = {
     pid: process.pid,
-    birth: (await processBirthId(process.pid)) || FALLBACK_BIRTH_ID,
+    birth: await processBirthIdentity(process.pid),
   };
   let retryDelayMs = 5;
   await writeFile(file, JSON.stringify({ ...owner, choosing: true }), { flag: "wx", mode: 0o600 });
@@ -77,11 +76,9 @@ async function readGuardRecord(file, token) {
     if (!processIsAlive(pid)) return { token, stale: true };
     try {
       const parsed = JSON.parse(raw);
-      if (parsed.pid !== pid || typeof parsed.birth !== "string" || parsed.birth.length === 0) {
+      if (parsed.pid !== pid || !isProcessBirthIdentity(parsed.birth)) {
         return { token, pid, stale: false, choosing: true, ticket: 0, status: "acquiring" };
       }
-      const currentBirth = await processBirthId(pid);
-      if (currentBirth && currentBirth !== parsed.birth) return { token, stale: true };
       return {
         token,
         pid,
@@ -97,6 +94,21 @@ async function readGuardRecord(file, token) {
     if (error && error.code === "ENOENT") return null;
     throw error;
   }
+}
+
+async function processBirthIdentity(pid) {
+  const value = await processBirthId(pid);
+  return value ? { kind: "kernel", value } : { kind: "unavailable", value: null };
+}
+
+function isProcessBirthIdentity(identity) {
+  return (
+    identity &&
+    typeof identity === "object" &&
+    !Array.isArray(identity) &&
+    ((identity.kind === "kernel" && typeof identity.value === "string" && identity.value.length > 0) ||
+      (identity.kind === "unavailable" && identity.value === null))
+  );
 }
 
 async function processBirthId(pid) {
@@ -172,11 +184,15 @@ function guardFile(stateFile, token) {
 
 function guardConflictError(stateFile, pid) {
   const owner = pid ? ` (pid ${pid})` : "";
+  const suggestions = [
+    "Stop the server that already owns this state file",
+    "Use a different ATELIER_AXI_STATE_DIR for an independent server",
+  ];
   return Object.assign(
     new Error(
       `State file is already owned by another Atelier server${owner}: ${stateFile}. Stop that server or use a different ATELIER_AXI_STATE_DIR.`,
     ),
-    { code: "STATE_FILE_IN_USE" },
+    { code: "STATE_FILE_IN_USE", suggestions },
   );
 }
 

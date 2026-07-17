@@ -1547,6 +1547,32 @@ test("second server fails loudly when the state file already has a live owner", 
   }
 });
 
+test("server never reclaims a live guard with unavailable birth identity", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "atelier-serve-"));
+  const stateFile = path.join(dir, "state.json");
+  const liveGuard = `${stateFile}.server-guard.${process.pid}-00000000-0000-4000-8000-000000000002`;
+  await writeFile(
+    liveGuard,
+    JSON.stringify({
+      pid: process.pid,
+      birth: { kind: "unavailable", value: null },
+      choosing: false,
+      ticket: 1,
+      status: "held",
+    }),
+  );
+
+  try {
+    await assert.rejects(
+      serve({ port: 0, stateFile, version: "9.9.9-test" }),
+      (error) => error?.code === "STATE_FILE_IN_USE" && error.message.includes(stateFile),
+    );
+    await access(liveGuard);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("server startup reclaims a dead state-file guard", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "atelier-serve-"));
   const stateFile = path.join(dir, "state.json");

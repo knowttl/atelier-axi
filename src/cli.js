@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
-import { access, readFile, writeFile } from "node:fs/promises";
+import { access, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,7 +16,15 @@ import {
   splitExportWarnings,
 } from "./export-bundle.js";
 import { publishToHtmlApp } from "./html-app.js";
-import { clientHost, defaultPort, ensureStateDir, hostForUrl, serverLogFile, stateFile } from "./paths.js";
+import {
+  clientHost,
+  defaultPort,
+  ensureStateDir,
+  hostForUrl,
+  serverLogFile,
+  serverStartupFailureFile,
+  stateFile,
+} from "./paths.js";
 import { findPlaybook, listPlaybooks, playbookIds, PLAYBOOK_ROUTER_HELP } from "./playbooks.js";
 import { resolveDesignAssetPath, serve } from "./server.js";
 import { canonicalFile, sessionKey, SessionStore } from "./session-store.js";
@@ -767,7 +776,13 @@ async function serverCommand(args) {
   assertKnownFlags(args, { command: "server", valueFlags: ["--port"], booleanFlags: ["--verbose", "--no-open"] });
   const port = Number(flagValue(args, "--port") || defaultPort());
   const debug = args.includes("--verbose") || process.env.ATELIER_AXI_DEBUG === "1";
-  const server = await serve({ port, stateFile: stateFile(), version: VERSION, debug });
+  let server;
+  try {
+    server = await serve({ port, stateFile: stateFile(), version: VERSION, debug });
+  } catch (error) {
+    if (error && error.code === "STATE_FILE_IN_USE") await writeServerStartupFailure(port, error);
+    throw error;
+  }
   await server.done;
   return "";
 }
@@ -824,12 +839,16 @@ async function ensureServer({ forceRestart = false } = {}) {
   await startServer(port);
   const deadline = Date.now() + 5000;
   while (Date.now() < deadline) {
+    const startupFailure = await takeServerStartupFailure(port);
+    if (startupFailure) throw startupFailure;
     const health = await fetchHealth(baseUrl);
     if (health && !shouldRestartServer(VERSION, health)) {
       return baseUrl;
     }
     await delay(100);
   }
+  const startupFailure = await takeServerStartupFailure(port);
+  if (startupFailure) throw startupFailure;
   throw new AxiError("Atelier Editor server did not start", "SERVER_ERROR", [
     `Run \`atelier-axi server --port ${port}\` to inspect server startup`,
   ]);
@@ -939,6 +958,7 @@ function processOnPortMatchesAtelier(port) {
 
 async function startServer(port) {
   await ensureStateDir();
+  await unlink(serverStartupFailureFile(port)).catch(ignoreMissingFile);
   const entry = resolveServerEntry();
   let logFd = null;
   try {
@@ -952,6 +972,47 @@ async function startServer(port) {
   } finally {
     if (logFd !== null) closeSync(logFd);
   }
+}
+
+async function writeServerStartupFailure(port, error) {
+  const file = serverStartupFailureFile(port);
+  const temporary = `${file}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  try {
+    await writeFile(
+      temporary,
+      `${JSON.stringify({
+        code: String(error.code || "SERVER_ERROR"),
+        message: error instanceof Error ? error.message : String(error),
+        suggestions: Array.isArray(error.suggestions) ? error.suggestions.map(String) : [],
+      })}\n`,
+      { flag: "wx", mode: 0o600 },
+    );
+    await rename(temporary, file);
+  } catch (writeError) {
+    await unlink(temporary).catch(ignoreMissingFile);
+    throw writeError;
+  }
+}
+
+async function takeServerStartupFailure(port) {
+  const file = serverStartupFailureFile(port);
+  try {
+    const failure = JSON.parse(await readFile(file, "utf8"));
+    await unlink(file).catch(ignoreMissingFile);
+    if (failure?.code !== "STATE_FILE_IN_USE" || typeof failure.message !== "string") return null;
+    return new AxiError(
+      failure.message,
+      "STATE_FILE_IN_USE",
+      Array.isArray(failure.suggestions) ? failure.suggestions.map(String) : [],
+    );
+  } catch (error) {
+    if (error && error.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+function ignoreMissingFile(error) {
+  if (!error || error.code !== "ENOENT") throw error;
 }
 
 // The detached server child must point at a node-executable entry that actually invokes
