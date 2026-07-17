@@ -144,12 +144,14 @@ review _surface_ changes.
 
 ## Phase 4 — Atelier review loop (answers → approaches → decisions → approval)
 
-1. Open the session: `atelier-axi <file>`. Poll for feedback: `atelier-axi poll <file>` — run it
-   in the background if your harness limits foreground command time; if it is killed, just
-   re-run it (queued feedback is never lost). Leave it running; never kill it deliberately.
-2. If the poll returns `layout_warnings`, follow the returned `next_step`: fix fresh
-   error-severity findings and re-check BEFORE involving the human; proceed with a note only
-   when every current warning is persistent or below error severity.
+1. Open the session: `atelier-axi <file>`. Poll for feedback: `atelier-axi poll <file>`.
+   Keep the poll in the foreground by default. A background poll is allowed only through a
+   harness-native tracked job whose completion is guaranteed to resume or notify this same
+   agent; if the harness has no such facility, keep it in the foreground. If it is killed,
+   re-run it because queued feedback is never lost. Leave it running; never kill it deliberately.
+2. If the poll returns `layout_warnings`, follow the returned `next_step`: repair every proven
+   severe layout failure and re-check it BEFORE involving the human. Cosmetic, intentional,
+   transient, tiny, and uncertain observations do not enter this path.
 3. **Collect the user's answers** to the intake questions.
 4. **Propose approaches.** Once the questions are answered, update the artifact to present 2-3
    candidate approaches with tradeoffs and your recommendation, using the `comparison` playbook
