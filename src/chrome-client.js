@@ -484,7 +484,10 @@ function handleLayoutWarningsForGate(layoutWarnings) {
     return;
   }
 
-  if (!layoutGateArmed && !layoutGateVisible) return;
+  if (!layoutGateArmed && !layoutGateVisible) {
+    setLayoutIssueBanner(hasErrors);
+    return;
+  }
 
   if (!hasErrors) {
     revealLayoutGate();

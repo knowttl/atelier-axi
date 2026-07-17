@@ -692,6 +692,24 @@ test("a late clean audit stays clean after the layout gate times out", async () 
   assert.equal(chrome.element("layoutIssueBanner").hidden, true);
 });
 
+test("a late severe audit shows an issue banner after the layout gate times out", async () => {
+  const chrome = await createChromeHarness({
+    sessionData: { key: "abc", file: "/tmp/artifact.html", layoutGateMaxHoldMs: 25 },
+  });
+
+  chrome.runTimers(25);
+  chrome.sendFrameMessage({
+    type: "atelier:layoutWarnings",
+    layout_warnings: [{ selector: "html", kind: "content-overlap", severity: "error" }],
+  });
+  await flushPromises();
+
+  assert.equal(chrome.element("layoutGateOverlay").hidden, true);
+  assert.equal(chrome.element("body").classList.contains("layout-gate-active"), false);
+  assert.equal(chrome.element("layoutIssueBanner").hidden, false);
+  assert.match(chrome.element("layoutIssueBanner").textContent, /severe layout failure/);
+});
+
 test("layout gate timeout re-arms on reload", async () => {
   const chrome = await createChromeHarness({
     sessionData: { key: "abc", file: "/tmp/artifact.html", layoutGateMaxHoldMs: 25 },
