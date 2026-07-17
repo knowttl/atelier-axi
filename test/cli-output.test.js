@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -1742,10 +1742,12 @@ test("server spawn options detach without inheriting invalid streams", () => {
 });
 
 test("server spawn options can persist detached server output to a log fd", () => {
-  const options = createServerSpawnOptions(17);
+  const startupNonce = "12345678-1234-1234-1234-123456789abc";
+  const options = createServerSpawnOptions(17, startupNonce);
 
   assert.equal(options.detached, true);
   assert.deepEqual(options.stdio, ["ignore", 17, 17]);
+  assert.equal(options.env.ATELIER_AXI_STARTUP_NONCE, startupNonce);
 });
 
 test("server entry resolves to a node-executable script that actually invokes run()", () => {
@@ -1996,7 +1998,7 @@ test("stop command reports when no server is running", async () => {
   }
 });
 
-test("detached startup reports a state-file guard conflict to the invoking CLI", async () => {
+test("concurrent detached startups each report their state-file guard conflict", async () => {
   const dir = await mkdtemp(`${os.tmpdir()}/atelier-axi-guard-conflict-`);
   const stateFile = path.join(dir, "state.json");
   const artifact = path.join(dir, "artifact.html");
@@ -2010,29 +2012,37 @@ test("detached startup reports a state-file guard conflict to the invoking CLI",
   await new Promise((resolve) => probe.close(resolve));
 
   try {
-    const child = spawn(
-      process.execPath,
-      [fileURLToPath(new URL("../bin/atelier-axi.js", import.meta.url)), artifact, "--no-open"],
-      {
-        cwd: fileURLToPath(new URL("..", import.meta.url)),
-        env: { ...process.env, ATELIER_AXI_STATE_DIR: dir, ATELIER_AXI_PORT: String(port) },
-      },
-    );
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString();
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-    const code = await new Promise((resolve) => child.on("close", resolve));
-    const output = `${stdout}\n${stderr}`;
+    const runCli = () => {
+      const child = spawn(
+        process.execPath,
+        [fileURLToPath(new URL("../bin/atelier-axi.js", import.meta.url)), artifact, "--no-open"],
+        {
+          cwd: fileURLToPath(new URL("..", import.meta.url)),
+          env: { ...process.env, ATELIER_AXI_STATE_DIR: dir, ATELIER_AXI_PORT: String(port) },
+        },
+      );
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", (chunk) => {
+        stdout += chunk.toString();
+      });
+      child.stderr.on("data", (chunk) => {
+        stderr += chunk.toString();
+      });
+      return new Promise((resolve) => {
+        child.on("close", (code) => resolve({ code, output: `${stdout}\n${stderr}` }));
+      });
+    };
 
-    assert.notEqual(code, 0);
-    assert.match(output, /State file is already owned by another Atelier server/);
-    assert.match(output, new RegExp(stateFile.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-    assert.match(output, /ATELIER_AXI_STATE_DIR/);
+    const results = await Promise.all([runCli(), runCli()]);
+    for (const { code, output } of results) {
+      assert.notEqual(code, 0);
+      assert.match(output, /State file is already owned by another Atelier server/);
+      assert.match(output, new RegExp(stateFile.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+      assert.match(output, /ATELIER_AXI_STATE_DIR/);
+    }
+    const startupFiles = (await readdir(dir)).filter((name) => name.startsWith(`server-startup-${port}-`));
+    assert.deepEqual(startupFiles, []);
   } finally {
     await fetch(`http://127.0.0.1:${port}/shutdown`, { method: "POST" }).catch(() => {});
     await owner.close();

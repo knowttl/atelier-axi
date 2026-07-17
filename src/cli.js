@@ -21,6 +21,7 @@ import {
   defaultPort,
   ensureStateDir,
   hostForUrl,
+  isServerStartupNonce,
   serverLogFile,
   serverStartupFailureFile,
   stateFile,
@@ -780,7 +781,10 @@ async function serverCommand(args) {
   try {
     server = await serve({ port, stateFile: stateFile(), version: VERSION, debug });
   } catch (error) {
-    if (error && error.code === "STATE_FILE_IN_USE") await writeServerStartupFailure(port, error);
+    const startupNonce = process.env.ATELIER_AXI_STARTUP_NONCE;
+    if (error && error.code === "STATE_FILE_IN_USE" && isServerStartupNonce(startupNonce)) {
+      await writeServerStartupFailure(port, startupNonce, error);
+    }
     throw error;
   }
   await server.done;
@@ -836,22 +840,27 @@ async function ensureServer({ forceRestart = false } = {}) {
       }
     }
   }
-  await startServer(port);
-  const deadline = Date.now() + 5000;
-  while (Date.now() < deadline) {
-    const startupFailure = await takeServerStartupFailure(port);
-    if (startupFailure) throw startupFailure;
-    const health = await fetchHealth(baseUrl);
-    if (health && !shouldRestartServer(VERSION, health)) {
-      return baseUrl;
+  const startupNonce = crypto.randomUUID();
+  try {
+    await startServer(port, startupNonce);
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+      const startupFailure = await takeServerStartupFailure(port, startupNonce);
+      if (startupFailure) throw startupFailure;
+      const health = await fetchHealth(baseUrl);
+      if (health && !shouldRestartServer(VERSION, health)) {
+        return baseUrl;
+      }
+      await delay(100);
     }
-    await delay(100);
+    const startupFailure = await takeServerStartupFailure(port, startupNonce);
+    if (startupFailure) throw startupFailure;
+    throw new AxiError("Atelier Editor server did not start", "SERVER_ERROR", [
+      `Run \`atelier-axi server --port ${port}\` to inspect server startup`,
+    ]);
+  } finally {
+    await clearServerStartupFailure(port, startupNonce);
   }
-  const startupFailure = await takeServerStartupFailure(port);
-  if (startupFailure) throw startupFailure;
-  throw new AxiError("Atelier Editor server did not start", "SERVER_ERROR", [
-    `Run \`atelier-axi server --port ${port}\` to inspect server startup`,
-  ]);
 }
 
 // Pure helper so the upgrade-detection logic is unit-testable without spinning up HTTP.
@@ -956,9 +965,9 @@ function processOnPortMatchesAtelier(port) {
   return false;
 }
 
-async function startServer(port) {
+async function startServer(port, startupNonce) {
   await ensureStateDir();
-  await unlink(serverStartupFailureFile(port)).catch(ignoreMissingFile);
+  await clearServerStartupFailure(port, startupNonce);
   const entry = resolveServerEntry();
   let logFd = null;
   try {
@@ -967,15 +976,19 @@ async function startServer(port) {
     // If logging cannot be initialized, keep the server behavior unchanged.
   }
   try {
-    const child = spawn(process.execPath, [entry, "server", "--port", String(port)], createServerSpawnOptions(logFd));
+    const child = spawn(
+      process.execPath,
+      [entry, "server", "--port", String(port)],
+      createServerSpawnOptions(logFd, startupNonce),
+    );
     child.unref();
   } finally {
     if (logFd !== null) closeSync(logFd);
   }
 }
 
-async function writeServerStartupFailure(port, error) {
-  const file = serverStartupFailureFile(port);
+async function writeServerStartupFailure(port, startupNonce, error) {
+  const file = serverStartupFailureFile(port, startupNonce);
   const temporary = `${file}.${process.pid}.${crypto.randomUUID()}.tmp`;
   try {
     await writeFile(
@@ -994,8 +1007,8 @@ async function writeServerStartupFailure(port, error) {
   }
 }
 
-async function takeServerStartupFailure(port) {
-  const file = serverStartupFailureFile(port);
+async function takeServerStartupFailure(port, startupNonce) {
+  const file = serverStartupFailureFile(port, startupNonce);
   try {
     const failure = JSON.parse(await readFile(file, "utf8"));
     await unlink(file).catch(ignoreMissingFile);
@@ -1009,6 +1022,10 @@ async function takeServerStartupFailure(port) {
     if (error && error.code === "ENOENT") return null;
     throw error;
   }
+}
+
+async function clearServerStartupFailure(port, startupNonce) {
+  await unlink(serverStartupFailureFile(port, startupNonce)).catch(ignoreMissingFile);
 }
 
 function ignoreMissingFile(error) {
@@ -1027,16 +1044,21 @@ export function resolveServerEntry() {
 
 /**
  * @param {number | null} logFd
+ * @param {string} startupNonce
  * @returns {import("node:child_process").SpawnOptions}
  */
-export function createServerSpawnOptions(logFd = null) {
+export function createServerSpawnOptions(logFd = null, startupNonce = "") {
   const stdio = /** @type {import("node:child_process").StdioOptions} */ (
     logFd === null ? "ignore" : ["ignore", logFd, logFd]
   );
   return {
     detached: true,
     stdio,
-    env: { ...process.env, ATELIER_AXI_NO_OPEN: "1" },
+    env: {
+      ...process.env,
+      ATELIER_AXI_NO_OPEN: "1",
+      ...(isServerStartupNonce(startupNonce) ? { ATELIER_AXI_STARTUP_NONCE: startupNonce } : {}),
+    },
   };
 }
 
