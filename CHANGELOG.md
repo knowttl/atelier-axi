@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.3.0](https://github.com/knowttl/atelier-axi/compare/atelier-axi-v0.2.4...atelier-axi-v0.3.0) (2026-07-17)
+
+
+### Features
+
+* edit Mermaid diagrams as whiteboards ([#166](https://github.com/knowttl/atelier-axi/issues/166)) ([1b9e445](https://github.com/knowttl/atelier-axi/commit/1b9e445b49a149221ce7338252d0f72a4dac5706))
+* edit Mermaid diagrams as whiteboards ([#166](https://github.com/knowttl/atelier-axi/issues/166)) ([94a181c](https://github.com/knowttl/atelier-axi/commit/94a181c2954d5ad49249d85681be61a0385ec47a))
+* **skills:** add local.upstream-sync review skill ([f9b3109](https://github.com/knowttl/atelier-axi/commit/f9b310957d2f6b46045dd46b9f991764205b9fd1))
+
+
+### Bug Fixes
+
+* **cli:** keep Codex polls attached to active turns ([#165](https://github.com/knowttl/atelier-axi/issues/165)) ([24aab31](https://github.com/knowttl/atelier-axi/commit/24aab313c310e853e41b3458fe17da55439e4e39))
+* **cli:** keep Codex polls attached to active turns ([#165](https://github.com/knowttl/atelier-axi/issues/165)) ([ab31405](https://github.com/knowttl/atelier-axi/commit/ab31405882f950696a2ddc79deb90d4caada7543))
+* prevent batched feedback from being dropped ([#18](https://github.com/knowttl/atelier-axi/issues/18)) ([7fc9c81](https://github.com/knowttl/atelier-axi/commit/7fc9c811d37a3404206e98309dc4fa57a0080fdf))
+* sync Mermaid diagrams with page themes ([#162](https://github.com/knowttl/atelier-axi/issues/162)) ([717e244](https://github.com/knowttl/atelier-axi/commit/717e244b48402ff525cd3c5d0b0db7098bfd55cb))
+* sync Mermaid diagrams with page themes ([#162](https://github.com/knowttl/atelier-axi/issues/162)) ([957eab4](https://github.com/knowttl/atelier-axi/commit/957eab4c11474a6ae15988a9b10d64ad08670a73))
+
+
+### Miscellaneous Chores
+
+* release atelier-axi as 0.3.0 ([7474483](https://github.com/knowttl/atelier-axi/commit/7474483ac041189109701f306a44e99de6d5f2d3))
+
 ## [0.2.4](https://github.com/knowttl/atelier-axi/compare/atelier-axi-v0.2.3...atelier-axi-v0.2.4) (2026-07-09)
 
 
