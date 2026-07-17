@@ -1,13 +1,11 @@
 import crypto from "node:crypto";
-import { open, readFile, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { readFile, readdir, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { normalizeMermaidNodeTarget } from "./mermaid-node.js";
 import { EXCALIDRAW_SCENE_TARGET_TYPE, normalizeExcalidrawSceneTarget } from "./whiteboard-core.js";
 
 const LOCK_RETRY_TIMEOUT_MS = 5_000;
-const STALE_LOCK_MS = 30_000;
-let temporaryFileId = 0;
 
 export class SessionStore {
   constructor(file) {
@@ -237,9 +235,12 @@ export class SessionStore {
   }
 
   async writeState(state) {
-    const temporary = `${this.file}.${process.pid}.${++temporaryFileId}.tmp`;
+    const temporary = `${this.file}.${process.pid}.${crypto.randomUUID()}.tmp`;
     try {
-      await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`);
+      await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`, {
+        flag: "wx",
+        mode: await stateFileMode(this.file),
+      });
       await rename(temporary, this.file);
     } catch (error) {
       await unlink(temporary).catch(ignoreMissingFile);
@@ -251,7 +252,7 @@ export class SessionStore {
 function noop() {}
 
 async function withFileLock(file, operation) {
-  const lock = await acquireFileLock(`${file}.lock`);
+  const lock = await acquireFileLock(file);
   try {
     return await operation();
   } finally {
@@ -259,57 +260,80 @@ async function withFileLock(file, operation) {
   }
 }
 
-async function acquireFileLock(lockFile) {
+async function acquireFileLock(file) {
   const startedAt = Date.now();
+  const token = `${process.pid}-${crypto.randomUUID()}`;
+  const entry = lockEntryFile(file, token);
   let retryDelayMs = 5;
-  while (true) {
-    const token = `${process.pid}:${crypto.randomUUID()}`;
-    let handle;
-    try {
-      handle = await open(lockFile, "wx");
-    } catch (error) {
-      if (!error || error.code !== "EEXIST") throw error;
-      if (await removeStaleLock(lockFile)) continue;
-      if (Date.now() - startedAt >= LOCK_RETRY_TIMEOUT_MS) {
-        const timeoutError = new Error(`Timed out waiting for state lock: ${lockFile}`);
-        timeoutError.code = "ELOCKED";
-        throw timeoutError;
-      }
+  await writeFile(entry, JSON.stringify({ choosing: true }), { flag: "wx", mode: 0o600 });
+  try {
+    const initialRecords = await lockRecords(file);
+    const ticket = initialRecords.reduce((maximum, record) => Math.max(maximum, record.ticket || 0), 0) + 1;
+    await replaceLockRecord(entry, { choosing: false, ticket });
+    while (true) {
+      const records = await lockRecords(file);
+      const blocked = records.some(
+        (record) =>
+          record.token !== token &&
+          (record.choosing ||
+            record.ticket < ticket ||
+            (record.ticket === ticket && record.token.localeCompare(token) < 0)),
+      );
+      if (!blocked) return { file: entry };
+      if (Date.now() - startedAt >= LOCK_RETRY_TIMEOUT_MS) throw lockTimeoutError(file);
       await delay(retryDelayMs);
       retryDelayMs = Math.min(retryDelayMs * 2, 100);
-      continue;
     }
-    try {
-      await handle.writeFile(token);
-      await handle.close();
-      return { file: lockFile, token };
-    } catch (error) {
-      await handle.close().catch(noop);
-      await unlink(lockFile).catch(ignoreMissingFile);
-      throw error;
-    }
-  }
-}
-
-async function removeStaleLock(lockFile) {
-  try {
-    const token = await readFile(lockFile, "utf8");
-    const lockStat = await stat(lockFile);
-    if (Date.now() - lockStat.mtimeMs < STALE_LOCK_MS) return false;
-    if (lockOwnerIsAlive(token)) return false;
-    if ((await readFile(lockFile, "utf8")) !== token) return false;
-    const staleFile = `${lockFile}.${process.pid}.${crypto.randomUUID()}.stale`;
-    await rename(lockFile, staleFile);
-    await unlink(staleFile).catch(ignoreMissingFile);
-    return true;
   } catch (error) {
-    if (error && error.code === "ENOENT") return true;
+    await unlink(entry).catch(ignoreMissingFile);
     throw error;
   }
 }
 
-function lockOwnerIsAlive(token) {
-  const pid = Number.parseInt(token.split(":", 1)[0], 10);
+async function lockRecords(file) {
+  const directory = path.dirname(file);
+  const prefix = `${path.basename(file)}.lock.`;
+  const names = await readdir(directory);
+  const records = [];
+  for (const name of names) {
+    if (!name.startsWith(prefix)) continue;
+    const token = name.slice(prefix.length);
+    if (!/^\d+-[0-9a-f-]{36}$/.test(token)) continue;
+    const entry = path.join(directory, name);
+    const record = await readLockRecord(entry, token);
+    if (!record) continue;
+    if (record.stale) {
+      await unlink(entry).catch(ignoreMissingFile);
+      continue;
+    }
+    records.push(record);
+  }
+  return records;
+}
+
+async function readLockRecord(file, token) {
+  try {
+    const raw = await readFile(file, "utf8");
+    const pid = Number.parseInt(token.split("-", 1)[0], 10);
+    if (!processIsAlive(pid)) return { token, stale: true };
+    try {
+      const parsed = JSON.parse(raw);
+      return {
+        token,
+        stale: false,
+        choosing: parsed.choosing !== false,
+        ticket: Number.isSafeInteger(parsed.ticket) && parsed.ticket > 0 ? parsed.ticket : 0,
+      };
+    } catch {
+      return { token, stale: false, choosing: true, ticket: 0 };
+    }
+  } catch (error) {
+    if (error && error.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+function processIsAlive(pid) {
   if (!Number.isSafeInteger(pid) || pid <= 0) return false;
   try {
     process.kill(pid, 0);
@@ -319,12 +343,35 @@ function lockOwnerIsAlive(token) {
   }
 }
 
-async function releaseFileLock(lock) {
+async function replaceLockRecord(entry, record) {
+  const temporary = `${entry}.update`;
   try {
-    if ((await readFile(lock.file, "utf8")) !== lock.token) return;
-    await unlink(lock.file);
+    await writeFile(temporary, JSON.stringify(record), { flag: "wx", mode: 0o600 });
+    await rename(temporary, entry);
   } catch (error) {
-    if (!error || error.code !== "ENOENT") throw error;
+    await unlink(temporary).catch(ignoreMissingFile);
+    throw error;
+  }
+}
+
+async function releaseFileLock(lock) {
+  await unlink(lock.file).catch(ignoreMissingFile);
+}
+
+function lockEntryFile(file, token) {
+  return path.join(path.dirname(file), `${path.basename(file)}.lock.${token}`);
+}
+
+function lockTimeoutError(file) {
+  return Object.assign(new Error(`Timed out waiting for state lock: ${file}`), { code: "ELOCKED" });
+}
+
+async function stateFileMode(file) {
+  try {
+    return (await stat(file)).mode & 0o777;
+  } catch (error) {
+    if (error && error.code === "ENOENT") return 0o600;
+    throw error;
   }
 }
 

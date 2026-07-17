@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, mkdtemp, readdir, rm, utimes, writeFile } from "node:fs/promises";
+import { access, chmod, mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -733,19 +733,47 @@ test("store reads retry contended locks and recover stale locks", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "atelier-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
-    const lockFile = `${stateFile}.lock`;
     const store = new SessionStore(stateFile);
+    const liveLock = `${stateFile}.lock.${process.pid}-00000000-0000-4000-8000-000000000001`;
 
-    await writeFile(lockFile, "contended");
-    const release = setTimeout(() => rm(lockFile, { force: true }), 30);
+    await writeFile(liveLock, JSON.stringify({ choosing: false, ticket: 1 }));
+    const release = setTimeout(() => rm(liveLock, { force: true }), 30);
     assert.deepEqual(await store.listSessions(), []);
     clearTimeout(release);
 
-    await writeFile(lockFile, "stale");
-    const staleTime = new Date(Date.now() - 60_000);
-    await utimes(lockFile, staleTime, staleTime);
+    const staleLock = `${stateFile}.lock.99999999-00000000-0000-4000-8000-000000000002`;
+    await writeFile(staleLock, JSON.stringify({ choosing: false, ticket: 1 }));
     assert.deepEqual(await store.listSessions(), []);
-    await assert.rejects(access(lockFile), { code: "ENOENT" });
+    await assert.rejects(access(staleLock), { code: "ENOENT" });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("concurrent stores preserve updates while reclaiming a crashed contender", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "atelier-store-"));
+  try {
+    const stateFile = path.join(dir, "state.json");
+    const artifact = path.join(dir, "artifact.html");
+    await writeFile(artifact, "<h1>Hello</h1>");
+
+    const stores = Array.from({ length: 12 }, () => new SessionStore(stateFile));
+    const session = await stores[0].upsertSession(artifact, "http://localhost:4387/session/test");
+    const staleLock = `${stateFile}.lock.99999999-00000000-0000-4000-8000-000000000003`;
+    await writeFile(staleLock, JSON.stringify({ choosing: false, ticket: 1 }));
+
+    await Promise.all(stores.map((store, index) => store.addAgentReply(session.key, `Reply ${index}`)));
+
+    const stored = await stores[0].findByKey(session.key);
+    assert.ok(stored);
+    assert.deepEqual(
+      stored.chat.map((item) => item.text).sort(),
+      Array.from({ length: 12 }, (_, index) => `Reply ${index}`).sort(),
+    );
+    assert.deepEqual(
+      (await readdir(dir)).filter((name) => name.includes(".lock.")),
+      [],
+    );
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -759,8 +787,34 @@ test("store releases its lock when an operation fails", async () => {
 
     const store = new SessionStore(stateFile);
     await assert.rejects(store.listSessions(), SyntaxError);
-    await assert.rejects(access(`${stateFile}.lock`), { code: "ENOENT" });
+    assert.deepEqual(
+      (await readdir(dir)).filter((name) => name.includes(".lock.")),
+      [],
+    );
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test(
+  "atomic state writes use secure permissions and preserve existing mode",
+  { skip: process.platform === "win32" },
+  async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "atelier-store-"));
+    try {
+      const stateFile = path.join(dir, "state.json");
+      const artifact = path.join(dir, "artifact.html");
+      await writeFile(artifact, "<h1>Hello</h1>");
+
+      const store = new SessionStore(stateFile);
+      const session = await store.upsertSession(artifact, "http://localhost:4387/session/test");
+      assert.equal((await stat(stateFile)).mode & 0o777, 0o600);
+
+      await chmod(stateFile, 0o640);
+      await store.addAgentReply(session.key, "Preserve permissions");
+      assert.equal((await stat(stateFile)).mode & 0o777, 0o640);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
+);
