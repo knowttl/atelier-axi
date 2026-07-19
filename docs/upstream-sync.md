@@ -39,13 +39,14 @@ Merge commits must also be dispositioned because their conflict-resolution conte
 
 ```sh
 git fetch upstream
-REVIEWED_UPSTREAM_TIP=$(git rev-parse upstream/main)
-printf '%s\n' "$REVIEWED_UPSTREAM_TIP"        # record this SHA in the disposition ledger
-git log --oneline --no-merges "main..$REVIEWED_UPSTREAM_TIP"
-git log --oneline --merges "main..$REVIEWED_UPSTREAM_TIP"
+git rev-parse upstream/main
+git log --oneline --no-merges main..<reviewed-tip-sha>
+git log --oneline --merges main..<reviewed-tip-sha>
 git show --cc <merge-sha>
 ```
 
+`<reviewed-tip-sha>` is the output of `git rev-parse upstream/main`.
+Write it in the sync PR body or disposition ledger because later stages run in fresh shells and must paste the recorded value instead of relying on shell state.
 This sync covers exactly the commits through the recorded reviewed tip, and every merge or reconciliation in either mode must target that pinned SHA.
 Anything upstream adds beyond that tip is out of scope and forms the next review batch.
 
@@ -67,7 +68,7 @@ Create the throwaway branch from `main` and merge the recorded reviewed tip dire
 ```sh
 git switch main
 git switch -c sync-upstream-YYYY-MM-DD
-git merge "$REVIEWED_UPSTREAM_TIP"
+git merge <reviewed-tip-sha>
 ```
 
 When resolving conflicts:
@@ -78,7 +79,7 @@ When resolving conflicts:
 - Do not hand-edit `CHANGELOG.md` or `.release-please-manifest.json`; release-please owns them, so take whichever side keeps them consistent and let the bot reconcile.
 
 The full merge records the reviewed tip as an ancestor, so it clears the reviewed batch without a separate reconciliation merge.
-Running `git merge -s ours "$REVIEWED_UPSTREAM_TIP"` after it is harmless but only reports `Already up to date` and creates no commit.
+Running `git merge -s ours <reviewed-tip-sha>` after it is harmless but only reports `Already up to date` and creates no commit.
 The Mode B first-parent proof commands are meaningless in Mode A because there is no reconciliation commit; `HEAD^1` refers to an unrelated commit, so a vacuous pass is not evidence of content neutrality.
 
 ## Mode B - port or cherry-pick
@@ -150,7 +151,7 @@ git pull origin main
 git fetch upstream
 git rev-parse upstream/main                     # compare with the recorded reviewed tip
 git switch -c sync-reconcile-YYYY-MM-DD        # off current main
-git merge -s ours "$REVIEWED_UPSTREAM_TIP"    # use the exact SHA recorded during review
+git merge -s ours <reviewed-tip-sha>
 ```
 
 Starting from anything other than current `main` gives the reconciliation merge the wrong first parent.

@@ -59,18 +59,19 @@ git rev-list --count main..upstream/main
 List the ordinary commits for a readable per-commit review:
 
 ```sh
-REVIEWED_UPSTREAM_TIP=$(git rev-parse upstream/main)
-printf '%s\n' "$REVIEWED_UPSTREAM_TIP"        # record this SHA in the disposition ledger
-git log --oneline --no-merges "main..$REVIEWED_UPSTREAM_TIP"
+git rev-parse upstream/main
+git log --oneline --no-merges main..<reviewed-tip-sha>
 ```
 
 Enumerate merge commits separately and inspect each merge-specific diff because conflict-resolution content can exist in neither parent's ordinary commits:
 
 ```sh
-git log --oneline --merges "main..$REVIEWED_UPSTREAM_TIP"
+git log --oneline --merges main..<reviewed-tip-sha>
 git show --cc <merge-sha>
 ```
 
+`<reviewed-tip-sha>` is the output of `git rev-parse upstream/main`.
+Write it in the sync PR body or disposition ledger because later stages run in fresh shells and must paste the recorded value instead of relying on shell state.
 This sync covers exactly the commits through the recorded reviewed tip, and every merge or reconciliation in either mode must target that pinned SHA.
 Anything upstream adds beyond that tip is out of scope and forms the next review batch.
 
@@ -102,7 +103,7 @@ Step 4 depends on that being complete.
 
 There are exactly two modes:
 
-- **Mode A - full merge.** This is the default for a clean batch with no standing skip when every commit is accepted. Use the throwaway `sync-upstream-YYYY-MM-DD` branch and straight `git merge "$REVIEWED_UPSTREAM_TIP"`. The merge itself records the reviewed batch's ancestry, so the badge clears without Step 4. Running an `ours` merge against that same SHA afterward is a harmless `Already up to date` no-op that creates no commit. The first-parent proof commands in Step 4 are meaningless here because there is no reconciliation commit, and `HEAD^1` is unrelated to that proof.
+- **Mode A - full merge.** This is the default for a clean batch with no standing skip when every commit is accepted. Use the throwaway `sync-upstream-YYYY-MM-DD` branch and straight `git merge <reviewed-tip-sha>`. The merge itself records the reviewed batch's ancestry, so the badge clears without Step 4. Running an `ours` merge against that same SHA afterward is a harmless `Already up to date` no-op that creates no commit. The first-parent proof commands in Step 4 are meaningless here because there is no reconciliation commit, and `HEAD^1` is unrelated to that proof.
 - **Mode B - port or cherry-pick.** This is required whenever the batch contains any standing skip and applies to every other selective sync. Cherry-pick or port only wanted commits on the throwaway branch. Do not straight-merge `upstream/main`, because that would import cleanly merging standing-skip content. This mode must continue through Step 4.
 
 Follow **`docs/upstream-sync.md`** exactly for the selected mode: throwaway `sync-upstream-YYYY-MM-DD` branch, preserve the atelier side of renames while taking wanted upstream logic, run `pnpm run check`, open an own-fork PR, and plain-merge it past the expected-red `Require no-mistakes` check.
@@ -122,7 +123,7 @@ git pull origin main
 git fetch upstream
 git rev-parse upstream/main                     # compare with the recorded reviewed tip
 git switch -c sync-reconcile-YYYY-MM-DD        # off current main
-git merge -s ours "$REVIEWED_UPSTREAM_TIP"    # use the exact SHA recorded during review
+git merge -s ours <reviewed-tip-sha>
 git diff HEAD^1 HEAD                           # MUST be empty - proof of content-neutrality
 git rev-parse HEAD^{tree} HEAD^1^{tree}        # MUST print the same tree SHA twice
 ```
