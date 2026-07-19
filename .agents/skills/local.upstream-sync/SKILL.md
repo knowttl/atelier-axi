@@ -33,7 +33,7 @@ GitHub's fork badge computes the same thing (`behind_by` on the compare API).
 **It tracks ancestry, not content.**
 A commit whose change you _ported_ is an adapted commit with a new SHA, so the upstream SHA never becomes an ancestor and the count never drops for it.
 A commit you deliberately _skipped_ behaves identically.
-Mode A uses a straight `git merge upstream/main`, which records all upstream SHAs as ancestors and clears the count by itself.
+Mode A merges the recorded reviewed tip, which records every SHA in that batch as an ancestor and clears the batch count by itself.
 Mode B ports or cherry-picks only wanted content, so it must end with an `ours` reconciliation merge (Step 4) that records the dispositioned upstream commits as ancestors while changing zero bytes of the tree.
 After either mode completes, `behind_by` must be `0`.
 
@@ -71,7 +71,8 @@ git log --oneline --merges "main..$REVIEWED_UPSTREAM_TIP"
 git show --cc <merge-sha>
 ```
 
-The recorded reviewed-tip SHA is the immutable boundary of this sync batch.
+This sync covers exactly the commits through the recorded reviewed tip, and every merge or reconciliation in either mode must target that pinned SHA.
+Anything upstream adds beyond that tip is out of scope and forms the next review batch.
 
 Inspect the actual diff of each commit before recommending — never guess from the subject line:
 
@@ -101,7 +102,7 @@ Step 4 depends on that being complete.
 
 There are exactly two modes:
 
-- **Mode A - full merge.** This is the default for a clean batch with no standing skip when every commit is accepted. Use the throwaway `sync-upstream-YYYY-MM-DD` branch and straight `git merge upstream/main`. The merge itself records upstream ancestry, so the badge clears without Step 4. Running the `ours` merge afterward is a harmless `Already up to date` no-op that creates no commit. The first-parent proof commands in Step 4 are meaningless here because there is no reconciliation commit, and `HEAD^1` is unrelated to that proof.
+- **Mode A - full merge.** This is the default for a clean batch with no standing skip when every commit is accepted. Use the throwaway `sync-upstream-YYYY-MM-DD` branch and straight `git merge "$REVIEWED_UPSTREAM_TIP"`. The merge itself records the reviewed batch's ancestry, so the badge clears without Step 4. Running an `ours` merge against that same SHA afterward is a harmless `Already up to date` no-op that creates no commit. The first-parent proof commands in Step 4 are meaningless here because there is no reconciliation commit, and `HEAD^1` is unrelated to that proof.
 - **Mode B - port or cherry-pick.** This is required whenever the batch contains any standing skip and applies to every other selective sync. Cherry-pick or port only wanted commits on the throwaway branch. Do not straight-merge `upstream/main`, because that would import cleanly merging standing-skip content. This mode must continue through Step 4.
 
 Follow **`docs/upstream-sync.md`** exactly for the selected mode: throwaway `sync-upstream-YYYY-MM-DD` branch, preserve the atelier side of renames while taking wanted upstream logic, run `pnpm run check`, open an own-fork PR, and plain-merge it past the expected-red `Require no-mistakes` check.
@@ -111,8 +112,8 @@ Follow **`docs/upstream-sync.md`** exactly for the selected mode: throwaway `syn
 
 ## Step 4 - Close the Mode B ledger with a reconciliation merge
 
-Skip this step for Mode A because its full merge already records `upstream/main` as an ancestor.
-For Mode B, proceed only once **every** ordinary and merge commit in the batch has been ported or skipped with a reason.
+Skip this step for Mode A because its full merge already records the reviewed tip as an ancestor.
+For Mode B, proceed only once **every** ordinary and merge commit through the recorded reviewed tip has been ported or skipped with a reason.
 This step returns the Mode B badge to `0`; the full procedure and rationale are in **`docs/upstream-sync.md`** ("Finish Mode B with a reconciliation merge").
 
 ```sh
@@ -121,7 +122,7 @@ git pull origin main
 git fetch upstream
 git rev-parse upstream/main                     # compare with the recorded reviewed tip
 git switch -c sync-reconcile-YYYY-MM-DD        # off current main
-git merge -s ours <reviewed-tip-sha>           # use the exact SHA recorded during review
+git merge -s ours "$REVIEWED_UPSTREAM_TIP"    # use the exact SHA recorded during review
 git diff HEAD^1 HEAD                           # MUST be empty - proof of content-neutrality
 git rev-parse HEAD^{tree} HEAD^1^{tree}        # MUST print the same tree SHA twice
 ```
@@ -150,7 +151,7 @@ Land the created PR with a **plain merge commit** (`gh pr merge --merge`).
 A squash or rebase merge discards the second parent, so the ancestry is lost and the badge does not move - here that is the whole point of the PR, not a side concern.
 
 > **Reconcile last, never first.**
-> The `ours` merge moves the merge base for every future `git merge upstream/main`, so anything not yet dispositioned becomes permanently invisible to git.
+> The `ours` merge moves the merge base for every future `git merge upstream/main`, so any in-scope commit not yet dispositioned becomes permanently invisible to git.
 > It is the closing step of Mode B, never a shortcut past the ledger.
 
 ## Step 5 - Confirm the count reset

@@ -46,7 +46,8 @@ git log --oneline --merges "main..$REVIEWED_UPSTREAM_TIP"
 git show --cc <merge-sha>
 ```
 
-The recorded SHA is the immutable boundary of this sync batch.
+This sync covers exactly the commits through the recorded reviewed tip, and every merge or reconciliation in either mode must target that pinned SHA.
+Anything upstream adds beyond that tip is out of scope and forms the next review batch.
 
 ### Standing skips
 
@@ -61,12 +62,12 @@ A batch containing any standing skip must use Mode B because a straight full mer
 ## Mode A - full merge
 
 Mode A is the default for a clean batch with no standing skip when every commit is being accepted.
-Create the throwaway branch from `main` and merge `upstream/main` directly:
+Create the throwaway branch from `main` and merge the recorded reviewed tip directly:
 
 ```sh
 git switch main
 git switch -c sync-upstream-YYYY-MM-DD
-git merge upstream/main
+git merge "$REVIEWED_UPSTREAM_TIP"
 ```
 
 When resolving conflicts:
@@ -76,8 +77,8 @@ When resolving conflicts:
 - **Confirm the rebrand and local customizations were not reverted** by the merge.
 - Do not hand-edit `CHANGELOG.md` or `.release-please-manifest.json`; release-please owns them, so take whichever side keeps them consistent and let the bot reconcile.
 
-The full merge records `upstream/main` as an ancestor, so it clears `behind_by` without a separate reconciliation merge.
-Running `git merge -s ours upstream/main` after it is harmless but only reports `Already up to date` and creates no commit.
+The full merge records the reviewed tip as an ancestor, so it clears the reviewed batch without a separate reconciliation merge.
+Running `git merge -s ours "$REVIEWED_UPSTREAM_TIP"` after it is harmless but only reports `Already up to date` and creates no commit.
 The Mode B first-parent proof commands are meaningless in Mode A because there is no reconciliation commit; `HEAD^1` refers to an unrelated commit, so a vacuous pass is not evidence of content neutrality.
 
 ## Mode B - port or cherry-pick
@@ -149,7 +150,7 @@ git pull origin main
 git fetch upstream
 git rev-parse upstream/main                     # compare with the recorded reviewed tip
 git switch -c sync-reconcile-YYYY-MM-DD        # off current main
-git merge -s ours <reviewed-tip-sha>           # use the exact SHA recorded during review
+git merge -s ours "$REVIEWED_UPSTREAM_TIP"    # use the exact SHA recorded during review
 ```
 
 Starting from anything other than current `main` gives the reconciliation merge the wrong first parent.
@@ -215,7 +216,7 @@ If upstream advanced beyond the recorded tip, the new commits are the next batch
 ### Order matters: reconcile last, never first
 
 The `ours` merge moves the merge base for every _future_ `git merge upstream/main`.
-Any upstream change you had not yet ported or consciously skipped becomes invisible from then on - git will consider it already accounted for and will never offer it again.
+Any in-scope upstream change you had not yet ported or consciously skipped becomes invisible from then on - git will consider it already accounted for and will never offer it again.
 
-Only run the reconciliation merge once every commit in `main..upstream/main`, including merge commits, has been ported or deliberately skipped with a recorded reason.
+Only run the reconciliation merge once every ordinary and merge commit through the recorded reviewed tip has been merged, ported, or skipped with a recorded reason.
 It is the closing step of Mode B, never a shortcut past the ledger.
