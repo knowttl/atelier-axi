@@ -29,8 +29,7 @@ Use exactly one of the two modes below on a throwaway branch, open a PR within y
 This keeps `main` stable mid-resolution and gives every incoming upstream commit a reviewable disposition.
 
 Every completed sync must leave GitHub's `behind_by` count at `0`.
-Mode A achieves that through the full merge itself.
-Mode B achieves it through a separate reconciliation merge after all wanted content has landed.
+Both modes achieve that through a separate reconciliation merge after all wanted content has landed.
 
 ## Review the batch
 
@@ -60,15 +59,16 @@ Two categories are skipped on sight, every sync, with no per-commit deliberation
 Everything else gets a real per-commit call: merge, merge with care, or skip with a reason.
 A batch containing any standing skip must use Mode B because a straight full merge would import the skipped commit's cleanly merging content.
 
-## Mode A - full merge
+## Mode A - full-content port
 
 Mode A is the default for a clean batch with no standing skip when every commit is being accepted.
-Create the throwaway branch from `main` and merge the recorded reviewed tip directly:
+Create the throwaway branch from `main` and apply the recorded reviewed tip without recording its ancestry yet:
 
 ```sh
 git switch main
 git switch -c sync-upstream-YYYY-MM-DD
-git merge <reviewed-tip-sha>
+git merge --squash <reviewed-tip-sha>
+git commit
 ```
 
 When resolving conflicts:
@@ -78,9 +78,8 @@ When resolving conflicts:
 - **Confirm the rebrand and local customizations were not reverted** by the merge.
 - Do not hand-edit `CHANGELOG.md` or `.release-please-manifest.json`; release-please owns them, so take whichever side keeps them consistent and let the bot reconcile.
 
-The full merge records the reviewed tip as an ancestor, so it clears the reviewed batch without a separate reconciliation merge.
-Running `git merge -s ours <reviewed-tip-sha>` after it is harmless but only reports `Already up to date` and creates no commit.
-The Mode B first-parent proof commands are meaningless in Mode A because there is no reconciliation commit; `HEAD^1` refers to an unrelated commit, so a vacuous pass is not evidence of content neutrality.
+The squash merge applies the complete reviewed batch but deliberately does not record the reviewed tip as an ancestor.
+The final reconciliation merge records that ancestry after the content is reviewed and landed.
 
 ## Mode B - port or cherry-pick
 
@@ -136,13 +135,13 @@ check never blocks your own sync. (Do not route routine upstream syncs through `
 gate is for human-authored feature/fix contributions, which still go through `git push no-mistakes`
 per `CONTRIBUTING.md`.)
 
-## Finish Mode B with a reconciliation merge
+## Finish every sync with a reconciliation merge
 
 GitHub's "N commits behind" badge on the fork **tracks ancestry, not content**.
 A ported commit is an _adapted_ commit with a new SHA, so the upstream SHA never becomes an ancestor and the badge never clears - even when every byte of the change is already in `main`.
 A deliberately skipped commit does the same thing.
 
-Mode B leaves a permanently nonzero badge unless you close the ledger explicitly.
+Either mode leaves a permanently nonzero badge unless you close the ledger explicitly.
 After the content PR lands, switch to `main`, fast-forward it from `origin`, fetch upstream, and only then create the reconciliation branch:
 
 ```sh
@@ -163,7 +162,6 @@ Write the commit message so it names the recorded reviewed tip, every covered up
 
 ### Prove it is content-neutral
 
-These checks apply only to Mode B.
 The first parent is current `main`, so a correct reconciliation merge has an **empty first-parent diff**:
 
 ```sh
@@ -211,7 +209,7 @@ gh api repos/knowttl/atelier-axi/compare/kunchenguid:main...knowttl:main \
 ```
 
 `behind_by` tracks ancestry, not content.
-After either a Mode A full merge or a completed Mode B reconciliation merge, it must read `0`.
+After the reconciliation merge, it must read `0`.
 If upstream advanced beyond the recorded tip, the new commits are the next batch, so return to the review procedure and do not report the sync complete until that batch is dispositioned.
 
 ### Order matters: reconcile last, never first
@@ -220,4 +218,4 @@ The `ours` merge moves the merge base for every _future_ `git merge upstream/mai
 Any in-scope upstream change you had not yet ported or consciously skipped becomes invisible from then on - git will consider it already accounted for and will never offer it again.
 
 Only run the reconciliation merge once every ordinary and merge commit through the recorded reviewed tip has been merged, ported, or skipped with a recorded reason.
-It is the closing step of Mode B, never a shortcut past the ledger.
+It is the closing step of every sync, never a shortcut past the ledger.

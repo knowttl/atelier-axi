@@ -7,8 +7,8 @@ description: >
   "sync upstream", "pull upstream changes", "how far behind is the fork", "review
   new upstream commits", or wants to catch this fork up to lavish-axi. The
   "commits behind" count is computed live from git and tracks ancestry rather
-  than content. A full merge clears it directly; a selective port or cherry-pick
-  sync must end with an `ours` reconciliation merge. Either mode must reach 0.
+  than content. Every sync must end with an `ours` reconciliation merge so the
+  count reaches 0.
 ---
 
 # Upstream sync review
@@ -33,9 +33,9 @@ GitHub's fork badge computes the same thing (`behind_by` on the compare API).
 **It tracks ancestry, not content.**
 A commit whose change you _ported_ is an adapted commit with a new SHA, so the upstream SHA never becomes an ancestor and the count never drops for it.
 A commit you deliberately _skipped_ behaves identically.
-Mode A merges the recorded reviewed tip, which records every SHA in that batch as an ancestor and clears the batch count by itself.
-Mode B ports or cherry-picks only wanted content, so it must end with an `ours` reconciliation merge (Step 4) that records the dispositioned upstream commits as ancestors while changing zero bytes of the tree.
-After either mode completes, `behind_by` must be `0`.
+Neither mode records the reviewed tip as an ancestor while applying content.
+Every sync must end with an `ours` reconciliation merge (Step 4) that records the dispositioned upstream commits as ancestors while changing zero bytes of the tree.
+After the reconciliation completes, `behind_by` must be `0`.
 
 The count reads your **local** `main`.
 So after the sync PRs merge on GitHub, you MUST update local `main` (Step 5) for the count to reflect reality - otherwise it keeps showing the old number.
@@ -103,19 +103,18 @@ Step 4 depends on that being complete.
 
 There are exactly two modes:
 
-- **Mode A - full merge.** This is the default for a clean batch with no standing skip when every commit is accepted. Use the throwaway `sync-upstream-YYYY-MM-DD` branch and straight `git merge <reviewed-tip-sha>`. The merge itself records the reviewed batch's ancestry, so the badge clears without Step 4. Running an `ours` merge against that same SHA afterward is a harmless `Already up to date` no-op that creates no commit. The first-parent proof commands in Step 4 are meaningless here because there is no reconciliation commit, and `HEAD^1` is unrelated to that proof.
+- **Mode A - full-content port.** This is the default for a clean batch with no standing skip when every commit is accepted. Use the throwaway `sync-upstream-YYYY-MM-DD` branch and run `git merge --squash <reviewed-tip-sha>`, then commit the result. This applies the complete batch without recording its ancestry, so this mode must continue through Step 4.
 - **Mode B - port or cherry-pick.** This is required whenever the batch contains any standing skip and applies to every other selective sync. Cherry-pick or port only wanted commits on the throwaway branch. Do not straight-merge `upstream/main`, because that would import cleanly merging standing-skip content. This mode must continue through Step 4.
 
 Follow **`docs/upstream-sync.md`** exactly for the selected mode: throwaway `sync-upstream-YYYY-MM-DD` branch, preserve the atelier side of renames while taking wanted upstream logic, run `pnpm run check`, open an own-fork PR, and plain-merge it past the expected-red `Require no-mistakes` check.
 
-> Mode B's ported and skipped commits keep counting as "behind" until Step 4 closes the ledger.
+> The dispositioned commits keep counting as "behind" until Step 4 closes the ledger.
 > A nonzero count between Step 3 and Step 4 is expected, not a bug.
 
-## Step 4 - Close the Mode B ledger with a reconciliation merge
+## Step 4 - Close the ledger with a reconciliation merge
 
-Skip this step for Mode A because its full merge already records the reviewed tip as an ancestor.
-For Mode B, proceed only once **every** ordinary and merge commit through the recorded reviewed tip has been ported or skipped with a reason.
-This step returns the Mode B badge to `0`; the full procedure and rationale are in **`docs/upstream-sync.md`** ("Finish Mode B with a reconciliation merge").
+Proceed only once **every** ordinary and merge commit through the recorded reviewed tip has been merged, ported, or skipped with a reason.
+This mandatory closing step returns the badge to `0`; the full procedure and rationale are in **`docs/upstream-sync.md`** ("Finish every sync with a reconciliation merge").
 
 ```sh
 git switch main
@@ -153,7 +152,7 @@ A squash or rebase merge discards the second parent, so the ancestry is lost and
 
 > **Reconcile last, never first.**
 > The `ours` merge moves the merge base for every future `git merge upstream/main`, so any in-scope commit not yet dispositioned becomes permanently invisible to git.
-> It is the closing step of Mode B, never a shortcut past the ledger.
+> It is the closing step of every sync, never a shortcut past the ledger.
 
 ## Step 5 - Confirm the count reset
 
@@ -168,7 +167,7 @@ gh api repos/knowttl/atelier-axi/compare/kunchenguid:main...knowttl:main \
   --jq '{ahead_by,behind_by}'
 ```
 
-`behind_by` tracks ancestry, not content; after either a Mode A full merge or a completed Mode B reconciliation merge it must read `0`.
+`behind_by` tracks ancestry, not content; after the reconciliation merge it must read `0`.
 A residual nonzero count means upstream advanced into the next review batch, the selected mode did not record its reviewed ancestry, or a required PR was squash/rebase-merged.
 If upstream advanced beyond the recorded tip, return to Step 2 and do not report the sync complete until the new batch is dispositioned; otherwise investigate the failed ancestry recording.
 Report the final number so the user knows the fork's current standing.
