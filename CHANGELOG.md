@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/knowttl/atelier-axi/compare/atelier-axi-v0.3.0...atelier-axi-v0.3.1) (2026-07-19)
+
+
+### Bug Fixes
+
+* sync upstream layout, polling, and whiteboard improvements ([#19](https://github.com/knowttl/atelier-axi/issues/19)) ([fd314ed](https://github.com/knowttl/atelier-axi/commit/fd314edb30613c691a7b0b21bc85596cf826eef6))
+
 ## [0.3.0](https://github.com/knowttl/atelier-axi/compare/atelier-axi-v0.2.4...atelier-axi-v0.3.0) (2026-07-17)
 
 
