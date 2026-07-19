@@ -117,10 +117,8 @@ gh pr merge --merge     # NOT --squash, NOT --rebase
 
 ### Why a plain merge commit (not squash/rebase)
 
-Squash- or rebase-merging collapses the shared commit history git uses to compute future diffs
-against `upstream`. After a squash, the next `git merge upstream/main` re-shows already-applied
-upstream changes as brand-new conflicts. A real merge commit records the true ancestry so later
-syncs only surface genuinely new upstream work.
+Plain-merging the content PR preserves its reviewed sync commits and their per-commit dispositions.
+It does not record the upstream tip as an ancestor; the mandatory reconciliation merge below does that.
 
 ## The `no-mistakes` gate on sync PRs
 
