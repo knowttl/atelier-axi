@@ -59,15 +59,19 @@ git rev-list --count main..upstream/main
 List the ordinary commits for a readable per-commit review:
 
 ```sh
-git log --oneline --no-merges main..upstream/main
+REVIEWED_UPSTREAM_TIP=$(git rev-parse upstream/main)
+printf '%s\n' "$REVIEWED_UPSTREAM_TIP"        # record this SHA in the disposition ledger
+git log --oneline --no-merges "main..$REVIEWED_UPSTREAM_TIP"
 ```
 
 Enumerate merge commits separately and inspect each merge-specific diff because conflict-resolution content can exist in neither parent's ordinary commits:
 
 ```sh
-git log --oneline --merges main..upstream/main
+git log --oneline --merges "main..$REVIEWED_UPSTREAM_TIP"
 git show --cc <merge-sha>
 ```
+
+The recorded reviewed-tip SHA is the immutable boundary of this sync batch.
 
 Inspect the actual diff of each commit before recommending — never guess from the subject line:
 
@@ -115,18 +119,34 @@ This step returns the Mode B badge to `0`; the full procedure and rationale are 
 git switch main
 git pull origin main
 git fetch upstream
+git rev-parse upstream/main                     # compare with the recorded reviewed tip
 git switch -c sync-reconcile-YYYY-MM-DD        # off current main
-git merge -s ours upstream/main                # records ancestry, changes nothing
+git merge -s ours <reviewed-tip-sha>           # use the exact SHA recorded during review
 git diff HEAD^1 HEAD                           # MUST be empty - proof of content-neutrality
 git rev-parse HEAD^{tree} HEAD^1^{tree}        # MUST print the same tree SHA twice
 ```
 
 Starting from anything other than current `main` gives the merge the wrong first parent.
 Concurrent `main` changes can then appear removed in the reconciliation PR while both proof checks still pass against that wrong baseline.
-Write the commit message so it names the upstream SHAs covered, where their content landed, and which were skipped and why.
+If the fetch shows that `upstream/main` moved past the recorded tip, leave those new commits for the next batch and send them through Step 2 review.
+Never replace the pinned SHA with the newer `upstream/main`, because that would reconcile unreviewed commits and hide their changes from future merges.
+Write the commit message so it names the recorded reviewed tip, every covered upstream SHA, where wanted content landed, and which commits were skipped and why.
 If either proof check is non-empty, the merge is not content-neutral - stop, do not land it.
 
-Land it with a **plain merge commit** (`gh pr merge --merge`).
+After both proof checks pass, push the reconciliation branch and create its PR:
+
+```sh
+git push origin sync-reconcile-YYYY-MM-DD
+gh pr create --repo knowttl/atelier-axi --base main --head sync-reconcile-YYYY-MM-DD \
+  --title "Reconcile reviewed upstream ancestry YYYY-MM-DD" \
+  --body "<paste the empty first-parent diff, both identical tree SHAs, and the per-commit disposition table>"
+```
+
+The PR body must explicitly state that `git diff HEAD^1 HEAD` produced no output, include both identical SHA lines from `git rev-parse HEAD^{tree} HEAD^1^{tree}`, and include a disposition table showing where each covered upstream SHA landed or why it was skipped.
+The PR's "Files changed" tab must be empty.
+The `Require no-mistakes` check is expected to be red for this fork-maintenance merge, so review the proof and disposition table and admin-merge past that check.
+
+Land the created PR with a **plain merge commit** (`gh pr merge --merge`).
 A squash or rebase merge discards the second parent, so the ancestry is lost and the badge does not move - here that is the whole point of the PR, not a side concern.
 
 > **Reconcile last, never first.**
@@ -147,7 +167,8 @@ gh api repos/knowttl/atelier-axi/compare/kunchenguid:main...knowttl:main \
 ```
 
 `behind_by` tracks ancestry, not content; after either a Mode A full merge or a completed Mode B reconciliation merge it must read `0`.
-A residual nonzero count means the selected mode did not record the full upstream ancestry or a required PR was squash/rebase-merged - investigate rather than reporting it as normal.
+A residual nonzero count means upstream advanced into the next review batch, the selected mode did not record its reviewed ancestry, or a required PR was squash/rebase-merged.
+If upstream advanced beyond the recorded tip, return to Step 2 and do not report the sync complete until the new batch is dispositioned; otherwise investigate the failed ancestry recording.
 Report the final number so the user knows the fork's current standing.
 
 ## Graceful degradation

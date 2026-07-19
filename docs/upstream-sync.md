@@ -34,15 +34,19 @@ Mode B achieves it through a separate reconciliation merge after all wanted cont
 
 ## Review the batch
 
-Fetch upstream and inspect every commit in `main..upstream/main` before selecting a mode.
+Fetch upstream, record the reviewed tip, and inspect every commit in the pinned batch before selecting a mode.
 Merge commits must also be dispositioned because their conflict-resolution content may exist in neither parent's ordinary commits.
 
 ```sh
 git fetch upstream
-git log --oneline --no-merges main..upstream/main
-git log --oneline --merges main..upstream/main
+REVIEWED_UPSTREAM_TIP=$(git rev-parse upstream/main)
+printf '%s\n' "$REVIEWED_UPSTREAM_TIP"        # record this SHA in the disposition ledger
+git log --oneline --no-merges "main..$REVIEWED_UPSTREAM_TIP"
+git log --oneline --merges "main..$REVIEWED_UPSTREAM_TIP"
 git show --cc <merge-sha>
 ```
+
+The recorded SHA is the immutable boundary of this sync batch.
 
 ### Standing skips
 
@@ -143,14 +147,17 @@ After the content PR lands, switch to `main`, fast-forward it from `origin`, fet
 git switch main
 git pull origin main
 git fetch upstream
+git rev-parse upstream/main                     # compare with the recorded reviewed tip
 git switch -c sync-reconcile-YYYY-MM-DD        # off current main
-git merge -s ours upstream/main                # records ancestry, changes nothing
+git merge -s ours <reviewed-tip-sha>           # use the exact SHA recorded during review
 ```
 
 Starting from anything other than current `main` gives the reconciliation merge the wrong first parent.
 Concurrent `main` changes can then appear removed in the reconciliation PR while both content-neutrality checks still pass against the wrong baseline.
+If the fetch shows that `upstream/main` moved past the recorded tip, leave those new commits for the next batch and send them through the review procedure from the beginning.
+Never replace the pinned SHA with the newer `upstream/main`, because that would reconcile unreviewed commits and hide their changes from future merges.
 
-Write the commit message so it states exactly what it is: which upstream SHAs it covers, where their content landed, and which were skipped and why.
+Write the commit message so it names the recorded reviewed tip, every covered upstream SHA, where wanted content landed, and which commits were skipped and why.
 
 ### Prove it is content-neutral
 
@@ -163,23 +170,36 @@ git rev-parse HEAD^{tree} HEAD^1^{tree}  # MUST print the same tree SHA twice
 ```
 
 If either check fails, the merge is not content-neutral - do not land it.
-Record the output in the PR body; the PR's own "Files changed" tab must also be empty.
+Push the reconciliation branch and create its PR only after both checks pass:
+
+```sh
+git push origin sync-reconcile-YYYY-MM-DD
+gh pr create --repo knowttl/atelier-axi --base main --head sync-reconcile-YYYY-MM-DD \
+  --title "Reconcile reviewed upstream ancestry YYYY-MM-DD" \
+  --body "<paste the empty first-parent diff, both identical tree SHAs, and the per-commit disposition table>"
+```
+
+The PR body must explicitly state that `git diff HEAD^1 HEAD` produced no output, include both identical SHA lines from `git rev-parse HEAD^{tree} HEAD^1^{tree}`, and include a disposition table showing where each covered upstream SHA landed or why it was skipped.
+The PR's own "Files changed" tab must also be empty as the reviewable confirmation that the merge is content-neutral.
 
 ### Land it with a merge commit
 
 Same constraint as any sync PR, and for the same reason, but here it is the _entire point_: a squash or rebase merge discards the second parent, the ancestry is lost, and the badge stays exactly where it was.
 
-```sh
-gh pr merge --merge     # NOT --squash, NOT --rebase
-```
-
-Confirm the repo still allows merge commits before opening the PR:
+Confirm the repo still allows merge commits before merging the PR:
 
 ```sh
 gh api repos/knowttl/atelier-axi --jq '{allow_merge_commit,allow_squash_merge,allow_rebase_merge}'
 ```
 
 If `allow_merge_commit` is `false`, stop and get it re-enabled rather than landing a PR that cannot do its job.
+The reconciliation PR's `Require no-mistakes` check is expected to be red for this fork-maintenance merge, so review the proof and disposition table and admin-merge past that check.
+
+Merge the created PR as the final action:
+
+```sh
+gh pr merge --merge     # NOT --squash, NOT --rebase
+```
 
 ### Confirm the badge is zero
 
@@ -190,6 +210,7 @@ gh api repos/knowttl/atelier-axi/compare/kunchenguid:main...knowttl:main \
 
 `behind_by` tracks ancestry, not content.
 After either a Mode A full merge or a completed Mode B reconciliation merge, it must read `0`.
+If upstream advanced beyond the recorded tip, the new commits are the next batch, so return to the review procedure and do not report the sync complete until that batch is dispositioned.
 
 ### Order matters: reconcile last, never first
 
