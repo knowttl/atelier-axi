@@ -628,6 +628,25 @@ test("playbook detail output returns focused Atelier-native guidance", () => {
   assert.ok(output.playbook.atelier_notes.some((item) => item.includes("Atelier")));
 });
 
+test("decision surfaces must explain every option in plain English with an example", () => {
+  const input = createPlaybookOutput(["input"]).playbook;
+  assert.ok(
+    input.design_rules.some((item) => /no technical background/.test(item) && /upside and main cost/.test(item)),
+  );
+  assert.ok(input.design_rules.some((item) => /brief simple example/.test(item)));
+  assert.ok(input.pitfalls.some((item) => /plain-English meaning/.test(item)));
+
+  const plan = createPlaybookOutput(["plan"]).playbook;
+  assert.ok(
+    plan.design_rules.some((item) =>
+      /Every option on the card carries its own one-line plain-English meaning/.test(item),
+    ),
+  );
+
+  const comparison = createPlaybookOutput(["comparison"]).playbook;
+  assert.ok(comparison.design_rules.some((item) => /plain English/.test(item) && /simple example/.test(item)));
+});
+
 test("code playbook detail output requires verified @pierre/diffs rendering", () => {
   const output = createPlaybookOutput(["code"]);
 

@@ -77,6 +77,7 @@ export const PLAYBOOKS = [
       "End with a recommendation only when the evidence actually supports one.",
     ],
     design_rules: [
+      "Describe every option in plain English before any technical detail: what picking it means, its main upside, its main cost, and a brief simple example when that makes it concrete - a non-technical reader must be able to choose from the card alone.",
       "Keep corresponding details aligned so differences are visible without hunting.",
       "Use visual hierarchy to separate primary tradeoffs from secondary notes.",
       "Make the cost of each option as visible as the benefit.",
@@ -111,7 +112,7 @@ export const PLAYBOOKS = [
     ],
     design_rules: [
       "Verify each claim against the codebase before presenting it as fact.",
-      `Render each open question, edge case, and design option as a self-contained decision card: a plain-English problem statement, a highlighted recommendation, and a short concrete example, plus Accept/Defer controls that queue exactly one prompt for the decision. Restyle the card to the subject project's design system (or DaisyUI via \`atelier-axi design\`). Reusable template:
+      `Render each open question, edge case, and design option as a self-contained decision card: a plain-English problem statement, a highlighted recommendation, and a short concrete example, plus Accept/Defer controls that queue exactly one prompt for the decision. Every option on the card carries its own one-line plain-English meaning with its upside and cost, and a brief simple example when that makes it clearer - a non-technical reviewer must be able to choose without asking what an option means (see the 'input' playbook). Restyle the card to the subject project's design system (or DaisyUI via \`atelier-axi design\`). Reusable template:
 \`\`\`html
 <!-- Decision card: ONE open question / edge case / option. Give each card a UNIQUE data-atelier-question (a kebab slug of its question); cards sharing a key overwrite each other's queued prompt. Restyle to the subject project's design system. -->
 <form class="decision-card" data-atelier-question="theme-scope"
@@ -129,8 +130,9 @@ export const PLAYBOOKS = [
   <p class="decision-card__reco"><strong>Recommendation:</strong> Start per-device (localStorage) - it ships without a backend change and covers the common single-device case.</p>
   <pre class="decision-card__example" style="overflow-x:auto"><code>localStorage.setItem('theme', 'dark')  // per-device, no API</code></pre>
   <fieldset class="decision-card__controls">
-    <label><input type="radio" name="decision" value="accept"> Accept recommendation</label>
-    <label><input type="radio" name="decision" value="defer"> Defer (needs a product call)</label>
+    <!-- Every option states, in plain English, what it means plus its upside and cost; add a short everyday example when it clarifies. -->
+    <label><input type="radio" name="decision" value="accept"> <strong>Accept</strong> - the theme is remembered on this device only. Ships now, but a new phone starts on the default theme. <em>Example: dark mode on your laptop, light mode on a borrowed one.</em></label>
+    <label><input type="radio" name="decision" value="defer"> <strong>Defer</strong> - hold the choice until we decide whether settings should follow the account. Nothing ships yet. <em>Example: revisit once the account settings screen exists.</em></label>
     <input type="text" name="note" placeholder="Optional note or counter-proposal">
     <button type="submit">Queue this decision</button>
   </fieldset>
@@ -227,13 +229,15 @@ export const PLAYBOOKS = [
       "Use plain annotations when the artifact only needs open-ended feedback.",
     ],
     structure: [
-      "Make each decision surface visible: what is being chosen, what the options mean, and what happens next.",
+      "Make each decision surface visible: what is being chosen, what each option means in plain English, and what happens next.",
       "Keep reversible selection state local in the artifact until the user explicitly submits that question.",
       "Pair each question with a Submit or Queue answer control that sends exactly one prompt for the final answer.",
       "Show selected state separately from queued state so the user trusts what will be sent back.",
       "Track three states per decision - selected, queued, and sent - and flip a decision to a completed 'sent' state only after the agent confirms delivery, never merely when it is queued.",
     ],
     design_rules: [
+      "Write every option for a reviewer with no technical background: beside each option give one plain-English line saying what choosing it means, plus its main upside and main cost. A bare label, a library or API name, a flag, or a file path is never enough on its own.",
+      "Add a brief simple example to an option whenever a concrete case makes it clearer - one short everyday sentence or a tiny snippet showing what the user would see or get. Skip it only when the option is already self-evident.",
       "Native controls - radios, checkboxes, text inputs, selects, textareas, buttons, options, labels, disclosure summaries, and contenteditable regions - are interactive automatically: clicks toggle, focus, and type instead of annotating, so they do not need data-atelier-action. Build choice and option UIs from these whenever you can.",
       "For reversible choices, do not call window.atelier.queuePrompt() from radio change handlers or option click handlers. Those handlers should only update local selected state.",
       "Use a per-question form submit or explicit Queue answer button to read the current values and call window.atelier.queuePrompt() exactly once for the final answer.",
@@ -250,6 +254,7 @@ export const PLAYBOOKS = [
     ],
     pitfalls: [
       "Do not queue one prompt per radio change, checkbox toggle, dropdown change, or choice-button click when the user can still change their mind.",
+      "Do not ship an option the user cannot evaluate without technical background: a bare technical label with no plain-English meaning, no upside/cost, and no example is an unanswerable question.",
       "Do not create controls whose queued prompt is unclear or too vague to execute.",
       "Do not hide the difference between selected locally and queued for the agent.",
       "Do not mark a decision completed the moment it is queued - it is only truly done once the atelier:sent confirmation arrives, and the user may still edit it or send the rest in a later batch.",
@@ -257,7 +262,7 @@ export const PLAYBOOKS = [
     ],
     atelier_notes: [
       "Atelier is strongest when the artifact becomes a focused review surface and not just a static page.",
-      'A native single-choice question should submit the final value: `<form data-atelier-question="plan" onsubmit="event.preventDefault(); const choice = new FormData(event.currentTarget).get(\'plan\'); if (choice) window.atelier.queuePrompt(\'Use the \' + choice + \' plan\', { tag: \'choice\', text: \'Plan: \' + choice, element: event.currentTarget, data: { question: \'plan\', answer: choice } });"><label><input type="radio" name="plan" value="Starter"> Starter</label><label><input type="radio" name="plan" value="Pro"> Pro</label><button type="submit">Queue this answer</button></form>`.',
+      'A native single-choice question should submit the final value: `<form data-atelier-question="plan" onsubmit="event.preventDefault(); const choice = new FormData(event.currentTarget).get(\'plan\'); if (choice) window.atelier.queuePrompt(\'Use the \' + choice + \' plan\', { tag: \'choice\', text: \'Plan: \' + choice, element: event.currentTarget, data: { question: \'plan\', answer: choice } });"><label><input type="radio" name="plan" value="Starter"> <strong>Starter</strong> - one person, basic reports. Cheapest, but no shared logins. <em>Example: you alone check last month\'s sales.</em></label><label><input type="radio" name="plan" value="Pro"> <strong>Pro</strong> - your whole team signs in and shares reports. Costs more per month. <em>Example: three colleagues open the same sales report at once.</em></label><button type="submit">Queue this answer</button></form>`.',
       "A custom choice UI should make option buttons update local state, then use a separate Queue answer button with data-atelier-action to queue the final selected value. To include it in a queueAll() batch, also queue that final value when the card receives an `atelier:submit` event (queueAll dispatches `atelier:submit` on every non-form [data-atelier-question] element).",
       "Use window.atelier.queuePrompt for user intent, not internal analytics or UI-only state changes.",
       'To show completed decisions, style the sent state in CSS - e.g. `[data-atelier-sent] { opacity: .6 } [data-atelier-sent] button { pointer-events: none }` and a `[data-atelier-sent] .status::after { content: " - Sent" }` badge - and/or listen once with `window.addEventListener("atelier:sent", (e) => { for (const p of e.detail.prompts) markDone(p.queueKey); })`; for a single card the bubbling atelier:sent event (event.target is the answered question element) is the simplest hook.',
