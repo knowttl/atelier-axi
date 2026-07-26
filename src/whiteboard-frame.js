@@ -498,9 +498,7 @@ async function startFromSavedScene(init) {
   );
   let elements = restored.elements;
   const hasSavedBaseline = Array.isArray(saved.baseline?.elements);
-  let baselineElements = JSON.parse(
-    JSON.stringify(hasSavedBaseline ? saved.baseline.elements : restored.elements),
-  );
+  let baselineElements = JSON.parse(JSON.stringify(hasSavedBaseline ? saved.baseline.elements : restored.elements));
   state.files = restored.files || saved.scene?.files || {};
   const savedMetricsVersion = Number(saved.text_metrics_version) || 0;
   const metricsMigration = planSavedSceneTextMetricsMigration(savedMetricsVersion, hasSavedBaseline);

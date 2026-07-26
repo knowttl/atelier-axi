@@ -205,8 +205,8 @@ The CLI ships no telemetry: it makes no analytics calls and bakes in no analytic
   - Overlap reports only near-total coverage by one opaque static sibling; decorative transparent overlap stays silent. Warning-severity input is filtered again by the chrome, CLI, and `SessionStore`, and persistence identity includes axis, viewport class, and magnitude so a materially worse mobile failure is fresh.
 
 - The whiteboard has five easy-to-reintroduce failure modes, all covered by tests or explained in comments:
-  - Mermaid sizes every node from its own rendered SVG in its own font, while the converter re-renders labels in Excalifont and sometimes at its own font size (ER attribute rows are hard-coded to 18px), so a converted shape can be too small for the text inside it.
-    Excalidraw re-fits only _bound_ labels while materializing skeletons; a free-standing text element is bound to nothing, so `fitShapesToFreeText` (`src/whiteboard-core.js`) grows the shape after conversion and stretches the rules it encloses, and the saved-scene migration re-runs it behind `WHITEBOARD_TEXT_METRICS_VERSION`.
+  - Free-standing converted labels can outgrow Mermaid-sized shapes because the converter re-renders their text with different metrics.
+    Keep the post-conversion `fitShapesToFreeText` pass and its versioned saved-scene migration; the function's local comments and tests own the fitting details.
   - Mermaid skeletons must be materialized again after Excalidraw's scene fonts load; the first synchronous materialization uses a narrower browser-serif fallback and stores text bounds that clip the eventual Excalifont glyphs.
     Keep the font-load and second-conversion ordering in `convertExcalidrawSkeletonsAfterFontsLoad`, and keep the versioned saved-scene repair expansion-only so it never overwrites user geometry or content.
     The real-browser regression in `test/whiteboard-render.browser.test.js` covers both paths.
