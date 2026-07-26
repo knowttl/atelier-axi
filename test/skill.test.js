@@ -105,7 +105,8 @@ test("createSkillMarkdown ends the workflow with the session wrap-up", () => {
   // The workflow step is a pointer; the full procedure is stated once, under Commands & rules.
   assert.match(rules, /ENOENT/);
   assert.match(rules, /LAN port forwarder/);
-  assert.match(rules, /whiteboards\//);
+  assert.match(rules, /<state-dir>\/whiteboards\/<key>\//);
+  assert.match(rules, /<key>.*final segment of that session's URL/);
 });
 
 test("createSkillMarkdown requires opening every matching playbook", () => {

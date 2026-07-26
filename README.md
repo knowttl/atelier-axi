@@ -151,7 +151,7 @@ Nothing forces a cleanup, so sessions and the shared server can linger long afte
    Recreate an empty file at that exact path, run `atelier-axi end <html-file>`, then delete it again. Ending sessions before deleting their artifacts avoids this entirely.
 4. **Stop your own helpers separately.** A LAN port forwarder, SSH tunnel, or anything else you started alongside the server is a separate process Atelier never stops for you.
 5. **Clear the leftovers.** Artifacts live under `.atelier/` in the working directory by default, with any `<name>.export.html` copies beside them.
-   Whiteboard scene sidecars live under `~/.atelier-axi/whiteboards/` (or `ATELIER_AXI_STATE_DIR`) and are never removed automatically.
+   Whiteboard scene sidecars live under `<state-dir>/whiteboards/<key>/`, where `<state-dir>` is `~/.atelier-axi` by default or `ATELIER_AXI_STATE_DIR` when set, and `<key>` is the final segment of that session's URL; they are never removed automatically.
 
 ## How It Works
 

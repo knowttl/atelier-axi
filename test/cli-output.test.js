@@ -1384,7 +1384,12 @@ test("home output carries one authoritative session wrap-up procedure", () => {
   assert.match(help, /ENOENT/);
   assert.match(help, /LAN port forwarder/);
   assert.match(help, /`\.atelier\/`/);
-  assert.match(help, /whiteboards\//);
+  assert.match(help, /<state-dir>\/whiteboards\/<key>\//);
+  assert.match(help, /<key>.*final segment of that session's URL/);
+
+  const endHelp = getCommandHelp("end");
+  assert.match(endHelp, /see the wrap-up entry in its help for the full procedure/);
+  assert.doesNotMatch(endHelp, /ENOENT|recreate an empty file/);
 });
 
 test("the end-of-review poll responses point at the wrap-up procedure", () => {
