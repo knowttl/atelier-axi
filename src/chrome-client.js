@@ -79,7 +79,10 @@ let layoutGateTimer;
 const snapshotRequests = [];
 let nextSnapshotRequestId = 0;
 let currentDocumentToken = "";
+let currentDocumentSequence = Number.NEGATIVE_INFINITY;
+let retiredDocumentSequence = Number.NEGATIVE_INFINITY;
 let loadedDocumentToken = "";
+let loadedDocumentSequence = Number.NEGATIVE_INFINITY;
 let controlledFrameLoadPending = false;
 let endAfterSubmit = false;
 let workingBubble = null;
@@ -338,9 +341,38 @@ function settleSnapshotRequestsWithoutSnapshot() {
   if (shouldSubmit) submitQueued();
 }
 
+function hasCurrentDocument() {
+  return Boolean(currentDocumentToken) && currentDocumentSequence > retiredDocumentSequence;
+}
+
+function retireCurrentDocument() {
+  if (currentDocumentToken) {
+    retiredDocumentSequence = Math.max(retiredDocumentSequence, currentDocumentSequence);
+  }
+}
+
+function retireLoadedDocument() {
+  if (loadedDocumentToken) {
+    retiredDocumentSequence = Math.max(retiredDocumentSequence, loadedDocumentSequence);
+  }
+}
+
+function acceptDocumentReady(msg) {
+  const token = String(msg.documentToken || "");
+  const sequence = Number(msg.documentSequence);
+  if (!token || !Number.isFinite(sequence) || sequence <= retiredDocumentSequence) return false;
+  if (sequence < currentDocumentSequence) return false;
+  if (sequence === currentDocumentSequence && currentDocumentToken && token !== currentDocumentToken) return false;
+  if (currentDocumentToken && token !== currentDocumentToken) retireCurrentDocument();
+  currentDocumentToken = token;
+  currentDocumentSequence = sequence;
+  return true;
+}
+
 function beginFrameNavigation() {
-  currentDocumentToken = "";
+  retireCurrentDocument();
   loadedDocumentToken = "";
+  loadedDocumentSequence = Number.NEGATIVE_INFINITY;
   controlledFrameLoadPending = true;
   settleSnapshotRequestsWithoutSnapshot();
 }
@@ -1259,7 +1291,11 @@ window.addEventListener("message", (event) => {
   }
   if (msg.type === "atelier:snapshot") {
     const requestId = String(msg.requestId || "");
-    if (!currentDocumentToken || String(msg.documentToken || "") !== currentDocumentToken) {
+    if (
+      !hasCurrentDocument() ||
+      String(msg.documentToken || "") !== currentDocumentToken ||
+      Number(msg.documentSequence) !== currentDocumentSequence
+    ) {
       completeSnapshotRequest(requestId);
     } else {
       completeSnapshotRequest(requestId, msg.snapshot || "");
@@ -1273,8 +1309,11 @@ window.addEventListener("message", (event) => {
     submitLayoutWarnings(msg.layout_warnings).catch(() => {});
   }
   if (msg.type === "atelier:sdkReady") {
-    currentDocumentToken = String(msg.documentToken || "");
-    if (!controlledFrameLoadPending && !loadedDocumentToken) loadedDocumentToken = currentDocumentToken;
+    if (!acceptDocumentReady(msg)) return;
+    if (!controlledFrameLoadPending && !loadedDocumentToken) {
+      loadedDocumentToken = currentDocumentToken;
+      loadedDocumentSequence = currentDocumentSequence;
+    }
     postToFrame({ type: "atelier:setAnnotationMode", enabled: annotation && !ended });
   }
   if (msg.type === "atelier:sendQueuedPrompts") sendQueued();
@@ -1350,12 +1389,15 @@ document.addEventListener(
 frame.addEventListener("load", () => {
   if (controlledFrameLoadPending) {
     controlledFrameLoadPending = false;
-    loadedDocumentToken = currentDocumentToken;
-  } else if (currentDocumentToken === loadedDocumentToken) {
-    currentDocumentToken = "";
-    loadedDocumentToken = "";
   } else {
+    retireLoadedDocument();
+  }
+  if (hasCurrentDocument()) {
     loadedDocumentToken = currentDocumentToken;
+    loadedDocumentSequence = currentDocumentSequence;
+  } else {
+    loadedDocumentToken = "";
+    loadedDocumentSequence = Number.NEGATIVE_INFINITY;
   }
   postToFrame({ type: "atelier:setAnnotationMode", enabled: annotation && !ended });
   // Replay the pre-reload scroll position so hot reloads don't jump the artifact to the top.

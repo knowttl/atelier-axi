@@ -300,6 +300,7 @@ export function createArtifactSdk(
   const documentToken = Array.from(window.crypto.getRandomValues(new Uint32Array(4)), (value) =>
     value.toString(36),
   ).join("-");
+  const documentSequence = window.performance.timeOrigin;
   const ids = new WeakMap();
   // queueKey -> the element whose answer was last queued under it, so a sent-confirmation from the
   // chrome can flip exactly that question's card to a "sent" state. Mirrors the chrome's queueKey
@@ -1618,7 +1619,13 @@ export function createArtifactSdk(
     if (msg.type === "atelier:setAnnotationMode") setAnnotationMode(msg.enabled);
     if (msg.type === "atelier:requestSnapshot") {
       parent.postMessage(
-        { type: "atelier:snapshot", requestId: msg.requestId, documentToken, snapshot: snapshot() },
+        {
+          type: "atelier:snapshot",
+          requestId: msg.requestId,
+          documentToken,
+          documentSequence,
+          snapshot: snapshot(),
+        },
         "*",
       );
     }
@@ -1644,7 +1651,7 @@ export function createArtifactSdk(
       window.dispatchEvent(new CustomEvent("atelier:sent", { detail: { prompts: sent } }));
     }
   });
-  parent.postMessage({ type: "atelier:sdkReady", documentToken }, "*");
+  parent.postMessage({ type: "atelier:sdkReady", documentToken, documentSequence }, "*");
 
   // Capture phase so the mode hotkey fires no matter where focus is inside the artifact -
   // including a checkbox, button, link, or the annotation-card textarea - without disturbing
