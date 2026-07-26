@@ -161,7 +161,9 @@ review _surface_ changes.
 5. **Surface decisions.** On the chosen approach, render every remaining open question, edge
    case, and design option as its own decision card using the `plan` playbook's embedded
    decision-card template (problem → recommendation → example → Accept/Defer control that
-   queues exactly one prompt). Add or refresh UI mockups for UI-facing features.
+   queues exactly one prompt). Every option gets a one-line plain-English meaning with its
+   upside and cost, plus a brief simple example when that helps, so a non-technical reviewer can
+   choose without asking what an option means. Add or refresh UI mockups for UI-facing features.
 6. Incorporate annotations, update the artifact, and re-open until the user EXPLICITLY approves
    a direction — the approve-the-design gate; do not proceed to a spec or plan without it.
    Track each card as accepted or explicitly deferred.
@@ -187,7 +189,8 @@ review _surface_ changes.
      one-line why, so the user is confirming a default rather than starting from a blank.
    - **All cards at once.** Surface the whole batch as decision cards in the SAME atelier artifact,
      reusing Phase 4's machinery (the `plan` playbook decision-card template: problem →
-     recommendation → example → Accept/Defer control; `data-atelier-question` so a re-answer
+     recommendation → example → Accept/Defer control, each option explained in plain English with
+     its upside, cost, and a simple example where useful; `data-atelier-question` so a re-answer
      replaces the earlier one). Update the artifact, then re-open and poll (Phase 4 steps 1-2) so an
      active poll wakes on the answers. Do not drip questions one at a time.
    - **Follow-up rounds only when earned.** Open another round only if an answer genuinely unlocks a
