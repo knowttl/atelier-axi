@@ -48,6 +48,10 @@ export function detectInvokingAgent(env = process.env) {
   return ["CODEX_SANDBOX", "CODEX_THREAD_ID"].some((key) => Object.hasOwn(env, key)) ? "codex" : "generic";
 }
 
+export function shouldNarratePollWaitTicks({ isTTY }) {
+  return Boolean(isTTY);
+}
+
 export function pollExecutionGuidance({ agent = "generic" } = {}) {
   const sharedGuidance = POLL_WAKE_PATH_RULES.join(" ");
   const agentGuidance = agent === "codex" ? ` ${CODEX_POLL_WAKE_PATH_GUIDANCE}` : "";
@@ -246,6 +250,9 @@ async function pollCommand(args) {
   // The indefinite poll looks hung from the agent's side (stdout stays empty until the user
   // acts), so narrate the wait on stderr and leave re-run guidance behind if the agent's
   // harness kills the process anyway. stderr keeps the stdout JSON contract intact.
+  // The one-shot banner is that "not hung" signal and stays unconditional; only the recurring
+  // ticks - one line per minute, unbounded - are gated on an interactive stderr so piped,
+  // merged agent captures do not accumulate them.
   const onPollSignal = (signal) => {
     process.stderr.write(`\n${pollInterruptedText(absolute)}\n`);
     process.exit(signal === "SIGINT" ? 130 : 143);
@@ -257,7 +264,12 @@ async function pollCommand(args) {
     process.on("SIGINT", onPollSignal);
     process.on("SIGTERM", onPollSignal);
   }
-  const waitReporter = timeoutMs ? null : startPollWaitReporter({ file: absolute });
+  const waitReporter = timeoutMs
+    ? null
+    : startPollWaitReporter({
+        file: absolute,
+        narrateTicks: shouldNarratePollWaitTicks({ isTTY: process.stderr.isTTY }),
+      });
   try {
     const response = await fetchJson(`${baseUrl}/api/poll?file=${encodeURIComponent(absolute)}${timeoutQuery}`, {
       retries: 3,
@@ -298,8 +310,10 @@ export function startPollWaitReporter({
     process.stderr.write(line);
   },
   intervalMs = 60_000,
+  narrateTicks = true,
 }) {
   write(`${pollWaitBannerText(file)}\n`);
+  if (!narrateTicks) return { stop: () => {} };
   let elapsedMs = 0;
   const timer = setInterval(() => {
     elapsedMs += intervalMs;
@@ -1167,7 +1181,7 @@ function createCommandHelp({ agent = "generic" } = {}) {
     design: `Usage: atelier-axi design\n\nShow a copy-pasteable CDN snippet for Tailwind CSS browser runtime v4 + DaisyUI v5 + themes, Mermaid diagram tooling, a content-to-playbook router, an optional layout safety CSS snippet, plus technical reference for DaisyUI components. ${PLAYBOOK_ROUTER_HELP} Atelier artifacts stay portable HTML. This CDN snippet is the design fallback, not the default: inspect the subject project before falling back, and paste the layout safety CSS only when useful for dense nested grid/flex layouts, badges, wide fonts, or local media. The strict priority order is: (1) if the user asked for a specific look or named design system, follow that; (2) otherwise, match the design system of the project the artifact is about, not necessarily your current working directory. If the artifact previews, proposes, or mocks a specific app's UI, use that app's own design system; (3) only when both come up empty, prefer the Atelier-recommended Tailwind + DaisyUI CDN snippet over hand-writing styles unless explicitly instructed otherwise by the user.\n`,
     setup: `Usage: atelier-axi setup hooks\n\nInstall or repair agent SessionStart hooks for atelier-axi ambient context in Claude Code, Codex, OpenCode, and GitHub Copilot CLI. Restart your agent session afterward to receive the context.\n`,
     update: `Usage: atelier-axi update [--check]\n\nUpgrade atelier-axi to the latest published npm version, then refresh the installed atelier agent skill through the skills CLI it was installed with (\`npx -y skills update --yes ${ATELIER_SKILL_NAME}\`). The skill installs separately from the npm package, so a plain package upgrade never refreshes it. Pass --check (or --dry-run) to report current vs latest and exit without installing or touching the skill. The skill refresh is best-effort: if the skills CLI is unavailable it prints manual-recovery guidance rather than failing the update.\n`,
-    server: `Usage: atelier-axi server [--port 4387] [--verbose]\n\nRun the local Atelier Editor server. Pass --verbose (or set ATELIER_AXI_DEBUG=1) to log session and watcher events to stderr. Detached server output is appended to ~/.atelier-axi/server.log, or ATELIER_AXI_STATE_DIR/server.log when set, for startup and crash diagnostics.\n\nATELIER_AXI_HOST sets the bind address (default 127.0.0.1; a wildcard 0.0.0.0 or :: binds every interface). Binding beyond loopback exposes an unauthenticated server that can read and serve arbitrary local files to anything that can reach it, so only do so on a trusted network. ATELIER_AXI_LINK_HOST sets the hostname written into generated session links (default: the bind address, or loopback when bound to a wildcard). ATELIER_AXI_NO_OPEN=1 (or --no-open) suppresses the local browser launch.\n`,
+    server: `Usage: atelier-axi server [--port 4387] [--verbose]\n\nRun the local Atelier Editor server. Pass --verbose (or set ATELIER_AXI_DEBUG=1) to log session and watcher events to stderr. Detached server output is appended to ~/.atelier-axi/server.log, or ATELIER_AXI_STATE_DIR/server.log when set, for startup and crash diagnostics.\n\nATELIER_AXI_HOST sets the bind address (default 127.0.0.1; a wildcard 0.0.0.0 or :: binds every interface). Binding beyond loopback exposes an unauthenticated server that can read and serve arbitrary local files to anything that can reach it, so only do so on a trusted network. ATELIER_AXI_LINK_HOST sets the hostname written into generated session links (default: the bind address, or loopback when bound to a wildcard). See README's Allowed hosts section for Host allowlisting and ATELIER_AXI_ALLOWED_HOSTS. ATELIER_AXI_NO_OPEN=1 (or --no-open) suppresses the local browser launch.\n`,
   };
 }
 

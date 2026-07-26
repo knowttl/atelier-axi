@@ -45,6 +45,7 @@ The first command that needs the server spawns `atelier-axi server` as a **detac
 Subsequent CLI invocations reuse the running server only when its health version matches the current CLI version; stale servers are asked to `POST /shutdown`, and pre-handshake servers may be SIGTERM'd by port PID before the upgraded server is spawned.
 Port defaults to 4387 (`ATELIER_AXI_PORT`).
 `ATELIER_AXI_HOST` sets the bind address (default `127.0.0.1`; a wildcard `0.0.0.0`/`::` binds every interface). Binding beyond loopback exposes an unauthenticated server that can read and serve arbitrary local files to anything that can reach it, so only do so on a trusted network. `ATELIER_AXI_LINK_HOST` sets the hostname written into generated session links (default: the bind address, or loopback when bound to a wildcard). The CLI's own control-channel requests dial the bind host, falling back to loopback when it's a wildcard (`src/paths.js:bindHost`/`clientHost`/`linkHost`). `ATELIER_AXI_NO_OPEN=1`/`--no-open` suppresses the local browser launch, and `--no-gate` skips the open-time layout curtain for that browser open.
+A Host-header allowlist middleware (`buildAllowedHostnames`/`isAllowedRequestHost`) rejects any request whose `Host` is missing or not one this server answers to - the DNS-rebinding defense, since `isSameOriginRequest` alone does not stop rebinding (a rebound page sends its hostile domain in _both_ `Origin` and `Host`, so they still match). The allowlist is loopback names + the resolved bind/link host + explicit `ATELIER_AXI_ALLOWED_HOSTS` extras (`src/paths.js:extraAllowedHosts`), minus wildcard binds; a lone `*` (`allowsAllHosts`) disables the guard for operators fronting it with their own auth. Diverging from upstream, any bare IP literal is also accepted (`isIpLiteralHostname`, wildcard/unspecified addresses excluded) because DNS rebinding requires an attacker-controlled DNS hostname, so an IP-literal `Host` is never a rebound one - without this a LAN reviewer reaching the loopback server through a port forwarder (`Host: 192.168.x.y:<port>`) gets a `403` until someone sets `ATELIER_AXI_ALLOWED_HOSTS`. When a reverse proxy sits in front, `X-Forwarded-Host`'s outermost value is validated against the same allowlist (an AND check, so a spoofed forwarded host only narrows access, never bypasses `Host`). README's Allowed hosts bullet owns the user-facing contract. So a specific-interface bind stays rebinding-protected while its own hostname works, rather than the guard switching off outside loopback.
 
 The detached server does not run forever.
 It shuts itself down once no browser chrome (SSE) and no agent poll have been connected for `ATELIER_AXI_IDLE_TIMEOUT_MS` (default 30 minutes; set `0`/`off` to disable), and immediately when the last open session ends while nothing is connected (a still-attached browser or poll defers cleanup to the idle timer instead).
@@ -92,11 +93,11 @@ State lives at `~/.atelier-axi/state.json` (override with `ATELIER_AXI_STATE_DIR
    Poll output includes `layout_warnings` only when the browser reported current findings, with a server-normalized `persistent` boolean on each finding.
    The agent-facing `next_step` asks the agent to repair and re-check every returned severe layout failure before involving the human, because lower-confidence observations never enter this path.
    A `status: "ended"` response carries `ended_by` (`"user"` or `"agent"`) and a `next_step` telling the agent to stop polling and not reopen the browser uninvited - deliver remaining updates in chat instead, unless the user asks for further review or something important needs their attention. The final `status: "feedback"` batch delivered right before a session ends (e.g. "Send & End") carries the same signal via `session_ended: true` plus `ended_by`, so that last `next_step` also skips telling the agent to reopen.
-   Default no-timeout polls stream whitespace heartbeat bytes before the final JSON response; `--timeout-ms` is a non-streaming test/debug escape hatch.
-   The CLI also writes an immediate waiting banner and per-minute waiting messages to stderr for no-timeout polls, keeping stdout reserved for the final JSON/TOON response.
+   Default no-timeout polls stream whitespace heartbeat bytes before the final JSON response and always write the one-shot wait banner to stderr - it is the "not hung" signal an agent needs while stdout stays empty - but write the recurring per-minute wait ticks only when stderr is an interactive terminal (`shouldNarratePollWaitTicks`), so agent harnesses with piped, non-TTY stdio get no unbounded tick noise in their merged capture; stdout is always reserved for the final JSON/TOON response, and `--timeout-ms` is a non-streaming test/debug escape hatch.
    If SIGINT or SIGTERM interrupts a no-timeout poll, the CLI writes re-run guidance to stderr and exits with the conventional signal code; queued feedback persists, so re-running the same poll is safe.
 9. The `/events/:key` SSE stream emits `agent-presence` states: `waiting` before any poll has attached, `listening` while a poll is active, and `working` after a poll has delivered feedback and released.
    The chrome uses this state to show the waiting banner, allow queued feedback while waiting or listening, and block sends only while working.
+   An agent reply (`POST /api/:key/agent-reply`, the CLI's `--agent-reply`) concludes the working state and returns presence to `waiting`, so sends re-enable as soon as the agent answers instead of staying blocked until another poll attaches.
 10. `--agent-reply` posts a chat message into the session before polling, so the agent's reply renders in the browser conversation panel via the `/events/:key` SSE stream.
 
 ### Live reload
@@ -279,3 +280,10 @@ Record every lesson with `bd remember` in this exact shape so memories are searc
 Before recording, search with `bd memories <keyword>`; if a close memory exists, reuse its `--key` to refine it rather than adding a near-duplicate. Full procedure: the `local.beads-workflow` skill (Operation 4).
 
 <!-- END: local.beads-memory-format -->
+
+## Maintaining this file
+
+Keep this file for knowledge useful to almost every future agent session in this project.
+Do not repeat what the codebase already shows; point to the authoritative file or command instead.
+Prefer rewriting or pruning existing entries over appending new ones.
+When updating this file, preserve this bar for all agents and keep entries concise.

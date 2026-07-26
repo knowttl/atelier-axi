@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { EventEmitter } from "node:events";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import net from "node:net";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -40,7 +41,7 @@ import {
 } from "./export-bundle.js";
 import { publishToHtmlApp } from "./html-app.js";
 import { injectAtelierSdk } from "./html-transform.js";
-import { bindHost, hostForUrl, linkHost } from "./paths.js";
+import { bindHost, extraAllowedHosts, hostForUrl, IPV6_LOOPBACK_HOST, linkHost, LOOPBACK_HOST } from "./paths.js";
 import { canonicalFile, SessionStore, sessionKey } from "./session-store.js";
 
 const chromeClientUrl = new URL("./chrome-client.js", import.meta.url);
@@ -125,6 +126,7 @@ export async function serve({
   idleTimeoutMs = resolveIdleTimeoutMs(),
   host = bindHost(),
   linkHost: linkHostName = linkHost(),
+  allowedHosts = extraAllowedHosts(),
   whiteboardAssetsDir = defaultWhiteboardAssetsDir(),
 }) {
   const app = express();
@@ -142,6 +144,40 @@ export async function serve({
 
   // Whiteboard sidecar files live next to state.json, keyed by session + diagram.
   const whiteboardStateRoot = path.dirname(stateFile);
+
+  // DNS-rebinding guard. isSameOriginRequest (used on /share and the whiteboard
+  // write routes) stops classic cross-origin CSRF but NOT DNS rebinding: a page
+  // that rebinds its own domain to this loopback port sends that domain in both
+  // Origin and Host, so the two still match. The robust defense is a Host-header
+  // allowlist - a rebound browser carries the attacker's domain in Host, which is
+  // never one of the hostnames this server answers to.
+  //
+  // Loopback names and connectable bare IP literals are always accepted (see
+  // isIpLiteralHostname - wildcard/unspecified addresses stay rejected, while
+  // rebinding needs a hostname, so an IP literal can never be a rebound one).
+  // Rejecting connectable IPs would break LAN access through a port forwarder.
+  // Binding to a concrete interface (ATELIER_AXI_HOST) or naming a
+  // link host (ATELIER_AXI_LINK_HOST) adds that host, so an operator who
+  // intentionally exposes the server on a specific interface keeps rebinding
+  // protection while their chosen hostname works. Additional names (a
+  // reverse-proxy hostname, extra interfaces) are an explicit opt-in via
+  // ATELIER_AXI_ALLOWED_HOSTS; a lone "*" there disables the guard for operators
+  // who front the server with their own authentication. When a reverse proxy sits
+  // in front, X-Forwarded-Host is validated too (see isAllowedRequestHost).
+  const allowedHostnames = buildAllowedHostnames({ host, linkHost: linkHostName, allowedHosts });
+  if (!allowsAllHosts(allowedHosts)) {
+    app.use((req, res, next) => {
+      const requestHost = { host: req.headers.host, forwardedHost: req.headers["x-forwarded-host"] };
+      if (isAllowedRequestHost(requestHost, allowedHostnames)) {
+        next();
+        return;
+      }
+      logEvent?.(
+        `rejected request with disallowed host host=${req.headers.host ?? ""} x-forwarded-host=${req.headers["x-forwarded-host"] ?? ""} path=${req.path}`,
+      );
+      res.status(403).json({ error: "forbidden host" });
+    });
+  }
 
   const defaultJsonParser = express.json({ limit: "2mb" });
   const whiteboardJsonParser = express.json({ limit: "20mb" });
@@ -322,6 +358,11 @@ export async function serve({
         return;
       }
       events.emit("agent-reply", req.params.key, text);
+      // The reply concludes the delivered-feedback "working" state. Without this, a poll that
+      // drains feedback and then releases leaves presence stuck on "working" — the chrome keeps
+      // Send disabled — until some future poll happens to attach, even though the agent already
+      // answered. See "SSE agent-presence returns to waiting after an agent reply".
+      clearFeedbackDelivery(req.params.key, activePolls, deliveredFeedback, events);
       res.json({ status: "sent" });
     } catch (error) {
       next(error);
@@ -846,6 +887,104 @@ function encodeRfc5987Value(value) {
     /['()*]/g,
     (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
   );
+}
+
+// Wildcard bind addresses ("all interfaces") are not connectable hostnames, so
+// they never belong in the Host allowlist - and "0.0.0.0" as a Host is a known
+// loopback-reach trick, so it must stay rejected.
+const WILDCARD_BIND_HOSTS = new Set(["0.0.0.0", "::"]);
+
+// The set of Host header hostnames this server answers to: loopback names plus
+// the resolved bind and link host and any explicit ATELIER_AXI_ALLOWED_HOSTS
+// extras, minus wildcard binds and the "*" sentinel. Lowercased for
+// case-insensitive comparison against the incoming Host.
+export function buildAllowedHostnames({ host, linkHost: linkHostName, allowedHosts = [] }) {
+  return new Set(
+    [LOOPBACK_HOST, IPV6_LOOPBACK_HOST, "localhost", host, linkHostName, ...allowedHosts]
+      .map((value) =>
+        String(value || "")
+          .trim()
+          .toLowerCase(),
+      )
+      .filter((value) => value && value !== "*" && !WILDCARD_BIND_HOSTS.has(value)),
+  );
+}
+
+// A lone "*" in ATELIER_AXI_ALLOWED_HOSTS is an explicit opt-out of the Host
+// allowlist, for operators who front the server with their own auth/proxy.
+export function allowsAllHosts(allowedHosts = []) {
+  return allowedHosts.some((value) => String(value).trim() === "*");
+}
+
+// Extract the hostname (without port) from a Host header value, honoring
+// bracketed IPv6 literals ("[::1]:4387"). Returns null for a malformed authority.
+export function hostnameFromHostHeader(value) {
+  const raw = String(value).trim();
+  if (raw.startsWith("[")) {
+    const end = raw.indexOf("]");
+    if (end === -1) return null;
+    // Anything after the closing bracket must be a `:port` suffix; reject trailing
+    // garbage (e.g. "[::1]evil.com") instead of reading it as the bracketed host.
+    const rest = raw.slice(end + 1);
+    if (rest.length > 0 && !rest.startsWith(":")) return null;
+    return raw.slice(1, end).toLowerCase();
+  }
+  const colon = raw.indexOf(":");
+  const hostname = colon === -1 ? raw : raw.slice(0, colon);
+  // A bare, unbracketed IPv6 literal is not a valid authority; reject it rather
+  // than mistaking a hextet for a port.
+  if (hostname.includes(":")) return null;
+  return hostname.toLowerCase();
+}
+
+// A connectable bare IP literal is an acceptable Host, whatever the allowlist says.
+// DNS rebinding needs a *hostname* the attacker controls in DNS; no browser can
+// be induced to send an IP literal it was not already pointed at, so an
+// IP-literal Host carries no rebinding risk. Accepting it keeps the common
+// atelier deployment working out of the box - a loopback-bound server reached
+// over a LAN through a port forwarder or SSH tunnel, which arrives as
+// `Host: 192.168.x.y:<port>` - instead of 403ing until someone sets
+// ATELIER_AXI_ALLOWED_HOSTS. Named hosts (reverse proxies, mDNS names) still
+// require that opt-in. This is a deliberate divergence from upstream lavish-axi
+// and matches Vite's `server.allowedHosts` rule.
+//
+// The wildcard/unspecified addresses stay rejected: they are not connectable
+// targets, and "0.0.0.0" as a Host is a known loopback-reach trick.
+function isIpLiteralHostname(hostname) {
+  if (WILDCARD_BIND_HOSTS.has(hostname)) return false;
+  return net.isIP(hostname) !== 0;
+}
+
+// DNS-rebinding defense: the server answers only to its own known hostnames and
+// to connectable IP literals. A rebound browser carries the attacker's domain in
+// Host and is rejected. Host is mandatory in HTTP/1.1 and every browser sends it,
+// so a missing or blank value is never a legitimate client - reject it rather
+// than fail open.
+export function isAllowedHostHeader(hostHeader, allowedHostnames) {
+  if (hostHeader === undefined || hostHeader === null) return false;
+  const raw = String(hostHeader).trim();
+  if (raw === "") return false;
+  const hostname = hostnameFromHostHeader(raw);
+  if (hostname === null) return false;
+  return allowedHostnames.has(hostname) || isIpLiteralHostname(hostname);
+}
+
+// Validate a request's effective host for DNS-rebinding protection. The Host
+// header is required and must be allowlisted. When an X-Forwarded-Host is present
+// - a reverse proxy in front of the loopback server - its outermost (last) value
+// must ALSO be allowlisted, so a proxy works once its public hostname is added to
+// ATELIER_AXI_ALLOWED_HOSTS. This is an AND check: a client-spoofed forwarded host
+// can only narrow access (Host is still checked), never widen it into a bypass. A
+// blank forwarded host is treated as absent, matching how proxies omit it.
+/**
+ * @param {{ host?: string|undefined|null, forwardedHost?: string|undefined|null }} headers
+ * @param {Set<string>} allowedHostnames
+ */
+export function isAllowedRequestHost({ host, forwardedHost }, allowedHostnames) {
+  if (!isAllowedHostHeader(host, allowedHostnames)) return false;
+  const forwarded = forwardedHost === undefined || forwardedHost === null ? "" : String(forwardedHost).trim();
+  if (forwarded === "") return true;
+  return isAllowedHostHeader(forwarded.split(",").pop(), allowedHostnames);
 }
 
 // Guard state-changing, outward-facing routes (publishing to a third-party host) against CSRF: a
