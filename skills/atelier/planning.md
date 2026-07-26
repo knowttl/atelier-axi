@@ -306,12 +306,16 @@ down cleanly so nothing is left running:
 1. **End every atelier session you opened** with `atelier-axi end <file>` — the intake review
    artifact and the final spec+plan artifact. Do this only once the user has confirmed they are
    done, never mid-review, and do not reopen an ended session uninvited.
-2. **Stop the server** if you want the port freed immediately: `atelier-axi stop`. (It also
-   self-stops once no browser and no poll have been connected for a while, so this is optional.)
+2. **Stop the server** with `atelier-axi stop`, but only once `atelier-axi` lists no other session —
+   the server is shared across projects. (It also self-stops once no browser and no poll have been
+   connected for a while, so this is optional.)
 3. **Leave no poll running** for an ended session — a finished or killed `poll` is fine; just do
    not start a fresh one after teardown.
 4. The dev worktree, if the `implementing.md` flow created one, is torn down there
    (`treehouse return` / `git worktree remove`); planning itself owns no worktree.
+5. For the rest of the procedure — already-deleted artifacts, helpers you started alongside the
+   server such as a LAN forwarder, and artifact leftovers worth clearing — see the wrap-up entry
+   under **Commands & rules** in `SKILL.md`.
 
 ## Graceful degradation
 
