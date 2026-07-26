@@ -291,7 +291,7 @@ export function createArtifactSdk(
   mermaid = mermaidHelpers,
 ) {
   const { isMermaidSvg, mermaidNodeFrom, mermaidNodeElement } = mermaid;
-  let annotationMode = true;
+  let annotationMode = false;
   let hovered = null;
   let selected = null;
   let ignoreNextClick = false;
