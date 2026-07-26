@@ -78,7 +78,9 @@ let layoutGateCycle = 0;
 let layoutGateTimer;
 const snapshotRequests = [];
 let nextSnapshotRequestId = 0;
-let frameNavigationGeneration = 0;
+let currentDocumentToken = "";
+let loadedDocumentToken = "";
+let controlledFrameLoadPending = false;
 let endAfterSubmit = false;
 let workingBubble = null;
 let submitQueuedPromise = null;
@@ -309,7 +311,7 @@ function requestSnapshot(action) {
   if (action === "submit" && snapshotRequests.some((request) => request.action === "submit")) return;
   const id = String(++nextSnapshotRequestId);
   const timeout = setTimeout(() => completeSnapshotRequest(id), 1000);
-  snapshotRequests.push({ id, action, timeout, generation: frameNavigationGeneration });
+  snapshotRequests.push({ id, action, timeout });
   postToFrame({ type: "atelier:requestSnapshot", requestId: id });
 }
 
@@ -326,12 +328,10 @@ function completeSnapshotRequest(id, snapshot) {
   submitQueued();
 }
 
-function settleSnapshotRequestsBeforeGeneration(generation) {
+function settleSnapshotRequestsWithoutSnapshot() {
+  const requests = snapshotRequests.splice(0, snapshotRequests.length);
   let shouldSubmit = false;
-  for (let index = snapshotRequests.length - 1; index >= 0; index -= 1) {
-    const request = snapshotRequests[index];
-    if (request.generation >= generation) continue;
-    snapshotRequests.splice(index, 1);
+  for (const request of requests) {
     clearTimeout(request.timeout);
     if (request.action === "submit") shouldSubmit = true;
   }
@@ -339,8 +339,10 @@ function settleSnapshotRequestsBeforeGeneration(generation) {
 }
 
 function beginFrameNavigation() {
-  frameNavigationGeneration += 1;
-  settleSnapshotRequestsBeforeGeneration(frameNavigationGeneration);
+  currentDocumentToken = "";
+  loadedDocumentToken = "";
+  controlledFrameLoadPending = true;
+  settleSnapshotRequestsWithoutSnapshot();
 }
 
 function sendQueued(endAfter) {
@@ -1256,7 +1258,12 @@ window.addEventListener("message", (event) => {
     enqueuePrompt(msg.prompt);
   }
   if (msg.type === "atelier:snapshot") {
-    completeSnapshotRequest(String(msg.requestId || ""), msg.snapshot || "");
+    const requestId = String(msg.requestId || "");
+    if (!currentDocumentToken || String(msg.documentToken || "") !== currentDocumentToken) {
+      completeSnapshotRequest(requestId);
+    } else {
+      completeSnapshotRequest(requestId, msg.snapshot || "");
+    }
   }
   if (msg.type === "atelier:scroll") {
     lastScroll = { x: Number(msg.x) || 0, y: Number(msg.y) || 0 };
@@ -1266,6 +1273,8 @@ window.addEventListener("message", (event) => {
     submitLayoutWarnings(msg.layout_warnings).catch(() => {});
   }
   if (msg.type === "atelier:sdkReady") {
+    currentDocumentToken = String(msg.documentToken || "");
+    if (!controlledFrameLoadPending && !loadedDocumentToken) loadedDocumentToken = currentDocumentToken;
     postToFrame({ type: "atelier:setAnnotationMode", enabled: annotation && !ended });
   }
   if (msg.type === "atelier:sendQueuedPrompts") sendQueued();
@@ -1339,8 +1348,15 @@ document.addEventListener(
   true,
 );
 frame.addEventListener("load", () => {
-  settleSnapshotRequestsBeforeGeneration(frameNavigationGeneration);
-  frameNavigationGeneration += 1;
+  if (controlledFrameLoadPending) {
+    controlledFrameLoadPending = false;
+    loadedDocumentToken = currentDocumentToken;
+  } else if (currentDocumentToken === loadedDocumentToken) {
+    currentDocumentToken = "";
+    loadedDocumentToken = "";
+  } else {
+    loadedDocumentToken = currentDocumentToken;
+  }
   postToFrame({ type: "atelier:setAnnotationMode", enabled: annotation && !ended });
   // Replay the pre-reload scroll position so hot reloads don't jump the artifact to the top.
   postToFrame({ type: "atelier:restoreScroll", x: lastScroll.x, y: lastScroll.y });

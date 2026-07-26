@@ -224,6 +224,14 @@ async function createChromeHarness({
   };
 
   vm.runInNewContext(source, context, { filename: "chrome-client.js" });
+  for (const handler of windowListeners.get("message") || []) {
+    handler({
+      source: frame.contentWindow,
+      data: { type: "atelier:sdkReady", documentToken: "document-1" },
+    });
+  }
+  if (artifactSrc) frame.listeners.get("load")?.();
+  postedToFrame.length = 0;
 
   return {
     element,
@@ -254,6 +262,7 @@ async function createChromeHarness({
     sendSnapshot(
       snapshot,
       request = postedToFrame.findLast((message) => message.type === "atelier:requestSnapshot"),
+      documentToken = "document-1",
     ) {
       assert.equal(request?.type, "atelier:requestSnapshot");
       const handlers = windowListeners.get("message") || [];
@@ -261,7 +270,7 @@ async function createChromeHarness({
       for (const handler of handlers) {
         handler({
           source: frame.contentWindow,
-          data: { type: "atelier:snapshot", requestId: request.requestId, snapshot },
+          data: { type: "atelier:snapshot", requestId: request.requestId, documentToken, snapshot },
         });
       }
     },
@@ -928,11 +937,11 @@ test("queued readiness and load events preserve a new-document submit request", 
   const request = chrome.postedToFrame.at(-1);
 
   chrome.frame.listeners.get("load")();
-  chrome.sendFrameMessage({ type: "atelier:sdkReady" });
+  chrome.sendFrameMessage({ type: "atelier:sdkReady", documentToken: "document-2" });
   await flushPromises();
   assert.equal(posts.length, 0);
 
-  chrome.sendSnapshot("fresh document", request);
+  chrome.sendSnapshot("fresh document", request, "document-2");
   await flushPromises();
   assert.equal(posts.length, 1);
   assert.equal(posts[0].body.domSnapshot, "fresh document");
@@ -945,9 +954,9 @@ test("queued readiness and load events preserve a new-document copy request", as
   chrome.element("copySnapshot").onclick();
   const request = chrome.postedToFrame.at(-1);
 
-  chrome.sendFrameMessage({ type: "atelier:sdkReady" });
+  chrome.sendFrameMessage({ type: "atelier:sdkReady", documentToken: "document-2" });
   chrome.frame.listeners.get("load")();
-  chrome.sendSnapshot("fresh document", request);
+  chrome.sendSnapshot("fresh document", request, "document-2");
   await flushPromises();
 
   assert.deepEqual(chrome.clipboardWrites, ["fresh document"]);
@@ -959,6 +968,42 @@ test("queued readiness and load events preserve a new-document copy request", as
   await flushPromises();
 
   assert.deepEqual(chrome.clipboardWrites, ["fresh document"]);
+});
+
+test("an old-document snapshot after a new document loads is ignored without dropping the submit", async () => {
+  const posts = [];
+  const chrome = await createChromeHarness({
+    artifactSrc: "/artifact/abc/index.html",
+    fetchImpl: async (url, init) => {
+      posts.push({ url, body: JSON.parse(init.body) });
+      return { ok: true };
+    },
+  });
+
+  chrome.sendFrameMessage({
+    type: "atelier:queuePrompt",
+    prompt: { prompt: "D4: Keep", selector: "form#d4", tag: "choice", text: "D4: Keep" },
+  });
+  chrome.element("send").onclick();
+  const request = chrome.postedToFrame.at(-1);
+
+  chrome.frame.listeners.get("load")();
+  chrome.sendSnapshot("stale document", request, "document-1");
+  await flushPromises();
+
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].body.domSnapshot, "");
+  assert.equal(chrome.queued().length, 0);
+
+  chrome.sendFrameMessage({ type: "atelier:sdkReady", documentToken: "document-2" });
+  chrome.element("copySnapshot").onclick();
+  const copyRequest = chrome.postedToFrame.at(-1);
+  chrome.frame.listeners.get("load")();
+  chrome.sendSnapshot("stale document", copyRequest, "document-2");
+  await flushPromises();
+
+  assert.deepEqual(chrome.clipboardWrites, []);
+  chrome.sendFrameMessage({ type: "atelier:sdkReady", documentToken: "document-3" });
 });
 
 test("chrome client tells the artifact which prompts were sent after a successful submit", async () => {
@@ -1094,7 +1139,7 @@ test("chrome send and end during an in-flight submit still ends after the submit
 
 test("chrome client starts annotation mode off and enables it with Cmd/Ctrl+I", async () => {
   const chrome = await createChromeHarness();
-  chrome.sendFrameMessage({ type: "atelier:sdkReady" });
+  chrome.sendFrameMessage({ type: "atelier:sdkReady", documentToken: "document-2" });
   assert.equal(chrome.postedToFrame.at(-1).type, "atelier:setAnnotationMode");
   assert.equal(chrome.postedToFrame.at(-1).enabled, false);
 
@@ -1115,7 +1160,7 @@ test("chrome client replays enabled annotation mode when a reloaded artifact SDK
   const chrome = await createChromeHarness();
 
   chrome.dispatchDocumentKeydown({ key: "i", metaKey: true });
-  chrome.sendFrameMessage({ type: "atelier:sdkReady" });
+  chrome.sendFrameMessage({ type: "atelier:sdkReady", documentToken: "document-2" });
 
   assert.equal(chrome.element("annotation")["aria-pressed"], "true");
   assert.equal(chrome.postedToFrame.at(-1).type, "atelier:setAnnotationMode");

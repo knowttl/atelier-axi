@@ -250,7 +250,7 @@ test("artifact SDK registers a capture-phase document keydown listener for the m
 test("artifact SDK announces readiness after registering its chrome message listener", () => {
   const js = createSdkJs("abc");
   const listenerIndex = js.indexOf('window.addEventListener("message"');
-  const readyIndex = js.indexOf('parent.postMessage({ type: "atelier:sdkReady" }, "*")');
+  const readyIndex = js.indexOf('parent.postMessage({ type: "atelier:sdkReady", documentToken }, "*")');
 
   assert.notEqual(listenerIndex, -1);
   assert.ok(readyIndex > listenerIndex);
@@ -544,10 +544,11 @@ test("copy DOM snapshot requests a fresh snapshot and copies it to the clipboard
 
   assert.match(js, /const snapshotRequests = \[\]/);
   assert.match(js, /requestSnapshot\("copy"\)/);
-  assert.match(js, /completeSnapshotRequest\(String\(msg\.requestId \|\| ""\), msg\.snapshot \|\| ""\)/);
+  assert.match(js, /String\(msg\.documentToken \|\| ""\) !== currentDocumentToken/);
   assert.match(js, /if \(request\.action === "copy"\)/);
   assert.match(js, /copyText\(snapshot\)/);
   assert.match(sdk, /requestId: msg\.requestId/);
+  assert.match(sdk, /documentToken/);
 });
 
 test("clipboard copy falls back when navigator clipboard rejects", async () => {
