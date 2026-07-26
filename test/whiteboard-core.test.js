@@ -4,7 +4,10 @@ import test from "node:test";
 import {
   createWhiteboardPersistencePayload,
   findDuplicateElementIds,
+  fitSavedSceneShapesToFreeText,
+  fitShapesToFreeText,
   normalizeExcalidrawSceneTarget,
+  planSavedSceneTextMetricsMigration,
   repairSavedSceneTextMetrics,
   sanitizeSceneLink,
   sceneIsImageFallback,
@@ -99,6 +102,152 @@ test("saved text repair only expands metrics", () => {
   assert.strictEqual(elements[1].id, "box");
 });
 
+test("saved text migration defers without converter provenance", () => {
+  assert.deepEqual(planSavedSceneTextMetricsMigration(1, false), {
+    shouldMigrate: false,
+    nextVersion: 1,
+  });
+  assert.deepEqual(planSavedSceneTextMetricsMigration(1, true), {
+    shouldMigrate: true,
+    nextVersion: 2,
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fitShapesToFreeText
+// ---------------------------------------------------------------------------
+
+function freeText(id, opts = {}) {
+  return { id, type: "text", x: 0, y: 0, width: 40, height: 20, text: "label", ...opts };
+}
+
+test("fitShapesToFreeText grows a shape whose free-standing label overflows it", () => {
+  const shape = rect("entity", { x: 0, y: 0, width: 100, height: 40 });
+  const label = freeText("attr", { x: 20, y: 10, width: 140, height: 20 });
+  const { elements, grown } = fitShapesToFreeText([shape, label], { padding: 0 });
+  assert.equal(grown, 1);
+  assert.equal(elements[0].x, 0);
+  assert.equal(elements[0].x + elements[0].width, 160);
+  assert.deepEqual(elements[1], label);
+});
+
+test("fitShapesToFreeText leaves shapes that already contain their label alone", () => {
+  const elements = [rect("entity"), freeText("attr", { x: 20, y: 10 })];
+  const result = fitShapesToFreeText(elements);
+  assert.equal(result.grown, 0);
+  assert.deepEqual(result.elements, elements);
+});
+
+test("fitShapesToFreeText ignores bound labels, which the converter already fits", () => {
+  const elements = [rect("box"), { ...boundLabel("t1", "box", "Long label"), width: 400 }];
+  assert.equal(fitShapesToFreeText(elements).grown, 0);
+});
+
+test("fitShapesToFreeText sizes an ellipse and a diamond to their inscribed box", () => {
+  const label = freeText("attr", { x: 45, y: 20, width: 20, height: 10 });
+  const shapes = /** @type {[string, number][]} */ ([
+    ["ellipse", Math.SQRT2],
+    ["diamond", 2],
+  ]);
+  for (const [type, ratio] of shapes) {
+    const { elements } = fitShapesToFreeText([rect("s", { type, width: 10, height: 10, x: 50, y: 20 }), label], {
+      padding: 0,
+    });
+    assert.equal(elements[0].width, 20 * ratio, type);
+    assert.equal(elements[0].height, 10 * ratio, type);
+  }
+});
+
+test("fitShapesToFreeText picks the innermost shape a label sits in", () => {
+  const outer = rect("outer", { x: 0, y: 0, width: 500, height: 300 });
+  const inner = rect("inner", { x: 100, y: 100, width: 60, height: 40 });
+  const label = freeText("attr", { x: 70, y: 110, width: 120, height: 20 });
+  const { elements } = fitShapesToFreeText([outer, inner, label], { padding: 0 });
+  assert.deepEqual(elements[0], outer);
+  assert.equal(elements[1].x, 70);
+  assert.equal(elements[1].width, 120);
+});
+
+test("fitShapesToFreeText stretches the rules a grown shape encloses", () => {
+  const shape = rect("entity", { x: 0, y: 0, width: 100, height: 40 });
+  const divider = {
+    id: "row",
+    type: "line",
+    x: 0,
+    y: 20,
+    width: 100,
+    height: 0,
+    points: [
+      [0, 0],
+      [100, 0],
+    ],
+  };
+  const outside = {
+    id: "edge",
+    type: "line",
+    x: 300,
+    y: 0,
+    width: 50,
+    height: 0,
+    points: [
+      [0, 0],
+      [50, 0],
+    ],
+  };
+  const { elements } = fitShapesToFreeText(
+    [shape, divider, outside, freeText("attr", { x: 20, y: 10, width: 140, height: 20 })],
+    { padding: 0 },
+  );
+  assert.equal(elements[1].width, 160);
+  assert.deepEqual(/** @type {any} */ (elements[1]).points, [
+    [0, 0],
+    [160, 0],
+  ]);
+  assert.deepEqual(elements[2], outside);
+});
+
+test("saved-scene fitting leaves user-authored elements out of migration", () => {
+  const shape = rect("entity", { x: 0, y: 0, width: 100, height: 40 });
+  const divider = {
+    id: "row",
+    type: "line",
+    x: 0,
+    y: 20,
+    width: 100,
+    height: 0,
+    points: [
+      [0, 0],
+      [100, 0],
+    ],
+  };
+  const label = freeText("attr", { x: 20, y: 10, width: 140, height: 20 });
+  const note = freeText("note", { x: 10, y: 10, width: 300, height: 20 });
+  const annotation = {
+    id: "annotation",
+    type: "line",
+    x: 0,
+    y: 30,
+    width: 100,
+    height: 0,
+    points: [
+      [0, 0],
+      [100, 0],
+    ],
+  };
+  const baseline = [shape, divider, label];
+  const { elements, grown } = fitSavedSceneShapesToFreeText(
+    [...structuredClone(baseline), note, annotation],
+    baseline,
+    { padding: 0 },
+  );
+  assert.equal(grown, 1);
+  assert.equal(elements[0].width, 160);
+  assert.equal(elements[1].width, 160);
+  assert.deepEqual(elements[3], note);
+  assert.deepEqual(elements[4], annotation);
+  assert.deepEqual(fitSavedSceneShapesToFreeText(elements, []).elements, elements);
+});
+
 test("whiteboard persistence payload keeps migration and baseline fields together", () => {
   const scene = { elements: [rect("edited")] };
   const baselineElements = [rect("original")];
@@ -110,6 +259,18 @@ test("whiteboard persistence payload keeps migration and baseline fields togethe
       scene,
       baseline: { elements: baselineElements },
     },
+  );
+  assert.equal(
+    createWhiteboardPersistencePayload(
+      {
+        sceneSourceHash: "hash-1",
+        textMetricsVersion: 1,
+        baselineElements,
+        baselineAvailable: false,
+      },
+      scene,
+    ).baseline,
+    null,
   );
 });
 

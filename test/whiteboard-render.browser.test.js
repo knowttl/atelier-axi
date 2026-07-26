@@ -132,6 +132,7 @@ test("real Excalidraw rendering keeps loaded-font labels inside their text bound
       assert.ok(result.multilineLines >= 2);
       assert.ok(result.repaired >= 5);
       assert.ok(result.opaquePixels >= 1000);
+      assert.ok(result.shapeFitSpillBefore > 1);
     } finally {
       server.closeAllConnections();
       await new Promise((resolve) => server.close(resolve));

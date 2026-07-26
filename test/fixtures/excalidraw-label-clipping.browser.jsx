@@ -6,6 +6,7 @@ import { convertToExcalidrawElements, exportToCanvas, FONT_FAMILY } from "@excal
 import {
   convertExcalidrawSkeletonsAfterFontsLoad,
   findDuplicateElementIds,
+  fitShapesToFreeText,
   repairSavedSceneTextMetrics,
 } from "../../src/whiteboard-core.js";
 import fixture from "./excalidraw-label-clipping.json" with { type: "json" };
@@ -72,6 +73,42 @@ function withoutMetrics(element) {
   delete copy.width;
   delete copy.height;
   return copy;
+}
+
+// How far a free-standing label spills out of the shape it sits in. Mermaid
+// sized that shape in its own font, so a converter that re-renders the label at
+// its own font size (ER attribute rows) can overflow it.
+function worstFreeTextSpill(elements) {
+  const shapes = elements.filter((element) => ["rectangle", "ellipse", "diamond"].includes(element.type));
+  let worst = 0;
+  for (const element of elements) {
+    if (element.type !== "text" || element.containerId) continue;
+    const centerX = element.x + element.width / 2;
+    const centerY = element.y + element.height / 2;
+    const host = shapes
+      .filter((s) => centerX >= s.x && centerX <= s.x + s.width && centerY >= s.y && centerY <= s.y + s.height)
+      .sort((a, b) => a.width * a.height - b.width * b.height)[0];
+    if (!host) continue;
+    worst = Math.max(
+      worst,
+      host.x - element.x,
+      element.x + element.width - (host.x + host.width),
+      host.y - element.y,
+      element.y + element.height - (host.y + host.height),
+    );
+  }
+  return worst;
+}
+
+async function convertShapeFitFixture() {
+  const parsed = await parseMermaidToExcalidraw(fixture.shapeFitSource, { themeVariables: { fontSize: "16px" } });
+  const converted = await convertExcalidrawSkeletonsAfterFontsLoad(parsed.elements, {
+    convert: materialize,
+    loadFonts: async (firstPass) => {
+      await loadFonts(firstPass, parsed.files || null);
+    },
+  });
+  return { before: worstFreeTextSpill(converted), after: worstFreeTextSpill(fitShapesToFreeText(converted).elements) };
 }
 
 async function run() {
@@ -157,6 +194,15 @@ async function run() {
     files: parsed.files || null,
   });
   if (repairedCanvas.width === 0 || repairedCanvas.height === 0) throw new Error("repaired scene did not render");
+
+  // Runs last: everything above needs the cold, fonts-not-yet-loaded state.
+  const shapeFit = await convertShapeFitFixture();
+  if (shapeFit.before <= 1) {
+    throw new Error(`shape-fit fixture no longer reproduces an overflowing label (spill ${shapeFit.before}px)`);
+  }
+  if (shapeFit.after > 0) {
+    throw new Error(`labels still spill out of their shape after fitting (spill ${shapeFit.after}px)`);
+  }
   return {
     pass: true,
     fontReady: document.fonts.check(fontString(labels[0]), labels[0].text),
@@ -164,6 +210,7 @@ async function run() {
     multilineLines: multiline.text.split("\n").length,
     repaired: repaired.repaired,
     opaquePixels,
+    shapeFitSpillBefore: shapeFit.before,
   };
 }
 

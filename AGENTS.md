@@ -206,7 +206,9 @@ The CLI ships no telemetry: it makes no analytics calls and bakes in no analytic
   - Finite animations settle before sampling, findings associated with still-active finite or infinite motion stay silent without hiding independent stable failures, and `findStableLayoutFindings` requires the same severe root in two samples.
   - Overlap reports only near-total coverage by one opaque static sibling; decorative transparent overlap stays silent. Warning-severity input is filtered again by the chrome, CLI, and `SessionStore`, and persistence identity includes axis, viewport class, and magnitude so a materially worse mobile failure is fresh.
 
-- The whiteboard has four easy-to-reintroduce failure modes, all covered by tests or explained in comments:
+- The whiteboard has five easy-to-reintroduce failure modes, all covered by tests or explained in comments:
+  - Free-standing converted labels can outgrow Mermaid-sized shapes because the converter re-renders their text with different metrics.
+    Keep the post-conversion `fitShapesToFreeText` pass and its versioned saved-scene migration; the function's local comments and tests own the fitting details.
   - Mermaid skeletons must be materialized again after Excalidraw's scene fonts load; the first synchronous materialization uses a narrower browser-serif fallback and stores text bounds that clip the eventual Excalifont glyphs.
     Keep the font-load and second-conversion ordering in `convertExcalidrawSkeletonsAfterFontsLoad`, and keep the versioned saved-scene repair expansion-only so it never overwrites user geometry or content.
     The real-browser regression in `test/whiteboard-render.browser.test.js` covers both paths.

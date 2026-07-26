@@ -33,6 +33,9 @@ import {
   convertExcalidrawSkeletonsAfterFontsLoad,
   createWhiteboardPersistencePayload,
   findDuplicateElementIds,
+  fitSavedSceneShapesToFreeText,
+  fitShapesToFreeText,
+  planSavedSceneTextMetricsMigration,
   repairSavedSceneTextMetrics,
   sanitizeSceneLink,
   sanitizeWhiteboardAppState,
@@ -54,6 +57,7 @@ const state = {
   currentSource: "",
   currentSourceHash: "",
   baselineElements: [],
+  baselineAvailable: true,
   files: {},
   imageFallback: false,
   textMetricsVersion: WHITEBOARD_TEXT_METRICS_VERSION,
@@ -438,12 +442,13 @@ async function convertSource(source) {
     }
     return elements;
   };
-  const elements = await convertExcalidrawSkeletonsAfterFontsLoad(skeletons, {
+  const converted = await convertExcalidrawSkeletonsAfterFontsLoad(skeletons, {
     convert: materialize,
     loadFonts: async (fallbackElements) => {
       await loadSceneFonts(fallbackElements, files);
     },
   });
+  const { elements } = fitShapesToFreeText(converted);
   return { elements, files: files || {}, imageFallback: sceneIsImageFallback(elements) };
 }
 
@@ -460,6 +465,7 @@ function defaultAppState() {
 async function startFromConversion(init) {
   const { elements, files, imageFallback } = await convertSource(init.source);
   state.baselineElements = JSON.parse(JSON.stringify(elements));
+  state.baselineAvailable = true;
   state.files = files;
   state.imageFallback = imageFallback;
   state.sceneSourceHash = init.sourceHash;
@@ -491,18 +497,21 @@ async function startFromSavedScene(init) {
     { repairBindings: true },
   );
   let elements = restored.elements;
-  let baselineElements = Array.isArray(saved.baseline?.elements)
-    ? JSON.parse(JSON.stringify(saved.baseline.elements))
-    : JSON.parse(JSON.stringify(restored.elements));
+  const hasSavedBaseline = Array.isArray(saved.baseline?.elements);
+  let baselineElements = JSON.parse(JSON.stringify(hasSavedBaseline ? saved.baseline.elements : restored.elements));
   state.files = restored.files || saved.scene?.files || {};
   const savedMetricsVersion = Number(saved.text_metrics_version) || 0;
-  if (savedMetricsVersion < WHITEBOARD_TEXT_METRICS_VERSION) {
+  const metricsMigration = planSavedSceneTextMetricsMigration(savedMetricsVersion, hasSavedBaseline);
+  if (metricsMigration.shouldMigrate) {
     await loadSceneFonts(elements, state.files);
     elements = repairSavedSceneTextMetrics(elements, { measure: measureSceneText }).elements;
     baselineElements = repairSavedSceneTextMetrics(baselineElements, { measure: measureSceneText }).elements;
+    elements = fitSavedSceneShapesToFreeText(elements, baselineElements).elements;
+    baselineElements = fitShapesToFreeText(baselineElements).elements;
   }
   state.baselineElements = baselineElements;
-  state.textMetricsVersion = WHITEBOARD_TEXT_METRICS_VERSION;
+  state.baselineAvailable = hasSavedBaseline;
+  state.textMetricsVersion = metricsMigration.nextVersion;
   state.imageFallback = sceneIsImageFallback(elements);
   state.sceneSourceHash = saved.source_hash || init.sourceHash;
   if (state.imageFallback) {
@@ -517,7 +526,7 @@ async function startFromSavedScene(init) {
     files: state.files,
     theme: init.theme,
   });
-  if (savedMetricsVersion < WHITEBOARD_TEXT_METRICS_VERSION) scheduleSave();
+  if (metricsMigration.shouldMigrate) scheduleSave();
 }
 
 // The saved scene was converted from a different version of the diagram. Never

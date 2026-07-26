@@ -6,12 +6,27 @@
 
 export const WHITEBOARD_PROMPT_TAG = "whiteboard";
 export const EXCALIDRAW_SCENE_TARGET_TYPE = "excalidraw-scene";
-export const WHITEBOARD_TEXT_METRICS_VERSION = 1;
+// Bumped whenever a saved scene needs its geometry re-derived on open: 1 added
+// loaded-font text metrics, 2 added shape fitting around free-standing labels.
+export const WHITEBOARD_TEXT_METRICS_VERSION = 2;
 
 export const SUMMARY_MAX_LINES = 40;
 export const SUMMARY_MAX_LINE_CHARS = 200;
 const SUMMARY_MOVE_EPSILON_PX = 2;
 const STAT_KEYS = ["added", "removed", "moved", "relabeled", "drawn"];
+
+/**
+ * @param {unknown} savedVersion
+ * @param {boolean} hasBaseline
+ */
+export function planSavedSceneTextMetricsMigration(savedVersion, hasBaseline) {
+  const version = Math.max(0, Math.floor(Number(savedVersion) || 0));
+  const shouldMigrate = version < WHITEBOARD_TEXT_METRICS_VERSION && hasBaseline;
+  return {
+    shouldMigrate,
+    nextVersion: shouldMigrate ? WHITEBOARD_TEXT_METRICS_VERSION : version,
+  };
+}
 
 export function sanitizeWhiteboardAppState(appState) {
   if (!appState || typeof appState !== "object" || Array.isArray(appState)) return {};
@@ -105,12 +120,182 @@ export function repairSavedSceneTextMetrics(elements, { measure }) {
   return { elements: repairedElements, repaired };
 }
 
+// Mermaid sizes every node from its own rendered SVG, measured in Mermaid's
+// font at Mermaid's font size. The converter then re-renders those labels in
+// Excalifont, sometimes at a font size of its own (ER attribute rows are
+// hard-coded to 18px), so the text can come out larger than the shape it was
+// measured inside. Excalidraw re-fits *bound* labels while materializing
+// skeletons - it wraps them and grows the container - but a free-standing text
+// element is bound to nothing, so nothing grows and the label spills past the
+// shape's border. Grow those shapes here, only along the edges the text
+// actually crosses, so the rest of Mermaid's layout stays where it was.
+const FITTABLE_SHAPE_TYPES = new Set(["rectangle", "ellipse", "diamond"]);
+// A diamond's and an ellipse's outline enclose only an inscribed box, so text
+// has to fit that smaller box rather than the shape's bounding box.
+const INSCRIBED_BOX_RATIO = { rectangle: 1, ellipse: 1 / Math.SQRT2, diamond: 0.5 };
+const SHAPE_TEXT_PADDING = 8;
+
+function elementBox(element) {
+  const x = Number(element.x) || 0;
+  const y = Number(element.y) || 0;
+  return { minX: x, minY: y, maxX: x + (Number(element.width) || 0), maxY: y + (Number(element.height) || 0) };
+}
+
+function boxContainsPoint(box, x, y) {
+  return x >= box.minX && x <= box.maxX && y >= box.minY && y <= box.maxY;
+}
+
+// The shape a free text element belongs to: the smallest one whose box the
+// text's center sits in. Mermaid nests shapes (a subgraph around its nodes, an
+// ER entity around its rows), and the innermost one is the label's own shape.
+function hostShapeFor(text, shapes) {
+  const box = elementBox(text);
+  const centerX = (box.minX + box.maxX) / 2;
+  const centerY = (box.minY + box.maxY) / 2;
+  let host = null;
+  let hostArea = Infinity;
+  for (const shape of shapes) {
+    const shapeBox = elementBox(shape);
+    if (!boxContainsPoint(shapeBox, centerX, centerY)) continue;
+    const area = (shapeBox.maxX - shapeBox.minX) * (shapeBox.maxY - shapeBox.minY);
+    if (area < hostArea) {
+      host = shape;
+      hostArea = area;
+    }
+  }
+  return host;
+}
+
+/**
+ * Grow every converted shape that a free-standing text element overflows, so no
+ * label is clipped by the shape it labels. Bound labels are left alone: the
+ * converter already fits their containers.
+ * @template {Record<string, any>} E
+ * @param {E[]} elements
+ * @returns {{ elements: E[], grown: number }}
+ */
+export function fitShapesToFreeText(elements, { padding = SHAPE_TEXT_PADDING } = {}) {
+  const list = Array.isArray(elements) ? elements : [];
+  const shapes = list.filter((element) => element && !element.isDeleted && FITTABLE_SHAPE_TYPES.has(element.type));
+  if (shapes.length === 0) return { elements: list, grown: 0 };
+
+  /** @type {Map<string, { minX: number, minY: number, maxX: number, maxY: number }>} */
+  const required = new Map();
+  for (const element of list) {
+    if (!element || element.isDeleted || element.type !== "text" || element.containerId) continue;
+    if (!(Number(element.width) > 0) || !(Number(element.height) > 0)) continue;
+    const host = hostShapeFor(element, shapes);
+    if (!host) continue;
+    const box = elementBox(element);
+    const previous = required.get(host.id);
+    required.set(
+      host.id,
+      previous
+        ? {
+            minX: Math.min(previous.minX, box.minX),
+            minY: Math.min(previous.minY, box.minY),
+            maxX: Math.max(previous.maxX, box.maxX),
+            maxY: Math.max(previous.maxY, box.maxY),
+          }
+        : box,
+    );
+  }
+  if (required.size === 0) return { elements: list, grown: 0 };
+
+  /** @type {{ from: ReturnType<typeof elementBox>, to: ReturnType<typeof elementBox> }[]} */
+  const stretches = [];
+  let grown = 0;
+  const fitted = list.map((element) => {
+    const wanted = element && !element.isDeleted ? required.get(element.id) : undefined;
+    if (!wanted || !FITTABLE_SHAPE_TYPES.has(element.type)) return element;
+    // Convert the text's box into the bounding box a shape of this type needs
+    // for its outline to enclose that text, keeping the text's center fixed.
+    const ratio = INSCRIBED_BOX_RATIO[element.type];
+    const centerX = (wanted.minX + wanted.maxX) / 2;
+    const centerY = (wanted.minY + wanted.maxY) / 2;
+    const halfWidth = (wanted.maxX - wanted.minX) / 2 / ratio + padding;
+    const halfHeight = (wanted.maxY - wanted.minY) / 2 / ratio + padding;
+    const box = elementBox(element);
+    const to = {
+      minX: Math.min(box.minX, centerX - halfWidth),
+      minY: Math.min(box.minY, centerY - halfHeight),
+      maxX: Math.max(box.maxX, centerX + halfWidth),
+      maxY: Math.max(box.maxY, centerY + halfHeight),
+    };
+    if (to.maxX - to.minX <= box.maxX - box.minX && to.maxY - to.minY <= box.maxY - box.minY) return element;
+    grown += 1;
+    stretches.push({ from: box, to });
+    return { ...element, x: to.minX, y: to.minY, width: to.maxX - to.minX, height: to.maxY - to.minY };
+  });
+  return { elements: stretches.length > 0 ? stretchInteriorLines(fitted, stretches) : fitted, grown };
+}
+
+/**
+ * @template {Record<string, any>} E
+ * @param {E[]} elements
+ * @param {E[]} baselineElements
+ * @param {{ padding?: number }} [options]
+ * @returns {{ elements: E[], grown: number }}
+ */
+export function fitSavedSceneShapesToFreeText(elements, baselineElements, options) {
+  const list = Array.isArray(elements) ? elements : [];
+  const baselineIds = new Set(
+    (Array.isArray(baselineElements) ? baselineElements : [])
+      .filter((element) => element && typeof element.id === "string")
+      .map((element) => element.id),
+  );
+  const ownedElements = list.filter((element) => element && baselineIds.has(element.id));
+  const fitted = fitShapesToFreeText(ownedElements, options);
+  if (fitted.grown === 0) return { elements: list, grown: 0 };
+
+  const repairs = new Map();
+  for (let index = 0; index < ownedElements.length; index += 1) {
+    if (fitted.elements[index] !== ownedElements[index]) {
+      repairs.set(ownedElements[index].id, fitted.elements[index]);
+    }
+  }
+  return {
+    elements: list.map((element) => (element ? repairs.get(element.id) || element : element)),
+    grown: fitted.grown,
+  };
+}
+
+// A widened shape leaves the rules Mermaid drew inside it - an ER table's row
+// and column dividers - stopping short of the new border. They are plain lines
+// with no binding to the shape, so stretch the shape's interior along with it.
+function stretchInteriorLines(elements, stretches) {
+  return elements.map((element) => {
+    if (!element || element.isDeleted || element.type !== "line") return element;
+    const box = elementBox(element);
+    const stretch = stretches.find(
+      ({ from }) => box.minX >= from.minX && box.maxX <= from.maxX && box.minY >= from.minY && box.maxY <= from.maxY,
+    );
+    if (!stretch) return element;
+    const { from, to } = stretch;
+    const scaleX = (to.maxX - to.minX) / (from.maxX - from.minX || 1);
+    const scaleY = (to.maxY - to.minY) / (from.maxY - from.minY || 1);
+    return {
+      ...element,
+      x: to.minX + (box.minX - from.minX) * scaleX,
+      y: to.minY + (box.minY - from.minY) * scaleY,
+      width: (Number(element.width) || 0) * scaleX,
+      height: (Number(element.height) || 0) * scaleY,
+      ...(Array.isArray(element.points)
+        ? { points: element.points.map(([dx, dy]) => [dx * scaleX, dy * scaleY]) }
+        : {}),
+    };
+  });
+}
+
 export function createWhiteboardPersistencePayload(state, scene) {
   return {
     sourceHash: String(state?.sceneSourceHash || ""),
     textMetricsVersion: Math.max(0, Math.floor(Number(state?.textMetricsVersion) || 0)),
     scene: scene ?? null,
-    baseline: { elements: Array.isArray(state?.baselineElements) ? state.baselineElements : [] },
+    baseline:
+      state?.baselineAvailable === false
+        ? null
+        : { elements: Array.isArray(state?.baselineElements) ? state.baselineElements : [] },
   };
 }
 
