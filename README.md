@@ -147,6 +147,7 @@ Nothing forces a cleanup, so sessions and the shared server can linger long afte
    An agent-initiated end still reopens on a plain `atelier-axi <html-file>`; a session you ended from the browser refuses a plain reopen and needs `--reopen`.
 2. **Stop the shared server** once `atelier-axi` lists no other session: `atelier-axi stop`.
    This is prompt cleanup, not a requirement - the server already self-stops when the last session ends with nothing connected, or after `ATELIER_AXI_IDLE_TIMEOUT_MS` (default 30 minutes) with no browser or poll attached.
+   When `ATELIER_AXI_IDLE_TIMEOUT_MS` is `0` or `off`, a manual stop can be required.
 3. **Deleted the artifact already?** `end` fails with `ENOENT` and the session keeps showing as open even after the server stops, because sessions are keyed by the canonical file path.
    Recreate an empty file at that exact path, run `atelier-axi end <html-file>`, then delete it again. Ending sessions before deleting their artifacts avoids this entirely.
 4. **Stop your own helpers separately.** A LAN port forwarder, SSH tunnel, or anything else you started alongside the server is a separate process Atelier never stops for you.

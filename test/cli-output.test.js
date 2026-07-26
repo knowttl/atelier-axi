@@ -1381,6 +1381,7 @@ test("home output carries one authoritative session wrap-up procedure", () => {
   assert.match(help, /needs `--reopen`/);
   assert.match(help, /self-stops when idle/);
   assert.match(help, /prompt cleanup rather than a requirement/);
+  assert.match(help, /ATELIER_AXI_IDLE_TIMEOUT_MS.*`0` or `off`.*manual stop can be required/);
   assert.match(help, /ENOENT/);
   assert.match(help, /LAN port forwarder/);
   assert.match(help, /`\.atelier\/`/);
