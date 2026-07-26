@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   createWhiteboardPersistencePayload,
   findDuplicateElementIds,
+  fitSavedSceneShapesToFreeText,
   fitShapesToFreeText,
   normalizeExcalidrawSceneTarget,
   repairSavedSceneTextMetrics,
@@ -191,6 +192,48 @@ test("fitShapesToFreeText stretches the rules a grown shape encloses", () => {
     [160, 0],
   ]);
   assert.deepEqual(elements[2], outside);
+});
+
+test("saved-scene fitting leaves user-authored elements out of migration", () => {
+  const shape = rect("entity", { x: 0, y: 0, width: 100, height: 40 });
+  const divider = {
+    id: "row",
+    type: "line",
+    x: 0,
+    y: 20,
+    width: 100,
+    height: 0,
+    points: [
+      [0, 0],
+      [100, 0],
+    ],
+  };
+  const label = freeText("attr", { x: 20, y: 10, width: 140, height: 20 });
+  const note = freeText("note", { x: 10, y: 10, width: 300, height: 20 });
+  const annotation = {
+    id: "annotation",
+    type: "line",
+    x: 0,
+    y: 30,
+    width: 100,
+    height: 0,
+    points: [
+      [0, 0],
+      [100, 0],
+    ],
+  };
+  const baseline = [shape, divider, label];
+  const { elements, grown } = fitSavedSceneShapesToFreeText(
+    [...structuredClone(baseline), note, annotation],
+    baseline,
+    { padding: 0 },
+  );
+  assert.equal(grown, 1);
+  assert.equal(elements[0].width, 160);
+  assert.equal(elements[1].width, 160);
+  assert.deepEqual(elements[3], note);
+  assert.deepEqual(elements[4], annotation);
+  assert.deepEqual(fitSavedSceneShapesToFreeText(elements, []).elements, elements);
 });
 
 test("whiteboard persistence payload keeps migration and baseline fields together", () => {

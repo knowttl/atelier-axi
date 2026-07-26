@@ -217,6 +217,36 @@ export function fitShapesToFreeText(elements, { padding = SHAPE_TEXT_PADDING } =
   return { elements: stretches.length > 0 ? stretchInteriorLines(fitted, stretches) : fitted, grown };
 }
 
+/**
+ * @template {Record<string, any>} E
+ * @param {E[]} elements
+ * @param {E[]} baselineElements
+ * @param {{ padding?: number }} [options]
+ * @returns {{ elements: E[], grown: number }}
+ */
+export function fitSavedSceneShapesToFreeText(elements, baselineElements, options) {
+  const list = Array.isArray(elements) ? elements : [];
+  const baselineIds = new Set(
+    (Array.isArray(baselineElements) ? baselineElements : [])
+      .filter((element) => element && typeof element.id === "string")
+      .map((element) => element.id),
+  );
+  const ownedElements = list.filter((element) => element && baselineIds.has(element.id));
+  const fitted = fitShapesToFreeText(ownedElements, options);
+  if (fitted.grown === 0) return { elements: list, grown: 0 };
+
+  const repairs = new Map();
+  for (let index = 0; index < ownedElements.length; index += 1) {
+    if (fitted.elements[index] !== ownedElements[index]) {
+      repairs.set(ownedElements[index].id, fitted.elements[index]);
+    }
+  }
+  return {
+    elements: list.map((element) => (element ? repairs.get(element.id) || element : element)),
+    grown: fitted.grown,
+  };
+}
+
 // A widened shape leaves the rules Mermaid drew inside it - an ER table's row
 // and column dividers - stopping short of the new border. They are plain lines
 // with no binding to the shape, so stretch the shape's interior along with it.

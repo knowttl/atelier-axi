@@ -33,6 +33,7 @@ import {
   convertExcalidrawSkeletonsAfterFontsLoad,
   createWhiteboardPersistencePayload,
   findDuplicateElementIds,
+  fitSavedSceneShapesToFreeText,
   fitShapesToFreeText,
   repairSavedSceneTextMetrics,
   sanitizeSceneLink,
@@ -493,19 +494,20 @@ async function startFromSavedScene(init) {
     { repairBindings: true },
   );
   let elements = restored.elements;
-  let baselineElements = Array.isArray(saved.baseline?.elements)
-    ? JSON.parse(JSON.stringify(saved.baseline.elements))
-    : JSON.parse(JSON.stringify(restored.elements));
+  const hasSavedBaseline = Array.isArray(saved.baseline?.elements);
+  let baselineElements = JSON.parse(
+    JSON.stringify(hasSavedBaseline ? saved.baseline.elements : restored.elements),
+  );
   state.files = restored.files || saved.scene?.files || {};
   const savedMetricsVersion = Number(saved.text_metrics_version) || 0;
   if (savedMetricsVersion < WHITEBOARD_TEXT_METRICS_VERSION) {
     await loadSceneFonts(elements, state.files);
-    elements = fitShapesToFreeText(
-      repairSavedSceneTextMetrics(elements, { measure: measureSceneText }).elements,
-    ).elements;
-    baselineElements = fitShapesToFreeText(
-      repairSavedSceneTextMetrics(baselineElements, { measure: measureSceneText }).elements,
-    ).elements;
+    elements = repairSavedSceneTextMetrics(elements, { measure: measureSceneText }).elements;
+    baselineElements = repairSavedSceneTextMetrics(baselineElements, { measure: measureSceneText }).elements;
+    if (hasSavedBaseline) {
+      elements = fitSavedSceneShapesToFreeText(elements, baselineElements).elements;
+      baselineElements = fitShapesToFreeText(baselineElements).elements;
+    }
   }
   state.baselineElements = baselineElements;
   state.textMetricsVersion = WHITEBOARD_TEXT_METRICS_VERSION;
