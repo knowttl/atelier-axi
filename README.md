@@ -139,6 +139,21 @@ The whole loop runs locally — no account, no cloud, nothing to configure:
     repeat or end)
 ```
 
+### Wrapping up a finished review
+
+Nothing forces a cleanup, so sessions and the shared server can linger long after a review is over. When you are done:
+
+1. **End the session.** Click **End session** (or **Send & End**) in the browser, or have the agent run `atelier-axi end <html-file>`.
+   An agent-initiated end still reopens on a plain `atelier-axi <html-file>`; a session you ended from the browser refuses a plain reopen and needs `--reopen`.
+2. **Stop the shared server** once `atelier-axi` lists no other session: `atelier-axi stop`.
+   This is prompt cleanup, not a requirement - the server already self-stops when the last session ends with nothing connected, or after `ATELIER_AXI_IDLE_TIMEOUT_MS` (default 30 minutes) with no browser or poll attached.
+   When `ATELIER_AXI_IDLE_TIMEOUT_MS` is `0` or `off`, a manual stop can be required.
+3. **Deleted the artifact already?** `end` fails with `ENOENT` and the session keeps showing as open even after the server stops, because sessions are keyed by the canonical file path.
+   Recreate an empty file at that exact path, run `atelier-axi end <html-file>`, then delete it again. Ending sessions before deleting their artifacts avoids this entirely.
+4. **Stop your own helpers separately.** A LAN port forwarder, SSH tunnel, or anything else you started alongside the server is a separate process Atelier never stops for you.
+5. **Clear the leftovers.** Artifacts live under `.atelier/` in the working directory by default, with any `<name>.export.html` copies beside them.
+   Whiteboard scene sidecars live under `<state-dir>/whiteboards/<key>/`, where `<state-dir>` is `~/.atelier-axi` by default or `ATELIER_AXI_STATE_DIR` when set, and `<key>` is the final segment of that session's URL; they are never removed automatically.
+
 ## How It Works
 
 Under the hood, that loop is built from these pieces:

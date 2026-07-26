@@ -84,8 +84,8 @@ Planning and implementation are one continuous arc: \`planning.md\` ends by offe
 ${POLL_WAKE_PATH_RULES.map((rule) => `   ${skillCommandText(rule)}`).join("\n")}
 4. If poll returns \`layout_warnings\`, follow the returned \`next_step\`: repair the severe failure and re-check it before involving the human.
 5. Apply human feedback, then poll again with \`--agent-reply "<message>"\` to reply in the browser and keep the loop going under the same foreground-or-verified-wake-path rule.
-6. Run \`npx -y atelier-axi end <html-file>\` when the review is finished.
-7. ${POLL_SEND_AND_END_RULE} Deliver any remaining updates directly in this conversation.
+6. ${POLL_SEND_AND_END_RULE} Deliver any remaining updates directly in this conversation.
+7. Wrap up when the review is finished - see the wrap-up entry under **Commands & rules** below for the full procedure: \`npx -y atelier-axi end <html-file>\`, then \`npx -y atelier-axi stop\` once no other session is listed, plus the leftovers to check.
 
 ## Visual guidance
 

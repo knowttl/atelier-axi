@@ -94,6 +94,21 @@ test("createSkillMarkdown requires an observable wake path for every poll", () =
   assert.doesNotMatch(md, /Codex detected/);
 });
 
+test("createSkillMarkdown ends the workflow with the session wrap-up", () => {
+  const md = createSkillMarkdown();
+  const workflow = md.slice(md.indexOf("## Workflow"), md.indexOf("## Visual guidance"));
+  const rules = md.slice(md.indexOf("## Commands & rules"));
+
+  assert.match(workflow, /Wrap up when the review is finished/);
+  assert.match(workflow, /npx -y atelier-axi end <html-file>/);
+  assert.match(workflow, /npx -y atelier-axi stop/);
+  // The workflow step is a pointer; the full procedure is stated once, under Commands & rules.
+  assert.match(rules, /ENOENT/);
+  assert.match(rules, /LAN port forwarder/);
+  assert.match(rules, /<state-dir>\/whiteboards\/<key>\//);
+  assert.match(rules, /<key>.*final segment of that session's URL/);
+});
+
 test("createSkillMarkdown requires opening every matching playbook", () => {
   const md = createSkillMarkdown();
   const playbooksSection = md.slice(md.indexOf("## Playbooks"), md.indexOf("## Commands & rules"));

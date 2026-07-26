@@ -1370,6 +1370,51 @@ test("non-whiteboard feedback does not mention whiteboard guidance", () => {
   assert.doesNotMatch(output.next_step, /whiteboard/i);
 });
 
+test("home output carries one authoritative session wrap-up procedure", () => {
+  const output = createHomeOutput({ bin: "atelier-axi", sessions: [] });
+  const wrapUp = output.help.filter((item) => item.includes("atelier-axi stop"));
+
+  assert.equal(wrapUp.length, 1, "the wrap-up procedure is stated once, not spread across help lines");
+  const [help] = wrapUp;
+  assert.match(help, /atelier-axi end <html-file>/);
+  assert.match(help, /still allows a plain reopen later/);
+  assert.match(help, /needs `--reopen`/);
+  assert.match(help, /self-stops when idle/);
+  assert.match(help, /prompt cleanup rather than a requirement/);
+  assert.match(help, /ATELIER_AXI_IDLE_TIMEOUT_MS.*`0` or `off`.*manual stop can be required/);
+  assert.match(help, /ENOENT/);
+  assert.match(help, /LAN port forwarder/);
+  assert.match(help, /`\.atelier\/`/);
+  assert.match(help, /<state-dir>\/whiteboards\/<key>\//);
+  assert.match(help, /<key>.*final segment of that session's URL/);
+
+  const endHelp = getCommandHelp("end");
+  assert.match(endHelp, /see the wrap-up entry in its help for the full procedure/);
+  assert.doesNotMatch(endHelp, /ENOENT|recreate an empty file/);
+});
+
+test("the end-of-review poll responses point at the wrap-up procedure", () => {
+  const responses = [
+    { status: "ended", ended_by: "user" },
+    { status: "ended", ended_by: "agent" },
+    { status: "feedback", prompts: [], dom_snapshot: "", session_ended: true, ended_by: "user" },
+    { status: "feedback", prompts: [], dom_snapshot: "", session_ended: true, ended_by: "agent" },
+  ];
+
+  for (const response of responses) {
+    const { next_step: nextStep } = createPollOutput({ file: "/tmp/report.html", response });
+    assert.match(nextStep, /run `atelier-axi stop`/, JSON.stringify(response));
+    assert.match(nextStep, /lists no other session/, JSON.stringify(response));
+    assert.match(nextStep, /clear artifact leftovers/, JSON.stringify(response));
+  }
+});
+
+test("a poll still waiting for feedback does not nag about wrapping up", () => {
+  const output = createPollOutput({ file: "/tmp/report.html", response: { status: "waiting" } });
+
+  assert.doesNotMatch(output.next_step, /atelier-axi stop/);
+});
+
 test("a poll reporting the session ended by the user tells the agent to stop and not reopen", () => {
   const output = createPollOutput({
     file: "/tmp/report.html",
