@@ -33,6 +33,7 @@ import {
   convertExcalidrawSkeletonsAfterFontsLoad,
   createWhiteboardPersistencePayload,
   findDuplicateElementIds,
+  fitShapesToFreeText,
   repairSavedSceneTextMetrics,
   sanitizeSceneLink,
   sanitizeWhiteboardAppState,
@@ -438,12 +439,13 @@ async function convertSource(source) {
     }
     return elements;
   };
-  const elements = await convertExcalidrawSkeletonsAfterFontsLoad(skeletons, {
+  const converted = await convertExcalidrawSkeletonsAfterFontsLoad(skeletons, {
     convert: materialize,
     loadFonts: async (fallbackElements) => {
       await loadSceneFonts(fallbackElements, files);
     },
   });
+  const { elements } = fitShapesToFreeText(converted);
   return { elements, files: files || {}, imageFallback: sceneIsImageFallback(elements) };
 }
 
@@ -498,8 +500,12 @@ async function startFromSavedScene(init) {
   const savedMetricsVersion = Number(saved.text_metrics_version) || 0;
   if (savedMetricsVersion < WHITEBOARD_TEXT_METRICS_VERSION) {
     await loadSceneFonts(elements, state.files);
-    elements = repairSavedSceneTextMetrics(elements, { measure: measureSceneText }).elements;
-    baselineElements = repairSavedSceneTextMetrics(baselineElements, { measure: measureSceneText }).elements;
+    elements = fitShapesToFreeText(
+      repairSavedSceneTextMetrics(elements, { measure: measureSceneText }).elements,
+    ).elements;
+    baselineElements = fitShapesToFreeText(
+      repairSavedSceneTextMetrics(baselineElements, { measure: measureSceneText }).elements,
+    ).elements;
   }
   state.baselineElements = baselineElements;
   state.textMetricsVersion = WHITEBOARD_TEXT_METRICS_VERSION;
