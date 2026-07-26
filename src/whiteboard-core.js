@@ -15,6 +15,19 @@ export const SUMMARY_MAX_LINE_CHARS = 200;
 const SUMMARY_MOVE_EPSILON_PX = 2;
 const STAT_KEYS = ["added", "removed", "moved", "relabeled", "drawn"];
 
+/**
+ * @param {unknown} savedVersion
+ * @param {boolean} hasBaseline
+ */
+export function planSavedSceneTextMetricsMigration(savedVersion, hasBaseline) {
+  const version = Math.max(0, Math.floor(Number(savedVersion) || 0));
+  const shouldMigrate = version < WHITEBOARD_TEXT_METRICS_VERSION && hasBaseline;
+  return {
+    shouldMigrate,
+    nextVersion: shouldMigrate ? WHITEBOARD_TEXT_METRICS_VERSION : version,
+  };
+}
+
 export function sanitizeWhiteboardAppState(appState) {
   if (!appState || typeof appState !== "object" || Array.isArray(appState)) return {};
   const safeAppState = { ...appState };
@@ -279,7 +292,10 @@ export function createWhiteboardPersistencePayload(state, scene) {
     sourceHash: String(state?.sceneSourceHash || ""),
     textMetricsVersion: Math.max(0, Math.floor(Number(state?.textMetricsVersion) || 0)),
     scene: scene ?? null,
-    baseline: { elements: Array.isArray(state?.baselineElements) ? state.baselineElements : [] },
+    baseline:
+      state?.baselineAvailable === false
+        ? null
+        : { elements: Array.isArray(state?.baselineElements) ? state.baselineElements : [] },
   };
 }
 

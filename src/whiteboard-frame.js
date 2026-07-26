@@ -35,6 +35,7 @@ import {
   findDuplicateElementIds,
   fitSavedSceneShapesToFreeText,
   fitShapesToFreeText,
+  planSavedSceneTextMetricsMigration,
   repairSavedSceneTextMetrics,
   sanitizeSceneLink,
   sanitizeWhiteboardAppState,
@@ -56,6 +57,7 @@ const state = {
   currentSource: "",
   currentSourceHash: "",
   baselineElements: [],
+  baselineAvailable: true,
   files: {},
   imageFallback: false,
   textMetricsVersion: WHITEBOARD_TEXT_METRICS_VERSION,
@@ -463,6 +465,7 @@ function defaultAppState() {
 async function startFromConversion(init) {
   const { elements, files, imageFallback } = await convertSource(init.source);
   state.baselineElements = JSON.parse(JSON.stringify(elements));
+  state.baselineAvailable = true;
   state.files = files;
   state.imageFallback = imageFallback;
   state.sceneSourceHash = init.sourceHash;
@@ -500,17 +503,17 @@ async function startFromSavedScene(init) {
   );
   state.files = restored.files || saved.scene?.files || {};
   const savedMetricsVersion = Number(saved.text_metrics_version) || 0;
-  if (savedMetricsVersion < WHITEBOARD_TEXT_METRICS_VERSION) {
+  const metricsMigration = planSavedSceneTextMetricsMigration(savedMetricsVersion, hasSavedBaseline);
+  if (metricsMigration.shouldMigrate) {
     await loadSceneFonts(elements, state.files);
     elements = repairSavedSceneTextMetrics(elements, { measure: measureSceneText }).elements;
     baselineElements = repairSavedSceneTextMetrics(baselineElements, { measure: measureSceneText }).elements;
-    if (hasSavedBaseline) {
-      elements = fitSavedSceneShapesToFreeText(elements, baselineElements).elements;
-      baselineElements = fitShapesToFreeText(baselineElements).elements;
-    }
+    elements = fitSavedSceneShapesToFreeText(elements, baselineElements).elements;
+    baselineElements = fitShapesToFreeText(baselineElements).elements;
   }
   state.baselineElements = baselineElements;
-  state.textMetricsVersion = WHITEBOARD_TEXT_METRICS_VERSION;
+  state.baselineAvailable = hasSavedBaseline;
+  state.textMetricsVersion = metricsMigration.nextVersion;
   state.imageFallback = sceneIsImageFallback(elements);
   state.sceneSourceHash = saved.source_hash || init.sourceHash;
   if (state.imageFallback) {
@@ -525,7 +528,7 @@ async function startFromSavedScene(init) {
     files: state.files,
     theme: init.theme,
   });
-  if (savedMetricsVersion < WHITEBOARD_TEXT_METRICS_VERSION) scheduleSave();
+  if (metricsMigration.shouldMigrate) scheduleSave();
 }
 
 // The saved scene was converted from a different version of the diagram. Never

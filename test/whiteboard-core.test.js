@@ -7,6 +7,7 @@ import {
   fitSavedSceneShapesToFreeText,
   fitShapesToFreeText,
   normalizeExcalidrawSceneTarget,
+  planSavedSceneTextMetricsMigration,
   repairSavedSceneTextMetrics,
   sanitizeSceneLink,
   sceneIsImageFallback,
@@ -99,6 +100,17 @@ test("saved text repair only expands metrics", () => {
   assert.equal(repaired, 1);
   assert.deepEqual(elements[0], { ...text, width: 118.5, height: 24 });
   assert.strictEqual(elements[1].id, "box");
+});
+
+test("saved text migration defers without converter provenance", () => {
+  assert.deepEqual(planSavedSceneTextMetricsMigration(1, false), {
+    shouldMigrate: false,
+    nextVersion: 1,
+  });
+  assert.deepEqual(planSavedSceneTextMetricsMigration(1, true), {
+    shouldMigrate: true,
+    nextVersion: 2,
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -247,6 +259,18 @@ test("whiteboard persistence payload keeps migration and baseline fields togethe
       scene,
       baseline: { elements: baselineElements },
     },
+  );
+  assert.equal(
+    createWhiteboardPersistencePayload(
+      {
+        sceneSourceHash: "hash-1",
+        textMetricsVersion: 1,
+        baselineElements,
+        baselineAvailable: false,
+      },
+      scene,
+    ).baseline,
+    null,
   );
 });
 
