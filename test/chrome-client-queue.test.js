@@ -25,6 +25,7 @@ async function createChromeHarness({
   const elements = new Map();
   const timers = new Map();
   const srcLoads = [];
+  const clipboardWrites = [];
   let nextTimerId = 1;
   let reloadCount = 0;
 
@@ -160,7 +161,13 @@ async function createChromeHarness({
         reloadCount += 1;
       },
     },
-    navigator: {},
+    navigator: {
+      clipboard: {
+        async writeText(value) {
+          clipboardWrites.push(String(value));
+        },
+      },
+    },
     setTimeout: fakeSetTimeout,
     URL: {
       createObjectURL() {
@@ -217,10 +224,19 @@ async function createChromeHarness({
   };
 
   vm.runInNewContext(source, context, { filename: "chrome-client.js" });
+  for (const handler of windowListeners.get("message") || []) {
+    handler({
+      source: frame.contentWindow,
+      data: { type: "atelier:sdkReady", documentToken: "document-1", documentSequence: 1 },
+    });
+  }
+  if (artifactSrc) frame.listeners.get("load")?.();
+  postedToFrame.length = 0;
 
   return {
     element,
     frame,
+    clipboardWrites,
     postedToFrame,
     postedToWhiteboard,
     createInlineWhiteboard() {
@@ -242,6 +258,28 @@ async function createChromeHarness({
       const handlers = windowListeners.get("message") || [];
       assert.ok(handlers.length > 0, "chrome-client registered a message handler");
       for (const handler of handlers) handler({ source: frame.contentWindow, data });
+    },
+    sendSnapshot(
+      snapshot,
+      request = postedToFrame.findLast((message) => message.type === "atelier:requestSnapshot"),
+      documentToken = "document-1",
+      documentSequence = 1,
+    ) {
+      assert.equal(request?.type, "atelier:requestSnapshot");
+      const handlers = windowListeners.get("message") || [];
+      assert.ok(handlers.length > 0, "chrome-client registered a message handler");
+      for (const handler of handlers) {
+        handler({
+          source: frame.contentWindow,
+          data: {
+            type: "atelier:snapshot",
+            requestId: request.requestId,
+            documentToken,
+            documentSequence,
+            snapshot,
+          },
+        });
+      }
     },
     sendWhiteboardMessage(data) {
       const handlers = windowListeners.get("message") || [];
@@ -804,7 +842,7 @@ test("chrome client strips the internal queue key before posting prompts", async
   chrome.element("send").onclick();
   assert.equal(chrome.postedToFrame.at(-1).type, "atelier:requestSnapshot");
 
-  chrome.sendFrameMessage({ type: "atelier:snapshot", snapshot: "uid=1 body" });
+  chrome.sendSnapshot("uid=1 body");
   await flushPromises();
 
   assert.equal(posts.length, 1);
@@ -814,6 +852,180 @@ test("chrome client strips the internal queue key before posting prompts", async
     domSnapshot: "uid=1 body",
   });
   assert.equal(chrome.queued().length, 0);
+});
+
+// Regression: a poll that drained feedback and released leaves presence "working" for as long as the
+// agent takes to confirm and rewrite the artifact - exactly when the reviewer answers the next
+// decision card. Blocking the send there discarded the answer silently: it never reached the session
+// store, so the agent never wrote it into the artifact and a reload or a fresh tab served the
+// undecided file back.
+test("a decision sent while the agent is working still reaches the session store", async () => {
+  const posts = [];
+  const chrome = await createChromeHarness({
+    fetchImpl: async (url, init) => {
+      posts.push({ url, body: JSON.parse(init.body) });
+      return { ok: true };
+    },
+  });
+
+  chrome.eventSource().listeners.get("agent-presence")({ data: JSON.stringify({ state: "working" }) });
+  assert.equal(chrome.element("send").disabled, false);
+  assert.equal(chrome.element("sendAndEnd").disabled, false);
+
+  chrome.sendFrameMessage({
+    type: "atelier:queuePrompt",
+    prompt: { prompt: "D1: Accept", selector: "form#d1", tag: "choice", text: "D1: Accept", _atelierQueueKey: "d1" },
+  });
+  chrome.element("send").onclick();
+  chrome.sendSnapshot("uid=1 body");
+  await flushPromises();
+
+  assert.deepEqual(
+    posts.map((post) => post.url),
+    ["/api/abc/prompts"],
+  );
+  assert.deepEqual(posts[0].body.prompts, [
+    { prompt: "D1: Accept", selector: "form#d1", tag: "choice", text: "D1: Accept" },
+  ]);
+  assert.equal(chrome.queued().length, 0);
+});
+
+test("a decision submit survives an artifact reload before the snapshot reply", async () => {
+  const posts = [];
+  const chrome = await createChromeHarness({
+    artifactSrc: "/artifact/abc/index.html",
+    fetchImpl: async (url, init) => {
+      posts.push({ url, body: JSON.parse(init.body) });
+      return { ok: true };
+    },
+  });
+
+  chrome.sendFrameMessage({
+    type: "atelier:queuePrompt",
+    prompt: { prompt: "D2: Keep", selector: "form#d2", tag: "choice", text: "D2: Keep" },
+  });
+  chrome.element("send").onclick();
+  const staleRequest = chrome.postedToFrame.at(-1);
+
+  chrome.eventSource().listeners.get("reload")();
+  await flushPromises();
+  await flushPromises();
+
+  assert.deepEqual(
+    posts.map((post) => post.url),
+    ["/api/abc/prompts"],
+  );
+  assert.deepEqual(posts[0].body, {
+    prompts: [{ prompt: "D2: Keep", selector: "form#d2", tag: "choice", text: "D2: Keep" }],
+    domSnapshot: "",
+  });
+  assert.equal(chrome.queued().length, 0);
+
+  chrome.sendSnapshot("stale snapshot", staleRequest);
+  await flushPromises();
+  assert.equal(posts.length, 1);
+});
+
+test("queued readiness and load events preserve a new-document submit request", async () => {
+  const posts = [];
+  const chrome = await createChromeHarness({
+    artifactSrc: "/artifact/abc/index.html",
+    fetchImpl: async (url, init) => {
+      posts.push({ url, body: JSON.parse(init.body) });
+      return { ok: true };
+    },
+  });
+
+  chrome.sendFrameMessage({
+    type: "atelier:queuePrompt",
+    prompt: { prompt: "D3: Keep", selector: "form#d3", tag: "choice", text: "D3: Keep" },
+  });
+  chrome.element("send").onclick();
+  const request = chrome.postedToFrame.at(-1);
+
+  chrome.frame.listeners.get("load")();
+  chrome.sendFrameMessage({ type: "atelier:sdkReady", documentToken: "document-2", documentSequence: 2 });
+  await flushPromises();
+  assert.equal(posts.length, 0);
+
+  chrome.sendSnapshot("fresh document", request, "document-2", 2);
+  await flushPromises();
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].body.domSnapshot, "fresh document");
+  assert.equal(chrome.queued().length, 0);
+});
+
+test("queued readiness and load events preserve a new-document copy request", async () => {
+  const chrome = await createChromeHarness({ artifactSrc: "/artifact/abc/index.html" });
+
+  chrome.element("copySnapshot").onclick();
+  const request = chrome.postedToFrame.at(-1);
+
+  chrome.sendFrameMessage({ type: "atelier:sdkReady", documentToken: "document-2", documentSequence: 2 });
+  chrome.frame.listeners.get("load")();
+  chrome.sendSnapshot("fresh document", request, "document-2", 2);
+  await flushPromises();
+
+  assert.deepEqual(chrome.clipboardWrites, ["fresh document"]);
+
+  chrome.element("copySnapshot").onclick();
+  const orphanedRequest = chrome.postedToFrame.at(-1);
+  chrome.eventSource().listeners.get("reload")();
+  chrome.sendSnapshot("stale document", orphanedRequest);
+  await flushPromises();
+
+  assert.deepEqual(chrome.clipboardWrites, ["fresh document"]);
+});
+
+test("delayed old-document readiness cannot reauthorize stale snapshots or drop a submit", async () => {
+  const posts = [];
+  const chrome = await createChromeHarness({
+    artifactSrc: "/artifact/abc/index.html",
+    fetchImpl: async (url, init) => {
+      posts.push({ url, body: JSON.parse(init.body) });
+      return { ok: true };
+    },
+  });
+
+  chrome.sendFrameMessage({
+    type: "atelier:queuePrompt",
+    prompt: { prompt: "D4: Keep", selector: "form#d4", tag: "choice", text: "D4: Keep" },
+  });
+  chrome.element("send").onclick();
+  const request = chrome.postedToFrame.at(-1);
+
+  chrome.frame.listeners.get("load")();
+  chrome.sendFrameMessage({ type: "atelier:sdkReady", documentToken: "document-1", documentSequence: 1 });
+  chrome.sendSnapshot("stale document", request, "document-1", 1);
+  await flushPromises();
+
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].body.domSnapshot, "");
+  assert.equal(chrome.queued().length, 0);
+
+  chrome.sendFrameMessage({ type: "atelier:sdkReady", documentToken: "document-2", documentSequence: 2 });
+  chrome.sendFrameMessage({
+    type: "atelier:queuePrompt",
+    prompt: { prompt: "D5: Keep", selector: "form#d5", tag: "choice", text: "D5: Keep" },
+  });
+  chrome.element("send").onclick();
+  const currentRequest = chrome.postedToFrame.at(-1);
+  chrome.sendSnapshot("current document", currentRequest, "document-2", 2);
+  await flushPromises();
+
+  assert.equal(posts.length, 2);
+  assert.equal(posts[1].body.domSnapshot, "current document");
+  assert.equal(chrome.queued().length, 0);
+
+  chrome.element("copySnapshot").onclick();
+  const copyRequest = chrome.postedToFrame.at(-1);
+  chrome.frame.listeners.get("load")();
+  chrome.sendFrameMessage({ type: "atelier:sdkReady", documentToken: "document-2", documentSequence: 2 });
+  chrome.sendSnapshot("stale document", copyRequest, "document-2", 2);
+  await flushPromises();
+
+  assert.deepEqual(chrome.clipboardWrites, []);
+  chrome.sendFrameMessage({ type: "atelier:sdkReady", documentToken: "document-3", documentSequence: 3 });
 });
 
 test("chrome client tells the artifact which prompts were sent after a successful submit", async () => {
@@ -837,7 +1049,7 @@ test("chrome client tells the artifact which prompts were sent after a successfu
     prompt: { prompt: "Freeform note", uid: "", selector: "", tag: "message", text: "Note" },
   });
   chrome.element("send").onclick();
-  chrome.sendFrameMessage({ type: "atelier:snapshot", snapshot: "uid=1 body" });
+  chrome.sendSnapshot("uid=1 body");
   await flushPromises();
 
   const sent = chrome.postedToFrame.filter((message) => message.type === "atelier:promptsSent");
@@ -865,7 +1077,7 @@ test("chrome send and end carries the end intent with queued prompts", async () 
   chrome.element("sendAndEnd").onclick();
   assert.equal(chrome.postedToFrame.at(-1).type, "atelier:requestSnapshot");
 
-  chrome.sendFrameMessage({ type: "atelier:snapshot", snapshot: "uid=1 body" });
+  chrome.sendSnapshot("uid=1 body");
   await flushPromises();
   await flushPromises();
 
@@ -921,12 +1133,12 @@ test("chrome send and end during an in-flight submit still ends after the submit
     prompt: { prompt: "Ship this", selector: "button#ship", tag: "choice", text: "Ship" },
   });
   chrome.element("send").onclick();
-  chrome.sendFrameMessage({ type: "atelier:snapshot", snapshot: "uid=1 body" });
+  chrome.sendSnapshot("uid=1 body");
   await flushPromises();
   assert.equal(posts.length, 1);
 
   chrome.element("sendAndEnd").onclick();
-  chrome.sendFrameMessage({ type: "atelier:snapshot", snapshot: "uid=1 body" });
+  chrome.sendSnapshot("uid=1 body");
   await flushPromises();
   assert.equal(posts.length, 1);
 
@@ -949,7 +1161,7 @@ test("chrome send and end during an in-flight submit still ends after the submit
 
 test("chrome client starts annotation mode off and enables it with Cmd/Ctrl+I", async () => {
   const chrome = await createChromeHarness();
-  chrome.sendFrameMessage({ type: "atelier:sdkReady" });
+  chrome.sendFrameMessage({ type: "atelier:sdkReady", documentToken: "document-2", documentSequence: 2 });
   assert.equal(chrome.postedToFrame.at(-1).type, "atelier:setAnnotationMode");
   assert.equal(chrome.postedToFrame.at(-1).enabled, false);
 
@@ -970,7 +1182,7 @@ test("chrome client replays enabled annotation mode when a reloaded artifact SDK
   const chrome = await createChromeHarness();
 
   chrome.dispatchDocumentKeydown({ key: "i", metaKey: true });
-  chrome.sendFrameMessage({ type: "atelier:sdkReady" });
+  chrome.sendFrameMessage({ type: "atelier:sdkReady", documentToken: "document-2", documentSequence: 2 });
 
   assert.equal(chrome.element("annotation")["aria-pressed"], "true");
   assert.equal(chrome.postedToFrame.at(-1).type, "atelier:setAnnotationMode");

@@ -250,7 +250,9 @@ test("artifact SDK registers a capture-phase document keydown listener for the m
 test("artifact SDK announces readiness after registering its chrome message listener", () => {
   const js = createSdkJs("abc");
   const listenerIndex = js.indexOf('window.addEventListener("message"');
-  const readyIndex = js.indexOf('parent.postMessage({ type: "atelier:sdkReady" }, "*")');
+  const readyIndex = js.indexOf(
+    'parent.postMessage({ type: "atelier:sdkReady", documentToken, documentSequence }, "*")',
+  );
 
   assert.notEqual(listenerIndex, -1);
   assert.ok(readyIndex > listenerIndex);
@@ -540,12 +542,17 @@ test("overflow menu offers publishing an ht-ml.app link via a share dialog", asy
 
 test("copy DOM snapshot requests a fresh snapshot and copies it to the clipboard", async () => {
   const js = await chromeClientSource();
+  const sdk = createSdkJs("abc");
 
   assert.match(js, /const snapshotRequests = \[\]/);
   assert.match(js, /requestSnapshot\("copy"\)/);
-  assert.match(js, /const snapshotAction = snapshotRequests\.shift\(\) \|\| "submit"/);
-  assert.match(js, /if \(snapshotAction === "copy"\)/);
-  assert.match(js, /copyText\(msg\.snapshot \|\| ""\)/);
+  assert.match(js, /String\(msg\.documentToken \|\| ""\) !== currentDocumentToken/);
+  assert.match(js, /Number\(msg\.documentSequence\) !== currentDocumentSequence/);
+  assert.match(js, /if \(request\.action === "copy"\)/);
+  assert.match(js, /copyText\(snapshot\)/);
+  assert.match(sdk, /requestId: msg\.requestId/);
+  assert.match(sdk, /documentToken/);
+  assert.match(sdk, /documentSequence/);
 });
 
 test("clipboard copy falls back when navigator clipboard rejects", async () => {
@@ -627,12 +634,12 @@ test("chrome shows agent working state when a previous poll has released", async
   assert.match(js, /spinner/);
 });
 
-test("chrome disables sending only while working or ended", async () => {
+test("chrome disables sending only once the session has ended", async () => {
   const js = await chromeClientSource();
 
   assert.match(js, /let agentPresence = "waiting"/);
   assert.match(js, /function updateSendState\(\)/);
-  assert.match(js, /sendButton\.disabled = ended \|\| agentPresence === "working"/);
+  assert.match(js, /sendButton\.disabled = ended;/);
   assert.match(js, /sendAndEndButton\.disabled = sendButton\.disabled/);
   assert.doesNotMatch(js, /hasContent/);
 });
@@ -2650,8 +2657,8 @@ test("SSE agent-presence returns to waiting after an agent reply", async () => {
       await fetch(`${base}/api/poll?file=${encodeURIComponent(artifact)}`);
       assert.equal(await presence.next(), "working");
 
-      // The reply concludes that work. Without a clear here, presence stays "working"
-      // forever (the chrome disables Send) until some future poll happens to attach.
+      // The reply concludes that work. Without a clear here, the chrome keeps displaying
+      // "Working..." until some future poll happens to attach.
       await fetch(`${base}/api/${key}/agent-reply`, {
         method: "POST",
         headers: { "content-type": "application/json" },

@@ -77,6 +77,13 @@ let layoutGateCycle = 0;
 /** @type {ReturnType<typeof setTimeout> | undefined} */
 let layoutGateTimer;
 const snapshotRequests = [];
+let nextSnapshotRequestId = 0;
+let currentDocumentToken = "";
+let currentDocumentSequence = Number.NEGATIVE_INFINITY;
+let retiredDocumentSequence = Number.NEGATIVE_INFINITY;
+let loadedDocumentToken = "";
+let loadedDocumentSequence = Number.NEGATIVE_INFINITY;
+let controlledFrameLoadPending = false;
 let endAfterSubmit = false;
 let workingBubble = null;
 let submitQueuedPromise = null;
@@ -151,7 +158,11 @@ function render() {
 }
 
 function updateSendState() {
-  sendButton.disabled = ended || agentPresence === "working";
+  // Only an ended session refuses sends. A working agent must not: prompts are pulled, so a send
+  // during that window lands in the session store and the agent's next poll drains it. Blocking
+  // here instead dropped the answer on the floor - it stayed in this tab's sessionStorage, never
+  // reached the server, and a reload or a fresh tab lost it.
+  sendButton.disabled = ended;
   sendAndEndButton.disabled = sendButton.disabled;
 }
 
@@ -300,12 +311,74 @@ function postToFrame(message) {
 }
 
 function requestSnapshot(action) {
-  snapshotRequests.push(action);
-  postToFrame({ type: "atelier:requestSnapshot" });
+  if (action === "submit" && snapshotRequests.some((request) => request.action === "submit")) return;
+  const id = String(++nextSnapshotRequestId);
+  const timeout = setTimeout(() => completeSnapshotRequest(id), 1000);
+  snapshotRequests.push({ id, action, timeout });
+  postToFrame({ type: "atelier:requestSnapshot", requestId: id });
+}
+
+function completeSnapshotRequest(id, snapshot) {
+  const index = snapshotRequests.findIndex((request) => request.id === id);
+  if (index === -1) return;
+  const [request] = snapshotRequests.splice(index, 1);
+  clearTimeout(request.timeout);
+  if (request.action === "copy") {
+    if (snapshot !== undefined) copyText(snapshot);
+    return;
+  }
+  if (snapshot !== undefined) pendingSnapshot = snapshot;
+  submitQueued();
+}
+
+function settleSnapshotRequestsWithoutSnapshot() {
+  const requests = snapshotRequests.splice(0, snapshotRequests.length);
+  let shouldSubmit = false;
+  for (const request of requests) {
+    clearTimeout(request.timeout);
+    if (request.action === "submit") shouldSubmit = true;
+  }
+  if (shouldSubmit) submitQueued();
+}
+
+function hasCurrentDocument() {
+  return Boolean(currentDocumentToken) && currentDocumentSequence > retiredDocumentSequence;
+}
+
+function retireCurrentDocument() {
+  if (currentDocumentToken) {
+    retiredDocumentSequence = Math.max(retiredDocumentSequence, currentDocumentSequence);
+  }
+}
+
+function retireLoadedDocument() {
+  if (loadedDocumentToken) {
+    retiredDocumentSequence = Math.max(retiredDocumentSequence, loadedDocumentSequence);
+  }
+}
+
+function acceptDocumentReady(msg) {
+  const token = String(msg.documentToken || "");
+  const sequence = Number(msg.documentSequence);
+  if (!token || !Number.isFinite(sequence) || sequence <= retiredDocumentSequence) return false;
+  if (sequence < currentDocumentSequence) return false;
+  if (sequence === currentDocumentSequence && currentDocumentToken && token !== currentDocumentToken) return false;
+  if (currentDocumentToken && token !== currentDocumentToken) retireCurrentDocument();
+  currentDocumentToken = token;
+  currentDocumentSequence = sequence;
+  return true;
+}
+
+function beginFrameNavigation() {
+  retireCurrentDocument();
+  loadedDocumentToken = "";
+  loadedDocumentSequence = Number.NEGATIVE_INFINITY;
+  controlledFrameLoadPending = true;
+  settleSnapshotRequestsWithoutSnapshot();
 }
 
 function sendQueued(endAfter) {
-  if (ended || agentPresence === "working") return;
+  if (ended) return;
   closeMenus();
 
   const text = chatInput.value.trim();
@@ -681,6 +754,7 @@ async function publishShare(event) {
 }
 
 function replaceArtifactFrame() {
+  beginFrameNavigation();
   startLayoutGateCycle();
   inlineWhiteboardChannels.clear();
   // The iframe is sandboxed, so reload by resetting the iframe URL from chrome.
@@ -1166,7 +1240,10 @@ window.addEventListener("message", (event) => {
 });
 
 function loadFrame() {
-  if (artifactSrc) frame.src = artifactSrc;
+  if (artifactSrc) {
+    beginFrameNavigation();
+    frame.src = artifactSrc;
+  }
 }
 
 function reloadArtifact() {
@@ -1213,12 +1290,15 @@ window.addEventListener("message", (event) => {
     enqueuePrompt(msg.prompt);
   }
   if (msg.type === "atelier:snapshot") {
-    const snapshotAction = snapshotRequests.shift() || "submit";
-    if (snapshotAction === "copy") {
-      copyText(msg.snapshot || "");
+    const requestId = String(msg.requestId || "");
+    if (
+      !hasCurrentDocument() ||
+      String(msg.documentToken || "") !== currentDocumentToken ||
+      Number(msg.documentSequence) !== currentDocumentSequence
+    ) {
+      completeSnapshotRequest(requestId);
     } else {
-      pendingSnapshot = msg.snapshot || "";
-      submitQueued();
+      completeSnapshotRequest(requestId, msg.snapshot || "");
     }
   }
   if (msg.type === "atelier:scroll") {
@@ -1229,6 +1309,11 @@ window.addEventListener("message", (event) => {
     submitLayoutWarnings(msg.layout_warnings).catch(() => {});
   }
   if (msg.type === "atelier:sdkReady") {
+    if (!acceptDocumentReady(msg)) return;
+    if (!controlledFrameLoadPending && !loadedDocumentToken) {
+      loadedDocumentToken = currentDocumentToken;
+      loadedDocumentSequence = currentDocumentSequence;
+    }
     postToFrame({ type: "atelier:setAnnotationMode", enabled: annotation && !ended });
   }
   if (msg.type === "atelier:sendQueuedPrompts") sendQueued();
@@ -1302,6 +1387,18 @@ document.addEventListener(
   true,
 );
 frame.addEventListener("load", () => {
+  if (controlledFrameLoadPending) {
+    controlledFrameLoadPending = false;
+  } else {
+    retireLoadedDocument();
+  }
+  if (hasCurrentDocument()) {
+    loadedDocumentToken = currentDocumentToken;
+    loadedDocumentSequence = currentDocumentSequence;
+  } else {
+    loadedDocumentToken = "";
+    loadedDocumentSequence = Number.NEGATIVE_INFINITY;
+  }
   postToFrame({ type: "atelier:setAnnotationMode", enabled: annotation && !ended });
   // Replay the pre-reload scroll position so hot reloads don't jump the artifact to the top.
   postToFrame({ type: "atelier:restoreScroll", x: lastScroll.x, y: lastScroll.y });
