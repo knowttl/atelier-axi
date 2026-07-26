@@ -98,8 +98,9 @@ State lives at `~/.atelier-axi/state.json` (override with `ATELIER_AXI_STATE_DIR
    Default no-timeout polls stream whitespace heartbeat bytes before the final JSON response and always write the one-shot wait banner to stderr - it is the "not hung" signal an agent needs while stdout stays empty - but write the recurring per-minute wait ticks only when stderr is an interactive terminal (`shouldNarratePollWaitTicks`), so agent harnesses with piped, non-TTY stdio get no unbounded tick noise in their merged capture; stdout is always reserved for the final JSON/TOON response, and `--timeout-ms` is a non-streaming test/debug escape hatch.
    If SIGINT or SIGTERM interrupts a no-timeout poll, the CLI writes re-run guidance to stderr and exits with the conventional signal code; queued feedback persists, so re-running the same poll is safe.
 9. The `/events/:key` SSE stream emits `agent-presence` states: `waiting` before any poll has attached, `listening` while a poll is active, and `working` after a poll has delivered feedback and released.
-   The chrome uses this state to show the waiting banner, allow queued feedback while waiting or listening, and block sends only while working.
-   An agent reply (`POST /api/:key/agent-reply`, the CLI's `--agent-reply`) concludes the working state and returns presence to `waiting`, so sends re-enable as soon as the agent answers instead of staying blocked until another poll attaches.
+   The chrome uses this state to show the waiting banner and the "Working..." bubble, but it never blocks a send on presence - only an ended session refuses one.
+   Sends must stay open while the agent is working: prompts are pulled, so a send in that window lands in the session store and the agent's next poll drains it, whereas blocking it left the answer in this tab's `sessionStorage` alone, never reaching the server, so a reload or a fresh tab lost a decision the reviewer believed they had submitted.
+   An agent reply (`POST /api/:key/agent-reply`, the CLI's `--agent-reply`) still concludes the working state and returns presence to `waiting`.
 10. `--agent-reply` posts a chat message into the session before polling, so the agent's reply renders in the browser conversation panel via the `/events/:key` SSE stream.
 
 ### Live reload

@@ -151,7 +151,11 @@ function render() {
 }
 
 function updateSendState() {
-  sendButton.disabled = ended || agentPresence === "working";
+  // Only an ended session refuses sends. A working agent must not: prompts are pulled, so a send
+  // during that window lands in the session store and the agent's next poll drains it. Blocking
+  // here instead dropped the answer on the floor - it stayed in this tab's sessionStorage, never
+  // reached the server, and a reload or a fresh tab lost it.
+  sendButton.disabled = ended;
   sendAndEndButton.disabled = sendButton.disabled;
 }
 
@@ -305,7 +309,7 @@ function requestSnapshot(action) {
 }
 
 function sendQueued(endAfter) {
-  if (ended || agentPresence === "working") return;
+  if (ended) return;
   closeMenus();
 
   const text = chatInput.value.trim();

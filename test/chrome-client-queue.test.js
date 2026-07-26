@@ -816,6 +816,42 @@ test("chrome client strips the internal queue key before posting prompts", async
   assert.equal(chrome.queued().length, 0);
 });
 
+// Regression: a poll that drained feedback and released leaves presence "working" for as long as the
+// agent takes to confirm and rewrite the artifact - exactly when the reviewer answers the next
+// decision card. Blocking the send there discarded the answer silently: it never reached the session
+// store, so the agent never wrote it into the artifact and a reload or a fresh tab served the
+// undecided file back.
+test("a decision sent while the agent is working still reaches the session store", async () => {
+  const posts = [];
+  const chrome = await createChromeHarness({
+    fetchImpl: async (url, init) => {
+      posts.push({ url, body: JSON.parse(init.body) });
+      return { ok: true };
+    },
+  });
+
+  chrome.eventSource().listeners.get("agent-presence")({ data: JSON.stringify({ state: "working" }) });
+  assert.equal(chrome.element("send").disabled, false);
+  assert.equal(chrome.element("sendAndEnd").disabled, false);
+
+  chrome.sendFrameMessage({
+    type: "atelier:queuePrompt",
+    prompt: { prompt: "D1: Accept", selector: "form#d1", tag: "choice", text: "D1: Accept", _atelierQueueKey: "d1" },
+  });
+  chrome.element("send").onclick();
+  chrome.sendFrameMessage({ type: "atelier:snapshot", snapshot: "uid=1 body" });
+  await flushPromises();
+
+  assert.deepEqual(
+    posts.map((post) => post.url),
+    ["/api/abc/prompts"],
+  );
+  assert.deepEqual(posts[0].body.prompts, [
+    { prompt: "D1: Accept", selector: "form#d1", tag: "choice", text: "D1: Accept" },
+  ]);
+  assert.equal(chrome.queued().length, 0);
+});
+
 test("chrome client tells the artifact which prompts were sent after a successful submit", async () => {
   const chrome = await createChromeHarness({
     fetchImpl: async () => ({ ok: true }),
