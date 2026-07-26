@@ -1638,6 +1638,7 @@ export function createArtifactSdk(
       window.dispatchEvent(new CustomEvent("atelier:sent", { detail: { prompts: sent } }));
     }
   });
+  parent.postMessage({ type: "atelier:sdkReady" }, "*");
 
   // Capture phase so the mode hotkey fires no matter where focus is inside the artifact -
   // including a checkbox, button, link, or the annotation-card textarea - without disturbing

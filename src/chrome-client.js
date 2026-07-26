@@ -1228,6 +1228,9 @@ window.addEventListener("message", (event) => {
     handleLayoutWarningsForGate(msg.layout_warnings);
     submitLayoutWarnings(msg.layout_warnings).catch(() => {});
   }
+  if (msg.type === "atelier:sdkReady") {
+    postToFrame({ type: "atelier:setAnnotationMode", enabled: annotation && !ended });
+  }
   if (msg.type === "atelier:sendQueuedPrompts") sendQueued();
   if (msg.type === "atelier:endSession") endSession();
   if (msg.type === "atelier:toggleAnnotationMode") toggleAnnotationMode();

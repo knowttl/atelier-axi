@@ -949,11 +949,9 @@ test("chrome send and end during an in-flight submit still ends after the submit
 
 test("chrome client starts annotation mode off and enables it with Cmd/Ctrl+I", async () => {
   const chrome = await createChromeHarness();
-  const frameLoad = chrome.frame.listeners.get("load");
-  assert.equal(typeof frameLoad, "function");
-  frameLoad();
-  assert.equal(chrome.postedToFrame.at(-2).type, "atelier:setAnnotationMode");
-  assert.equal(chrome.postedToFrame.at(-2).enabled, false);
+  chrome.sendFrameMessage({ type: "atelier:sdkReady" });
+  assert.equal(chrome.postedToFrame.at(-1).type, "atelier:setAnnotationMode");
+  assert.equal(chrome.postedToFrame.at(-1).enabled, false);
 
   const metaEvent = chrome.dispatchDocumentKeydown({ key: "i", metaKey: true });
   assert.equal(metaEvent.defaultPrevented, true);
@@ -966,6 +964,17 @@ test("chrome client starts annotation mode off and enables it with Cmd/Ctrl+I", 
   assert.equal(chrome.element("annotation")["aria-pressed"], "false");
   assert.equal(chrome.postedToFrame.at(-1).type, "atelier:setAnnotationMode");
   assert.equal(chrome.postedToFrame.at(-1).enabled, false);
+});
+
+test("chrome client replays enabled annotation mode when a reloaded artifact SDK is ready", async () => {
+  const chrome = await createChromeHarness();
+
+  chrome.dispatchDocumentKeydown({ key: "i", metaKey: true });
+  chrome.sendFrameMessage({ type: "atelier:sdkReady" });
+
+  assert.equal(chrome.element("annotation")["aria-pressed"], "true");
+  assert.equal(chrome.postedToFrame.at(-1).type, "atelier:setAnnotationMode");
+  assert.equal(chrome.postedToFrame.at(-1).enabled, true);
 });
 
 test("plain 'i' and other modifier combos do not toggle annotation mode", async () => {
