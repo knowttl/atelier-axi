@@ -247,6 +247,15 @@ test("artifact SDK registers a capture-phase document keydown listener for the m
   );
 });
 
+test("artifact SDK announces readiness after registering its chrome message listener", () => {
+  const js = createSdkJs("abc");
+  const listenerIndex = js.indexOf('window.addEventListener("message"');
+  const readyIndex = js.indexOf('parent.postMessage({ type: "atelier:sdkReady" }, "*")');
+
+  assert.notEqual(listenerIndex, -1);
+  assert.ok(readyIndex > listenerIndex);
+});
+
 test("chrome client toggles annotation mode via Cmd/Ctrl+I and on request from the artifact SDK", async () => {
   const js = await chromeClientSource();
 
@@ -340,10 +349,10 @@ test("annotation card shadow styles use Atelier design-system variables", () => 
   assert.match(js, /:focus-visible\{outline:2px solid var\(--accent\);outline-offset:2px/);
 });
 
-test("chrome top bar uses an Annotate switch instead of a labeled toggle button", () => {
+test("chrome top bar starts with its Annotate switch off", () => {
   const html = createChromeHtml({ key: "abc", file: "/tmp/artifact.html" });
 
-  assert.match(html, /class="annotate-switch" id="annotation"[^>]*aria-pressed="true"/);
+  assert.match(html, /class="annotate-switch" id="annotation"[^>]*aria-pressed="false"/);
   assert.match(html, /class="switch-track"/);
   assert.match(html, />Annotate</);
   assert.doesNotMatch(html, /Annotation: On/);

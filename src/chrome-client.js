@@ -60,7 +60,7 @@ const whiteboardError = /** @type {HTMLDivElement} */ (document.getElementById("
 const artifactSrc = frame.dataset.artifactSrc || frame.getAttribute?.("data-artifact-src") || frame.src || "";
 
 const queued = loadQueuedPrompts();
-let annotation = true;
+let annotation = false;
 let ended = false;
 let agentPresence = "waiting";
 let pendingSnapshot = "";
@@ -1227,6 +1227,9 @@ window.addEventListener("message", (event) => {
   if (msg.type === "atelier:layoutWarnings") {
     handleLayoutWarningsForGate(msg.layout_warnings);
     submitLayoutWarnings(msg.layout_warnings).catch(() => {});
+  }
+  if (msg.type === "atelier:sdkReady") {
+    postToFrame({ type: "atelier:setAnnotationMode", enabled: annotation && !ended });
   }
   if (msg.type === "atelier:sendQueuedPrompts") sendQueued();
   if (msg.type === "atelier:endSession") endSession();
