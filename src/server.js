@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { EventEmitter } from "node:events";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import net from "node:net";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -151,11 +152,14 @@ export async function serve({
   // allowlist - a rebound browser carries the attacker's domain in Host, which is
   // never one of the hostnames this server answers to.
   //
-  // Loopback names are always accepted. Binding to a concrete interface
-  // (ATELIER_AXI_HOST) or naming a link host (ATELIER_AXI_LINK_HOST) adds that host,
-  // so an operator who intentionally exposes the server on a specific interface
-  // keeps rebinding protection while their chosen hostname works. Additional
-  // names (a reverse-proxy hostname, extra interfaces) are an explicit opt-in via
+  // Loopback names and bare IP literals are always accepted (see
+  // isIpLiteralHostname - rebinding needs a hostname, so an IP literal can never
+  // be a rebound one, and rejecting it would break LAN access through a port
+  // forwarder). Binding to a concrete interface (ATELIER_AXI_HOST) or naming a
+  // link host (ATELIER_AXI_LINK_HOST) adds that host, so an operator who
+  // intentionally exposes the server on a specific interface keeps rebinding
+  // protection while their chosen hostname works. Additional names (a
+  // reverse-proxy hostname, extra interfaces) are an explicit opt-in via
   // ATELIER_AXI_ALLOWED_HOSTS; a lone "*" there disables the guard for operators
   // who front the server with their own authentication. When a reverse proxy sits
   // in front, X-Forwarded-Host is validated too (see isAllowedRequestHost).
@@ -932,8 +936,26 @@ export function hostnameFromHostHeader(value) {
   return hostname.toLowerCase();
 }
 
-// DNS-rebinding defense: a loopback-bound server answers only to its own known
-// hostnames. A rebound browser carries the attacker's domain in Host and is
+// A bare IP literal is always an acceptable Host, whatever the allowlist says.
+// DNS rebinding needs a *hostname* the attacker controls in DNS; no browser can
+// be induced to send an IP literal it was not already pointed at, so an
+// IP-literal Host carries no rebinding risk. Accepting it keeps the common
+// atelier deployment working out of the box - a loopback-bound server reached
+// over a LAN through a port forwarder or SSH tunnel, which arrives as
+// `Host: 192.168.x.y:<port>` - instead of 403ing until someone sets
+// ATELIER_AXI_ALLOWED_HOSTS. Named hosts (reverse proxies, mDNS names) still
+// require that opt-in. This is a deliberate divergence from upstream lavish-axi
+// and matches Vite's `server.allowedHosts` rule.
+//
+// The wildcard/unspecified addresses stay rejected: they are not connectable
+// targets, and "0.0.0.0" as a Host is a known loopback-reach trick.
+function isIpLiteralHostname(hostname) {
+  if (WILDCARD_BIND_HOSTS.has(hostname)) return false;
+  return net.isIP(hostname) !== 0;
+}
+
+// DNS-rebinding defense: the server answers only to its own known hostnames and
+// to IP literals. A rebound browser carries the attacker's domain in Host and is
 // rejected. Host is mandatory in HTTP/1.1 and every browser sends it, so a
 // missing or blank value is never a legitimate client - reject it rather than
 // fail open.
@@ -943,7 +965,7 @@ export function isAllowedHostHeader(hostHeader, allowedHostnames) {
   if (raw === "") return false;
   const hostname = hostnameFromHostHeader(raw);
   if (hostname === null) return false;
-  return allowedHostnames.has(hostname);
+  return allowedHostnames.has(hostname) || isIpLiteralHostname(hostname);
 }
 
 // Validate a request's effective host for DNS-rebinding protection. The Host

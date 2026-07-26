@@ -1074,6 +1074,36 @@ test("loopback server rejects forged non-loopback Host headers (DNS rebinding)",
   }
 });
 
+test("loopback server serves a LAN-forwarded IP-literal Host with no extra configuration", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "atelier-serve-"));
+  const artifact = path.join(dir, "artifact.html");
+  await writeFile(artifact, "<!doctype html><html><body><h1>review me</h1></body></html>");
+  const server = await serve({ port: 0, stateFile: path.join(dir, "state.json"), version: "9.9.9-test" });
+  try {
+    const openRes = await fetch(`http://127.0.0.1:${server.port}/api/sessions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ file: artifact }),
+    });
+    const { key } = await openRes.json();
+
+    // A reviewer on the LAN reaching the loopback server through a port forwarder
+    // (0.0.0.0:4388 -> 127.0.0.1:4387) arrives with the forwarder's address in Host.
+    const lanChrome = await rawRequest(server.port, `/session/${key}`, { host: "192.168.2.106:4388" });
+    assert.equal(lanChrome.status, 200);
+    const lanArtifact = await rawRequest(server.port, `/artifact/${key}/index.html`, { host: "192.168.2.106:4388" });
+    assert.equal(lanArtifact.status, 200);
+    assert.match(lanArtifact.body, /review me/);
+
+    // The rebinding defense is unchanged: a hostile domain is still rejected.
+    const forged = await rawRequest(server.port, `/artifact/${key}/index.html`, { host: "evil.example:4388" });
+    assert.equal(forged.status, 403);
+  } finally {
+    await server.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("loopback server honors the configured link host but still rejects others", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "atelier-serve-"));
   const server = await serve({
@@ -1196,6 +1226,23 @@ test("isAllowedHostHeader rejects a bracketed IPv6 host with trailing garbage", 
   const allowed = new Set(["127.0.0.1", "::1", "localhost"]);
   assert.equal(isAllowedHostHeader("[::1]evil.com", allowed), false);
   assert.equal(isAllowedHostHeader("[::1]:4387", allowed), true);
+});
+
+test("isAllowedHostHeader accepts bare IP literals without an allowlist entry", () => {
+  const allowed = new Set(["127.0.0.1", "::1", "localhost"]);
+  // A LAN address reached through a port forwarder: rebinding needs a hostname,
+  // so an IP-literal Host can never be a rebound one.
+  assert.equal(isAllowedHostHeader("192.168.2.106:4388", allowed), true);
+  assert.equal(isAllowedHostHeader("10.0.0.5", allowed), true);
+  assert.equal(isAllowedHostHeader("203.0.113.7:4387", allowed), true);
+  assert.equal(isAllowedHostHeader("[fde1:6b97::1]:4388", allowed), true);
+  // Wildcard/unspecified addresses stay rejected: not connectable targets, and
+  // "0.0.0.0" as a Host is a known loopback-reach trick.
+  assert.equal(isAllowedHostHeader("0.0.0.0:4387", allowed), false);
+  assert.equal(isAllowedHostHeader("[::]:4387", allowed), false);
+  // Named hosts still need ATELIER_AXI_ALLOWED_HOSTS.
+  assert.equal(isAllowedHostHeader("evil.example:4387", allowed), false);
+  assert.equal(isAllowedHostHeader("192.168.2.106.evil.example", allowed), false);
 });
 
 test("isAllowedRequestHost requires an allowlisted Host and validates X-Forwarded-Host", () => {
