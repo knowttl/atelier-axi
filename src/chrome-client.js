@@ -78,6 +78,7 @@ let layoutGateCycle = 0;
 let layoutGateTimer;
 const snapshotRequests = [];
 let nextSnapshotRequestId = 0;
+let frameNavigationGeneration = 0;
 let endAfterSubmit = false;
 let workingBubble = null;
 let submitQueuedPromise = null;
@@ -308,7 +309,7 @@ function requestSnapshot(action) {
   if (action === "submit" && snapshotRequests.some((request) => request.action === "submit")) return;
   const id = String(++nextSnapshotRequestId);
   const timeout = setTimeout(() => completeSnapshotRequest(id), 1000);
-  snapshotRequests.push({ id, action, timeout });
+  snapshotRequests.push({ id, action, timeout, generation: frameNavigationGeneration });
   postToFrame({ type: "atelier:requestSnapshot", requestId: id });
 }
 
@@ -325,14 +326,21 @@ function completeSnapshotRequest(id, snapshot) {
   submitQueued();
 }
 
-function settleSnapshotRequestsWithoutSnapshot() {
-  const requests = snapshotRequests.splice(0, snapshotRequests.length);
+function settleSnapshotRequestsBeforeGeneration(generation) {
   let shouldSubmit = false;
-  for (const request of requests) {
+  for (let index = snapshotRequests.length - 1; index >= 0; index -= 1) {
+    const request = snapshotRequests[index];
+    if (request.generation >= generation) continue;
+    snapshotRequests.splice(index, 1);
     clearTimeout(request.timeout);
     if (request.action === "submit") shouldSubmit = true;
   }
   if (shouldSubmit) submitQueued();
+}
+
+function beginFrameNavigation() {
+  frameNavigationGeneration += 1;
+  settleSnapshotRequestsBeforeGeneration(frameNavigationGeneration);
 }
 
 function sendQueued(endAfter) {
@@ -712,7 +720,7 @@ async function publishShare(event) {
 }
 
 function replaceArtifactFrame() {
-  settleSnapshotRequestsWithoutSnapshot();
+  beginFrameNavigation();
   startLayoutGateCycle();
   inlineWhiteboardChannels.clear();
   // The iframe is sandboxed, so reload by resetting the iframe URL from chrome.
@@ -1198,7 +1206,10 @@ window.addEventListener("message", (event) => {
 });
 
 function loadFrame() {
-  if (artifactSrc) frame.src = artifactSrc;
+  if (artifactSrc) {
+    beginFrameNavigation();
+    frame.src = artifactSrc;
+  }
 }
 
 function reloadArtifact() {
@@ -1255,7 +1266,6 @@ window.addEventListener("message", (event) => {
     submitLayoutWarnings(msg.layout_warnings).catch(() => {});
   }
   if (msg.type === "atelier:sdkReady") {
-    settleSnapshotRequestsWithoutSnapshot();
     postToFrame({ type: "atelier:setAnnotationMode", enabled: annotation && !ended });
   }
   if (msg.type === "atelier:sendQueuedPrompts") sendQueued();
@@ -1329,7 +1339,8 @@ document.addEventListener(
   true,
 );
 frame.addEventListener("load", () => {
-  settleSnapshotRequestsWithoutSnapshot();
+  settleSnapshotRequestsBeforeGeneration(frameNavigationGeneration);
+  frameNavigationGeneration += 1;
   postToFrame({ type: "atelier:setAnnotationMode", enabled: annotation && !ended });
   // Replay the pre-reload scroll position so hot reloads don't jump the artifact to the top.
   postToFrame({ type: "atelier:restoreScroll", x: lastScroll.x, y: lastScroll.y });

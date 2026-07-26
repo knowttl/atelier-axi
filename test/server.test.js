@@ -2652,8 +2652,8 @@ test("SSE agent-presence returns to waiting after an agent reply", async () => {
       await fetch(`${base}/api/poll?file=${encodeURIComponent(artifact)}`);
       assert.equal(await presence.next(), "working");
 
-      // The reply concludes that work. Without a clear here, presence stays "working"
-      // forever (the chrome disables Send) until some future poll happens to attach.
+      // The reply concludes that work. Without a clear here, the chrome keeps displaying
+      // "Working..." until some future poll happens to attach.
       await fetch(`${base}/api/${key}/agent-reply`, {
         method: "POST",
         headers: { "content-type": "application/json" },

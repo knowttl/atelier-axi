@@ -25,6 +25,7 @@ async function createChromeHarness({
   const elements = new Map();
   const timers = new Map();
   const srcLoads = [];
+  const clipboardWrites = [];
   let nextTimerId = 1;
   let reloadCount = 0;
 
@@ -160,7 +161,13 @@ async function createChromeHarness({
         reloadCount += 1;
       },
     },
-    navigator: {},
+    navigator: {
+      clipboard: {
+        async writeText(value) {
+          clipboardWrites.push(String(value));
+        },
+      },
+    },
     setTimeout: fakeSetTimeout,
     URL: {
       createObjectURL() {
@@ -221,6 +228,7 @@ async function createChromeHarness({
   return {
     element,
     frame,
+    clipboardWrites,
     postedToFrame,
     postedToWhiteboard,
     createInlineWhiteboard() {
@@ -900,6 +908,57 @@ test("a decision submit survives an artifact reload before the snapshot reply", 
   chrome.sendSnapshot("stale snapshot", staleRequest);
   await flushPromises();
   assert.equal(posts.length, 1);
+});
+
+test("queued readiness and load events preserve a new-document submit request", async () => {
+  const posts = [];
+  const chrome = await createChromeHarness({
+    artifactSrc: "/artifact/abc/index.html",
+    fetchImpl: async (url, init) => {
+      posts.push({ url, body: JSON.parse(init.body) });
+      return { ok: true };
+    },
+  });
+
+  chrome.sendFrameMessage({
+    type: "atelier:queuePrompt",
+    prompt: { prompt: "D3: Keep", selector: "form#d3", tag: "choice", text: "D3: Keep" },
+  });
+  chrome.element("send").onclick();
+  const request = chrome.postedToFrame.at(-1);
+
+  chrome.frame.listeners.get("load")();
+  chrome.sendFrameMessage({ type: "atelier:sdkReady" });
+  await flushPromises();
+  assert.equal(posts.length, 0);
+
+  chrome.sendSnapshot("fresh document", request);
+  await flushPromises();
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].body.domSnapshot, "fresh document");
+  assert.equal(chrome.queued().length, 0);
+});
+
+test("queued readiness and load events preserve a new-document copy request", async () => {
+  const chrome = await createChromeHarness({ artifactSrc: "/artifact/abc/index.html" });
+
+  chrome.element("copySnapshot").onclick();
+  const request = chrome.postedToFrame.at(-1);
+
+  chrome.sendFrameMessage({ type: "atelier:sdkReady" });
+  chrome.frame.listeners.get("load")();
+  chrome.sendSnapshot("fresh document", request);
+  await flushPromises();
+
+  assert.deepEqual(chrome.clipboardWrites, ["fresh document"]);
+
+  chrome.element("copySnapshot").onclick();
+  const orphanedRequest = chrome.postedToFrame.at(-1);
+  chrome.eventSource().listeners.get("reload")();
+  chrome.sendSnapshot("stale document", orphanedRequest);
+  await flushPromises();
+
+  assert.deepEqual(chrome.clipboardWrites, ["fresh document"]);
 });
 
 test("chrome client tells the artifact which prompts were sent after a successful submit", async () => {
