@@ -152,10 +152,11 @@ export async function serve({
   // allowlist - a rebound browser carries the attacker's domain in Host, which is
   // never one of the hostnames this server answers to.
   //
-  // Loopback names and bare IP literals are always accepted (see
-  // isIpLiteralHostname - rebinding needs a hostname, so an IP literal can never
-  // be a rebound one, and rejecting it would break LAN access through a port
-  // forwarder). Binding to a concrete interface (ATELIER_AXI_HOST) or naming a
+  // Loopback names and connectable bare IP literals are always accepted (see
+  // isIpLiteralHostname - wildcard/unspecified addresses stay rejected, while
+  // rebinding needs a hostname, so an IP literal can never be a rebound one).
+  // Rejecting connectable IPs would break LAN access through a port forwarder.
+  // Binding to a concrete interface (ATELIER_AXI_HOST) or naming a
   // link host (ATELIER_AXI_LINK_HOST) adds that host, so an operator who
   // intentionally exposes the server on a specific interface keeps rebinding
   // protection while their chosen hostname works. Additional names (a
@@ -936,7 +937,7 @@ export function hostnameFromHostHeader(value) {
   return hostname.toLowerCase();
 }
 
-// A bare IP literal is always an acceptable Host, whatever the allowlist says.
+// A connectable bare IP literal is an acceptable Host, whatever the allowlist says.
 // DNS rebinding needs a *hostname* the attacker controls in DNS; no browser can
 // be induced to send an IP literal it was not already pointed at, so an
 // IP-literal Host carries no rebinding risk. Accepting it keeps the common
@@ -955,10 +956,10 @@ function isIpLiteralHostname(hostname) {
 }
 
 // DNS-rebinding defense: the server answers only to its own known hostnames and
-// to IP literals. A rebound browser carries the attacker's domain in Host and is
-// rejected. Host is mandatory in HTTP/1.1 and every browser sends it, so a
-// missing or blank value is never a legitimate client - reject it rather than
-// fail open.
+// to connectable IP literals. A rebound browser carries the attacker's domain in
+// Host and is rejected. Host is mandatory in HTTP/1.1 and every browser sends it,
+// so a missing or blank value is never a legitimate client - reject it rather
+// than fail open.
 export function isAllowedHostHeader(hostHeader, allowedHostnames) {
   if (hostHeader === undefined || hostHeader === null) return false;
   const raw = String(hostHeader).trim();
