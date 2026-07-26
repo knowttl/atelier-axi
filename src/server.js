@@ -359,9 +359,9 @@ export async function serve({
       }
       events.emit("agent-reply", req.params.key, text);
       // The reply concludes the delivered-feedback "working" state. Without this, a poll that
-      // drains feedback and then releases leaves presence stuck on "working" — the chrome keeps
-      // Send disabled — until some future poll happens to attach, even though the agent already
-      // answered. See "SSE agent-presence returns to waiting after an agent reply".
+      // drains feedback and then releases leaves the chrome displaying "Working..." until some
+      // future poll happens to attach, even though the agent already answered. See "SSE
+      // agent-presence returns to waiting after an agent reply".
       clearFeedbackDelivery(req.params.key, activePolls, deliveredFeedback, events);
       res.json({ status: "sent" });
     } catch (error) {

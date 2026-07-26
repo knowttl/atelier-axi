@@ -243,6 +243,20 @@ async function createChromeHarness({
       assert.ok(handlers.length > 0, "chrome-client registered a message handler");
       for (const handler of handlers) handler({ source: frame.contentWindow, data });
     },
+    sendSnapshot(
+      snapshot,
+      request = postedToFrame.findLast((message) => message.type === "atelier:requestSnapshot"),
+    ) {
+      assert.equal(request?.type, "atelier:requestSnapshot");
+      const handlers = windowListeners.get("message") || [];
+      assert.ok(handlers.length > 0, "chrome-client registered a message handler");
+      for (const handler of handlers) {
+        handler({
+          source: frame.contentWindow,
+          data: { type: "atelier:snapshot", requestId: request.requestId, snapshot },
+        });
+      }
+    },
     sendWhiteboardMessage(data) {
       const handlers = windowListeners.get("message") || [];
       assert.ok(handlers.length > 0, "chrome-client registered a message handler");
@@ -804,7 +818,7 @@ test("chrome client strips the internal queue key before posting prompts", async
   chrome.element("send").onclick();
   assert.equal(chrome.postedToFrame.at(-1).type, "atelier:requestSnapshot");
 
-  chrome.sendFrameMessage({ type: "atelier:snapshot", snapshot: "uid=1 body" });
+  chrome.sendSnapshot("uid=1 body");
   await flushPromises();
 
   assert.equal(posts.length, 1);
@@ -839,7 +853,7 @@ test("a decision sent while the agent is working still reaches the session store
     prompt: { prompt: "D1: Accept", selector: "form#d1", tag: "choice", text: "D1: Accept", _atelierQueueKey: "d1" },
   });
   chrome.element("send").onclick();
-  chrome.sendFrameMessage({ type: "atelier:snapshot", snapshot: "uid=1 body" });
+  chrome.sendSnapshot("uid=1 body");
   await flushPromises();
 
   assert.deepEqual(
@@ -850,6 +864,42 @@ test("a decision sent while the agent is working still reaches the session store
     { prompt: "D1: Accept", selector: "form#d1", tag: "choice", text: "D1: Accept" },
   ]);
   assert.equal(chrome.queued().length, 0);
+});
+
+test("a decision submit survives an artifact reload before the snapshot reply", async () => {
+  const posts = [];
+  const chrome = await createChromeHarness({
+    artifactSrc: "/artifact/abc/index.html",
+    fetchImpl: async (url, init) => {
+      posts.push({ url, body: JSON.parse(init.body) });
+      return { ok: true };
+    },
+  });
+
+  chrome.sendFrameMessage({
+    type: "atelier:queuePrompt",
+    prompt: { prompt: "D2: Keep", selector: "form#d2", tag: "choice", text: "D2: Keep" },
+  });
+  chrome.element("send").onclick();
+  const staleRequest = chrome.postedToFrame.at(-1);
+
+  chrome.eventSource().listeners.get("reload")();
+  await flushPromises();
+  await flushPromises();
+
+  assert.deepEqual(
+    posts.map((post) => post.url),
+    ["/api/abc/prompts"],
+  );
+  assert.deepEqual(posts[0].body, {
+    prompts: [{ prompt: "D2: Keep", selector: "form#d2", tag: "choice", text: "D2: Keep" }],
+    domSnapshot: "",
+  });
+  assert.equal(chrome.queued().length, 0);
+
+  chrome.sendSnapshot("stale snapshot", staleRequest);
+  await flushPromises();
+  assert.equal(posts.length, 1);
 });
 
 test("chrome client tells the artifact which prompts were sent after a successful submit", async () => {
@@ -873,7 +923,7 @@ test("chrome client tells the artifact which prompts were sent after a successfu
     prompt: { prompt: "Freeform note", uid: "", selector: "", tag: "message", text: "Note" },
   });
   chrome.element("send").onclick();
-  chrome.sendFrameMessage({ type: "atelier:snapshot", snapshot: "uid=1 body" });
+  chrome.sendSnapshot("uid=1 body");
   await flushPromises();
 
   const sent = chrome.postedToFrame.filter((message) => message.type === "atelier:promptsSent");
@@ -901,7 +951,7 @@ test("chrome send and end carries the end intent with queued prompts", async () 
   chrome.element("sendAndEnd").onclick();
   assert.equal(chrome.postedToFrame.at(-1).type, "atelier:requestSnapshot");
 
-  chrome.sendFrameMessage({ type: "atelier:snapshot", snapshot: "uid=1 body" });
+  chrome.sendSnapshot("uid=1 body");
   await flushPromises();
   await flushPromises();
 
@@ -957,12 +1007,12 @@ test("chrome send and end during an in-flight submit still ends after the submit
     prompt: { prompt: "Ship this", selector: "button#ship", tag: "choice", text: "Ship" },
   });
   chrome.element("send").onclick();
-  chrome.sendFrameMessage({ type: "atelier:snapshot", snapshot: "uid=1 body" });
+  chrome.sendSnapshot("uid=1 body");
   await flushPromises();
   assert.equal(posts.length, 1);
 
   chrome.element("sendAndEnd").onclick();
-  chrome.sendFrameMessage({ type: "atelier:snapshot", snapshot: "uid=1 body" });
+  chrome.sendSnapshot("uid=1 body");
   await flushPromises();
   assert.equal(posts.length, 1);
 

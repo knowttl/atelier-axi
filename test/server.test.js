@@ -540,12 +540,14 @@ test("overflow menu offers publishing an ht-ml.app link via a share dialog", asy
 
 test("copy DOM snapshot requests a fresh snapshot and copies it to the clipboard", async () => {
   const js = await chromeClientSource();
+  const sdk = createSdkJs("abc");
 
   assert.match(js, /const snapshotRequests = \[\]/);
   assert.match(js, /requestSnapshot\("copy"\)/);
-  assert.match(js, /const snapshotAction = snapshotRequests\.shift\(\) \|\| "submit"/);
-  assert.match(js, /if \(snapshotAction === "copy"\)/);
-  assert.match(js, /copyText\(msg\.snapshot \|\| ""\)/);
+  assert.match(js, /completeSnapshotRequest\(String\(msg\.requestId \|\| ""\), msg\.snapshot \|\| ""\)/);
+  assert.match(js, /if \(request\.action === "copy"\)/);
+  assert.match(js, /copyText\(snapshot\)/);
+  assert.match(sdk, /requestId: msg\.requestId/);
 });
 
 test("clipboard copy falls back when navigator clipboard rejects", async () => {

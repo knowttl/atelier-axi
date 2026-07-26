@@ -1614,7 +1614,7 @@ export function createArtifactSdk(
     const msg = event.data || {};
     if (msg.type === "atelier:setAnnotationMode") setAnnotationMode(msg.enabled);
     if (msg.type === "atelier:requestSnapshot") {
-      parent.postMessage({ type: "atelier:snapshot", snapshot: snapshot() }, "*");
+      parent.postMessage({ type: "atelier:snapshot", requestId: msg.requestId, snapshot: snapshot() }, "*");
     }
     if (msg.type === "atelier:restoreScroll") {
       window.scrollTo(Number(msg.x) || 0, Number(msg.y) || 0);
