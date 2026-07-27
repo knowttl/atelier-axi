@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.3.2](https://github.com/knowttl/atelier-axi/compare/atelier-axi-v0.3.1...atelier-axi-v0.3.2) (2026-07-27)
+
+
+### Features
+
+* **playbooks:** require plain-English option explanations on decision surfaces ([#24](https://github.com/knowttl/atelier-axi/issues/24)) ([de13b5c](https://github.com/knowttl/atelier-axi/commit/de13b5cc431cacd59639ee5265aacac90886357b))
+* **server:** support non-loopback hosts and reverse proxies ([61fc908](https://github.com/knowttl/atelier-axi/commit/61fc9081753a840d34b8dc9dd6207bb860fcedbe))
+* **server:** support non-loopback hosts and reverse proxies ([879794a](https://github.com/knowttl/atelier-axi/commit/879794adf947d9ff8da18df013da82c0d604f695))
+
+
+### Bug Fixes
+
+* **chrome:** preserve decisions sent during agent updates ([#28](https://github.com/knowttl/atelier-axi/issues/28)) ([deb4240](https://github.com/knowttl/atelier-axi/commit/deb424089a2f53db1bb524981b2463ed4d2fa02c))
+* **chrome:** start review sessions with annotate mode off ([#25](https://github.com/knowttl/atelier-axi/issues/25)) ([8770199](https://github.com/knowttl/atelier-axi/commit/877019968a13dce2423612ef2e027a82a8b5219f))
+* **ci:** execute every PR body compliance event ([42b49ee](https://github.com/knowttl/atelier-axi/commit/42b49ee21f2dc7b3da6b9ef8d9b37b5ea5f00ce9))
+* **cli:** suppress recurring poll wait ticks outside interactive terminals ([#179](https://github.com/knowttl/atelier-axi/issues/179)) ([c012361](https://github.com/knowttl/atelier-axi/commit/c012361205ff2ae961b6d3f7f6a51168bbfa1a39))
+* **cli:** suppress recurring poll wait ticks outside interactive terminals ([#179](https://github.com/knowttl/atelier-axi/issues/179)) ([50b0fac](https://github.com/knowttl/atelier-axi/commit/50b0facb61b5fc36cb1737e33b20d2894a64323b))
+* **cli:** surface session wrap-up guidance ([#27](https://github.com/knowttl/atelier-axi/issues/27)) ([a08bcfe](https://github.com/knowttl/atelier-axi/commit/a08bcfe325040ea430ae9c959ca18ccbb7b9231f))
+* execute every PR body compliance event ([#197](https://github.com/knowttl/atelier-axi/issues/197)) ([f5a1ecb](https://github.com/knowttl/atelier-axi/commit/f5a1ecb8e32cfa7eb61bc7c713befd99b180e121))
+* **server:** accept bare IP-literal Host headers so LAN access keeps working ([9e85709](https://github.com/knowttl/atelier-axi/commit/9e85709e051a8b97378db35362816a8ec2459057))
+* **server:** clear delivered-feedback working presence on agent reply ([#161](https://github.com/knowttl/atelier-axi/issues/161)) ([a451249](https://github.com/knowttl/atelier-axi/commit/a451249c5a3f17b0fae7172050cacc3137388816))
+* **server:** clear delivered-feedback working presence on agent reply ([#161](https://github.com/knowttl/atelier-axi/issues/161)) ([50a5477](https://github.com/knowttl/atelier-axi/commit/50a54774b1dfcaa96fce46765e6b156b5a8eab1d))
+* **server:** reject trailing garbage after a bracketed IPv6 Host ([17ac5b0](https://github.com/knowttl/atelier-axi/commit/17ac5b017dc6100d363e7955b6673fa63ebd8f25))
+* **server:** reject trailing garbage after a bracketed IPv6 Host ([c229ef4](https://github.com/knowttl/atelier-axi/commit/c229ef49618a7f042b7004ca57e5a5733938e92f))
+* **server:** secure host handling without breaking LAN access ([b94461a](https://github.com/knowttl/atelier-axi/commit/b94461a704eef173fbc7b6626722ddba0e1ac19c))
+* **server:** validate the Host header to close DNS rebinding ([d4aee1a](https://github.com/knowttl/atelier-axi/commit/d4aee1a80f3354f5ac76aed6198001de01487126))
+* **server:** validate the Host header to close DNS rebinding ([f016972](https://github.com/knowttl/atelier-axi/commit/f016972251556a83cd4712cf081a475cfcf3646a))
+* **whiteboard:** prevent converted labels from overflowing shapes ([#26](https://github.com/knowttl/atelier-axi/issues/26)) ([589b419](https://github.com/knowttl/atelier-axi/commit/589b4195f29864b78da1d0aabb9857a161b21619))
+
 ## [0.3.1](https://github.com/knowttl/atelier-axi/compare/atelier-axi-v0.3.0...atelier-axi-v0.3.1) (2026-07-19)
 
 
