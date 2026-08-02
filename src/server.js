@@ -258,8 +258,8 @@ export async function serve({
         if (pollActive) setPollActive(key, activePolls, deliveredFeedback, events, false);
         refreshIdleTimer();
       };
-      // Hand the session over to a newer poll without draining, so the batch this poll would have
-      // swallowed stays queued for its successor and this caller learns why it got nothing.
+      // Retire this request without draining, so its competing owner keeps the only feedback copy
+      // and this caller learns why it got nothing.
       const retire = () => {
         retired = true;
         if (responding || res.writableEnded) return;
@@ -1134,8 +1134,8 @@ function setPollActive(key, activePolls, deliveredFeedback, events, active) {
 }
 
 // Feedback delivery is a destructive read with no addressing: whichever poll drains first wins,
-// and its response is the only copy. One session therefore gets one poll - the newest, because an
-// agent that re-runs `atelier-axi poll` is the live listener and the poll it left behind is not.
+// and its response is the only copy. A serialized read therefore has one owner, which retires all
+// competing polls before and after delivery so none of them can drain the next batch.
 export function registerWaitingPoll(key, waitingPolls, poll) {
   const polls = waitingPolls.get(key) || new Set();
   polls.add(poll);

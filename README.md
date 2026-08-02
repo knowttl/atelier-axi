@@ -194,6 +194,7 @@ Under the hood, that loop is built from these pieces:
   You can send at any time until the session ends, including while the agent is working: the answer is stored server-side and the agent's next poll picks it up.
   The no-timeout poll always writes an immediate stderr banner so it is visibly not hung; it adds the periodic stderr wait ticks only in an interactive terminal, so when stderr is piped (as under agent harnesses) the captured output carries no tick noise. Stdout always stays reserved for the final response; if the poll is interrupted or times out, re-run it because queued feedback is never lost.
   Agents keep the poll in the foreground by default; a background poll is supported only through a harness-native tracked job whose completion resumes or notifies the same agent.
+  Each artifact supports at most one current poll owner; any competing poll exits with `POLL_SUPERSEDED` without draining queued feedback.
   Codex-specific guidance additionally warns that completed background tasks may not resume Codex automatically, so its poll should stay attached to the active turn.
 - **Session end etiquette** - Atelier tracks who ended a session: a human clicking **End session** (or **Send & End**) in the browser is a user-initiated end, while `atelier-axi end <html-file>` is agent-initiated.
   A plain `atelier-axi <html-file>` after a user-initiated end refuses to reopen the browser and returns guidance instead; pass `--reopen` only when the user asks for further review or something important needs their visual attention.
