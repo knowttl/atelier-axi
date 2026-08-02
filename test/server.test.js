@@ -25,6 +25,7 @@ import {
   resolveIdleTimeoutMs,
   resolveWatchTarget,
   serve,
+  takeOwnedFeedback,
 } from "../src/server.js";
 import { canonicalFile, sessionKey } from "../src/session-store.js";
 
@@ -2495,7 +2496,10 @@ test("SSE agent-presence returns to waiting when poll feedback storage fails", a
 test("long-poll response cleanup is guarded against storage failures", async () => {
   const source = await readFile(new URL("../src/server.js", import.meta.url), "utf8");
 
-  assert.match(source, /try \{\s*const result = await store\.takeFeedback\(key\)/);
+  assert.match(
+    source,
+    /try \{\s*const result = await takeOwnedFeedback\(key, poll, waitingPolls, pollDeliveries, store\)/,
+  );
   assert.match(source, /finally \{\s*cleanup\(\);\s*\}/);
 });
 
@@ -3149,9 +3153,7 @@ test("a large decision batch reaches the live poll whole even with a leftover po
     const leftover = await attachStreamingPoll(server.port, artifact);
 
     // The agent's own poll attaches second and must take ownership of the session.
-    const agentPoll = fetch(
-      `http://127.0.0.1:${server.port}/api/poll?file=${encodeURIComponent(artifact)}&timeoutMs=5000`,
-    );
+    const agentPoll = await attachStreamingPoll(server.port, artifact);
     // The reviewer answers 24 decisions across six cards and sends them in one batch.
     const batch = decisionBatch(24);
     const posted = await fetch(`http://127.0.0.1:${server.port}/api/${key}/prompts`, {
@@ -3161,7 +3163,7 @@ test("a large decision batch reaches the live poll whole even with a leftover po
     });
     assert.equal((await posted.json()).pending_prompts, batch.length);
 
-    const delivered = await (await agentPoll).json();
+    const delivered = await agentPoll.result();
     assert.equal(delivered.status, "feedback");
     assert.deepEqual(
       delivered.prompts.map((prompt) => prompt.prompt),
@@ -3201,10 +3203,10 @@ test("a leftover poll cannot steal the batch sent while the agent is applying ea
     const leftover = await attachStreamingPoll(server.port, artifact);
 
     // Cycle 1: the reviewer sends an opening note and the agent picks it up.
-    const cycleOne = poll();
+    const cycleOne = await attachStreamingPoll(server.port, artifact);
     await post(key, [{ uid: "intro", prompt: "Start with the evidence hierarchy", tag: "message" }]);
     assert.deepEqual(
-      (await cycleOne).prompts.map((prompt) => prompt.uid),
+      (await cycleOne.result()).prompts.map((prompt) => prompt.uid),
       ["intro"],
     );
 
@@ -3223,4 +3225,41 @@ test("a leftover poll cannot steal the batch sent while the agent is applying ea
     await server.close();
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("a poll attaching during delivery is retired before it can drain", async () => {
+  const waitingPolls = new Map();
+  const pollDeliveries = new Map();
+  const deliveryStarted = Promise.withResolvers();
+  const releaseDelivery = Promise.withResolvers();
+  const firstResult = { status: "feedback", prompts: [{ uid: "first" }] };
+  let takeCount = 0;
+  const store = {
+    async takeFeedback() {
+      takeCount += 1;
+      deliveryStarted.resolve();
+      await releaseDelivery.promise;
+      return firstResult;
+    },
+  };
+  const firstPoll = { isRetired: () => false, retire() {} };
+  let secondRetired = false;
+  const secondPoll = {
+    isRetired: () => secondRetired,
+    retire() {
+      secondRetired = true;
+    },
+  };
+  const polls = new Set([firstPoll]);
+  waitingPolls.set("session", polls);
+  const firstDelivery = takeOwnedFeedback("session", firstPoll, waitingPolls, pollDeliveries, store);
+  await deliveryStarted.promise;
+  polls.add(secondPoll);
+  const secondDelivery = takeOwnedFeedback("session", secondPoll, waitingPolls, pollDeliveries, store);
+  releaseDelivery.resolve();
+
+  assert.deepEqual(await firstDelivery, firstResult);
+  assert.deepEqual(await secondDelivery, { status: "superseded" });
+  assert.equal(secondRetired, true);
+  assert.equal(takeCount, 1);
 });
