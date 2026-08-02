@@ -135,6 +135,8 @@ export async function serve({
   const watchers = new Map();
   const activePolls = new Map();
   const deliveredFeedback = new Set();
+  /** @type {Map<string, Set<() => void>>} */
+  const waitingPolls = new Map();
   const sseClients = new Set();
   const whiteboardChannelSecret = crypto.randomBytes(32);
   const verbose = debug || process.env.ATELIER_AXI_DEBUG === "1";
@@ -236,6 +238,11 @@ export async function serve({
       const key = sessionKey(file);
       const timeoutMs =
         req.query.timeoutMs === undefined ? null : Math.max(0, Math.min(Number(req.query.timeoutMs || 0), 2147483647));
+      // Delivery is a destructive read, so exactly one poll may own a session. Retire any poll
+      // already waiting on this key before draining: a stale one (a backgrounded or abandoned
+      // `atelier-axi poll` whose output nobody reads) would otherwise swallow the batch and leave
+      // the live agent's poll returning "waiting" - silent loss with the browser told it succeeded.
+      supersedeWaitingPolls(key, waitingPolls);
       const immediate = await store.takeFeedback(key);
       if (immediate.status !== "waiting") {
         if (immediate.status === "feedback") markFeedbackDelivered(key, activePolls, deliveredFeedback, events);
@@ -264,8 +271,24 @@ export async function serve({
         if (heartbeat) clearInterval(heartbeat);
         events.off("feedback", onFeedback);
         events.off("ended", onFeedback);
+        unregisterWaitingPoll(key, waitingPolls, retire);
         setPollActive(key, activePolls, deliveredFeedback, events, false);
         refreshIdleTimer();
+      };
+      // Hand the session over to a newer poll without draining, so the batch this poll would have
+      // swallowed stays queued for its successor and this caller learns why it got nothing.
+      const retire = () => {
+        if (responding || res.writableEnded) return;
+        responding = true;
+        try {
+          if (streamHeartbeat) {
+            res.end(JSON.stringify({ status: "superseded" }));
+          } else {
+            res.json({ status: "superseded" });
+          }
+        } finally {
+          cleanup();
+        }
       };
       const respond = async () => {
         if (responding || res.writableEnded) return;
@@ -280,6 +303,10 @@ export async function serve({
           }
         } finally {
           cleanup();
+          // Retire leftovers now rather than waiting for this agent's next poll: the window it is
+          // about to spend applying this feedback is exactly when the reviewer sends the next
+          // batch, and a still-attached stale poll would take that batch instead.
+          supersedeWaitingPolls(key, waitingPolls);
         }
       };
       function handleRespondError(error) {
@@ -298,6 +325,7 @@ export async function serve({
       };
       events.on("feedback", onFeedback);
       events.on("ended", onFeedback);
+      registerWaitingPoll(key, waitingPolls, retire);
       req.on("close", cleanup);
     } catch (error) {
       next(error);
@@ -1092,6 +1120,30 @@ function setPollActive(key, activePolls, deliveredFeedback, events, active) {
   }
   const nextPresence = computePresence(key, activePolls, deliveredFeedback);
   if (nextPresence !== previousPresence) events.emit("agent-presence", key, nextPresence);
+}
+
+// Feedback delivery is a destructive read with no addressing: whichever poll drains first wins,
+// and its response is the only copy. One session therefore gets one poll - the newest, because an
+// agent that re-runs `atelier-axi poll` is the live listener and the poll it left behind is not.
+export function registerWaitingPoll(key, waitingPolls, retire) {
+  const polls = waitingPolls.get(key) || new Set();
+  polls.add(retire);
+  waitingPolls.set(key, polls);
+}
+
+export function unregisterWaitingPoll(key, waitingPolls, retire) {
+  const polls = waitingPolls.get(key);
+  if (!polls) return;
+  polls.delete(retire);
+  if (polls.size === 0) waitingPolls.delete(key);
+}
+
+export function supersedeWaitingPolls(key, waitingPolls) {
+  const polls = waitingPolls.get(key);
+  if (!polls) return 0;
+  const retirees = [...polls];
+  for (const retire of retirees) retire();
+  return retirees.length;
 }
 
 function markFeedbackDelivered(key, activePolls, deliveredFeedback, events) {

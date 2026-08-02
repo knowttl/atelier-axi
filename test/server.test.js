@@ -3090,3 +3090,137 @@ test("extractArtifactHead reads the real href, not one hidden in another attribu
   );
   assert.equal(inValue.faviconTag, '<link rel="icon" href="https://cdn.example.com/logo.png">');
 });
+
+// A large multi-card decision batch reached the reviewer's browser as one send, was accepted with
+// a 200, and arrived at the polling agent missing its first half - with nothing reported to either
+// side. The cause was not size: feedback delivery is a destructive read that any attached poll can
+// drain, so a leftover `atelier-axi poll` nobody reads swallows the batch and the live agent's poll
+// answers "waiting". These two tests cover both windows a leftover can steal in.
+function decisionBatch(count) {
+  return Array.from({ length: count }, (_, index) => {
+    const card = Math.floor(index / 4) + 1;
+    return {
+      uid: `d${index + 1}`,
+      prompt: `Decision [card ${card} / Q${index + 1}]: Option-A — keep the broker's own error`,
+      selector: `form.decision:nth-of-type(${index + 1})`,
+      tag: "decision",
+      text: `Q${index + 1}: Option-A`,
+    };
+  });
+}
+
+async function openSession(port, artifact) {
+  const res = await fetch(`http://127.0.0.1:${port}/api/sessions`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ file: artifact }),
+  });
+  return (await res.json()).key;
+}
+
+// Starts a poll and resolves once the server has registered it as waiting. The default (no
+// timeoutMs) poll streams a heartbeat byte immediately after registering, so receiving that byte
+// proves the poll is attached - no sleeping, no flake.
+async function attachStreamingPoll(port, artifact) {
+  const res = await fetch(`http://127.0.0.1:${port}/api/poll?file=${encodeURIComponent(artifact)}`);
+  const reader = res.body.getReader();
+  await reader.read();
+  return {
+    async result() {
+      const decoder = new TextDecoder();
+      let body = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (value) body += decoder.decode(value, { stream: true });
+        if (done) break;
+      }
+      return JSON.parse(body.trim());
+    },
+  };
+}
+
+test("a large decision batch reaches the live poll whole even with a leftover poll attached", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "atelier-serve-"));
+  const artifact = path.join(dir, "artifact.html");
+  await writeFile(artifact, "<!doctype html><html><body><h1>decisions</h1></body></html>");
+  const server = await serve({ port: 0, stateFile: path.join(dir, "state.json"), version: "9.9.9-test" });
+  try {
+    const key = await openSession(server.port, artifact);
+    const leftover = await attachStreamingPoll(server.port, artifact);
+
+    // The agent's own poll attaches second and must take ownership of the session.
+    const agentPoll = fetch(
+      `http://127.0.0.1:${server.port}/api/poll?file=${encodeURIComponent(artifact)}&timeoutMs=5000`,
+    );
+    // The reviewer answers 24 decisions across six cards and sends them in one batch.
+    const batch = decisionBatch(24);
+    const posted = await fetch(`http://127.0.0.1:${server.port}/api/${key}/prompts`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prompts: batch, domSnapshot: "<body/>" }),
+    });
+    assert.equal((await posted.json()).pending_prompts, batch.length);
+
+    const delivered = await (await agentPoll).json();
+    assert.equal(delivered.status, "feedback");
+    assert.deepEqual(
+      delivered.prompts.map((prompt) => prompt.prompt),
+      batch.map((prompt) => prompt.prompt),
+      "every decision must arrive, in order, with its text intact",
+    );
+    assert.deepEqual(
+      delivered.prompts.map((prompt) => prompt.selector),
+      batch.map((prompt) => prompt.selector),
+    );
+
+    // The leftover poll is told it lost the session rather than quietly eating the batch.
+    assert.deepEqual(await leftover.result(), { status: "superseded" });
+  } finally {
+    await server.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("a leftover poll cannot steal the batch sent while the agent is applying earlier feedback", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "atelier-serve-"));
+  const artifact = path.join(dir, "artifact.html");
+  await writeFile(artifact, "<!doctype html><html><body><h1>decisions</h1></body></html>");
+  const server = await serve({ port: 0, stateFile: path.join(dir, "state.json"), version: "9.9.9-test" });
+  const post = (key, prompts) =>
+    fetch(`http://127.0.0.1:${server.port}/api/${key}/prompts`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prompts, domSnapshot: "" }),
+    });
+  const poll = () =>
+    fetch(`http://127.0.0.1:${server.port}/api/poll?file=${encodeURIComponent(artifact)}&timeoutMs=5000`).then((res) =>
+      res.json(),
+    );
+  try {
+    const key = await openSession(server.port, artifact);
+    const leftover = await attachStreamingPoll(server.port, artifact);
+
+    // Cycle 1: the reviewer sends an opening note and the agent picks it up.
+    const cycleOne = poll();
+    await post(key, [{ uid: "intro", prompt: "Start with the evidence hierarchy", tag: "message" }]);
+    assert.deepEqual(
+      (await cycleOne).prompts.map((prompt) => prompt.uid),
+      ["intro"],
+    );
+
+    // Working window: the agent is rewriting the artifact and is not polling. This is when the
+    // reviewer answered nine decisions and sent them, and when the leftover poll took them.
+    const batch = decisionBatch(9);
+    await post(key, batch);
+
+    assert.deepEqual(await leftover.result(), { status: "superseded" });
+    const cycleTwo = await poll();
+    assert.deepEqual(
+      cycleTwo.prompts.map((prompt) => prompt.uid),
+      batch.map((prompt) => prompt.uid),
+    );
+  } finally {
+    await server.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
