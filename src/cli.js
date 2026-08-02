@@ -1,10 +1,11 @@
 import { spawn, spawnSync } from "node:child_process";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
-import { access, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { encode as encodeToon } from "@toon-format/toon";
 import { AxiError, installSessionStartHooks, RESERVED_COMMANDS, runAxiCli, runUpdate } from "axi-sdk-js";
 
 import { createDesignOutput, DESIGN_SYSTEM_HINT } from "./design-reference.js";
@@ -15,7 +16,15 @@ import {
   splitExportWarnings,
 } from "./export-bundle.js";
 import { publishToHtmlApp } from "./html-app.js";
-import { clientHost, defaultPort, ensureStateDir, hostForUrl, serverLogFile, stateFile } from "./paths.js";
+import {
+  clientHost,
+  defaultPort,
+  ensureStateDir,
+  hostForUrl,
+  pollBatchFile,
+  serverLogFile,
+  stateFile,
+} from "./paths.js";
 import { findPlaybook, listPlaybooks, playbookIds, PLAYBOOK_ROUTER_HELP } from "./playbooks.js";
 import { resolveDesignAssetPath, serve } from "./server.js";
 import { canonicalFile, sessionKey, SessionStore } from "./session-store.js";
@@ -35,6 +44,7 @@ export const POLL_WAKE_PATH_RULES = Object.freeze([
   "Do not tell the user the artifact is being monitored until that wake path is live.",
   "If the poll gets killed or times out anyway, just re-run it - queued feedback is never lost.",
   "Run at most one poll per artifact: a session delivers each batch of feedback to one owning poll and retires every competing poll with a POLL_SUPERSEDED error rather than splitting feedback between them.",
+  "Every delivered poll response ends with a `prompts_delivered=<N> batch_file=<path>` line: compare `<N>` against the prompts you actually read, and if you read fewer, your own output capture truncated the response - read the whole batch from `batch_file` instead of asking the user to repeat themselves. A `batch_file` value of `-` means the recovery copy could not be written, not that `-` is a filename.",
 ]);
 // The one authoritative wrap-up statement. It reaches agents through the home output (SessionStart
 // hook), `--help`, and the generated skill; every other surface points at it rather than restating
@@ -45,7 +55,7 @@ export const SESSION_WRAPUP_HELP =
   "Then, once `atelier-axi` lists no other session, run `atelier-axi stop` to shut the shared background server down promptly; it also self-stops when idle (default 30 minutes) or as soon as the last session ends with nothing connected, so a manual stop is prompt cleanup rather than a requirement. When `ATELIER_AXI_IDLE_TIMEOUT_MS` is `0` or `off`, a manual stop can be required. " +
   "If the artifact file was already deleted, `end` fails with ENOENT and the session keeps showing as open even after the server stops - recreate an empty file at that exact path, run `end`, then delete it again. " +
   "Anything you started alongside the server, such as a LAN port forwarder or SSH tunnel, is a separate process Atelier never stops for you. " +
-  "Leftovers worth clearing once the review is over: the artifacts under `.atelier/` and any `<name>.export.html` beside them, plus whiteboard scene sidecars under `<state-dir>/whiteboards/<key>/` - `<state-dir>` is `~/.atelier-axi` by default or `ATELIER_AXI_STATE_DIR` when set, and `<key>` is the final segment of that session's URL - which are never removed automatically.";
+  "Leftovers worth clearing once the review is over: the artifacts under `.atelier/` and any `<name>.export.html` beside them, plus whiteboard scene sidecars under `<state-dir>/whiteboards/<key>/` and the last delivered batch copy at `<state-dir>/batches/<key>.json` - `<state-dir>` is `~/.atelier-axi` by default or `ATELIER_AXI_STATE_DIR` when set, and `<key>` is the final segment of that session's URL - which are never removed automatically.";
 // Short pointer appended to the poll responses an agent receives at the end of a review. The full
 // procedure lives in SESSION_WRAPUP_HELP; `end` is omitted here because these responses only fire
 // once the session has already ended.
@@ -290,7 +300,13 @@ async function pollCommand(args) {
       retries: 3,
       retryDelayMs: 500,
     });
-    return createPollOutput({ file: absolute, response, full, agent: detectInvokingAgent(process.env) });
+    // `missing` and `superseded` throw out of createPollOutput before the trailer is built: they
+    // deliver no prompts and write no batch, so there is nothing to lose or to recover, and the
+    // non-zero exit already makes them unmissable. A trailer there would only name a file that
+    // holds someone else's batch.
+    const output = createPollOutput({ file: absolute, response, full, agent: detectInvokingAgent(process.env) });
+    const batchFile = await writePollBatch(sessionKey(absolute), output);
+    return renderPollDelivery({ output, batchFile });
   } finally {
     waitReporter?.stop();
     if (!timeoutMs) {
@@ -396,6 +412,47 @@ export function createPollOutput({ file, response, full = false, agent = "generi
     session: { file, status: response.status || "waiting" },
     next_step: `No user feedback arrived before the optional timeout. Run \`atelier-axi poll ${file}\` without --timeout-ms to wait indefinitely - queued feedback is never lost, so re-running the poll is always safe.`,
   };
+}
+
+// Sentinel for `batch_file` when the recovery copy could not be written, so the trailer keeps
+// one parseable shape instead of an empty field.
+export const POLL_BATCH_FILE_UNAVAILABLE = "-";
+
+/**
+ * A poll's stdout is routinely truncated OUTSIDE atelier: agent harnesses cap captured output
+ * and keep the TAIL, which silently eats the head of a large batch - the incident that motivated
+ * this was a 2932-byte capture that began mid-table and dropped five decisions without a trace.
+ * Atelier cannot control that boundary, but it can make the loss detectable: a tail-keeping cap
+ * preserves exactly the last line, so the trailer survives the cut that destroys the rows above
+ * it. `prompts_delivered` is the authoritative count for the response, and `batch_file` points at
+ * the full batch on disk so a short read is recoverable without asking the user to re-answer.
+ * A pointer printed first would be the first thing eaten - keep this last, and emit nothing after.
+ */
+export function formatPollDeliveryTrailer({ promptsDelivered, batchFile }) {
+  return `prompts_delivered=${promptsDelivered} batch_file=${batchFile || POLL_BATCH_FILE_UNAVAILABLE}`;
+}
+
+// Renders the poll response body exactly as the SDK would, then appends the trailer as the last
+// line. Returning a pre-rendered string is why the trailer can be last: the SDK renders and
+// writes a command's structured return value itself, leaving no seam after it.
+export function renderPollDelivery({ output, batchFile }) {
+  const promptsDelivered = Array.isArray(output.prompts) ? output.prompts.length : 0;
+  return `${encodeToon(output)}\n${formatPollDeliveryTrailer({ promptsDelivered, batchFile })}`;
+}
+
+// The trailer promises a recoverable copy, so the batch lands on disk before the response is
+// rendered. `takeFeedback` is a destructive read - by now the prompts are gone from the session
+// store and this process holds the only copy - so a failed write degrades to a trailer without a
+// path rather than throwing away the delivery it exists to protect.
+async function writePollBatch(key, output) {
+  const file = pollBatchFile(key);
+  try {
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, `${JSON.stringify(output, null, 2)}\n`, "utf8");
+    return file;
+  } catch {
+    return null;
+  }
 }
 
 function createFeedbackNextStep(file, layoutWarnings, sessionEnded, endedBy, prompts = [], agent = "generic") {

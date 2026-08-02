@@ -8,6 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
+import { encode as encodeToon } from "@toon-format/toon";
 import { AxiError } from "axi-sdk-js";
 
 process.env.ATELIER_AXI_HOST = "127.0.0.1";
@@ -31,12 +32,14 @@ import {
   createUserEndedOpenOutput,
   detectInvokingAgent,
   fetchJson,
+  formatPollDeliveryTrailer,
   getCommandHelp,
   normalizeArgv,
   pollInterruptedText,
   pollWaitBannerText,
   pollWaitTickText,
   refreshAtelierSkill,
+  renderPollDelivery,
   resolveCopilotHookDir,
   resolveHookHomeDir,
   resolveServerEntry,
@@ -1670,6 +1673,143 @@ test("poll wait reporter still banners without ticks when narration is off", asy
     assert.equal(lines.length, 1, "suppresses the recurring heartbeat lines");
   } finally {
     reporter.stop();
+  }
+});
+
+test("poll delivery trailer states the prompt count and the recoverable batch file", () => {
+  assert.equal(
+    formatPollDeliveryTrailer({ promptsDelivered: 9, batchFile: "/state/batches/abc.json" }),
+    "prompts_delivered=9 batch_file=/state/batches/abc.json",
+  );
+  assert.equal(
+    formatPollDeliveryTrailer({ promptsDelivered: 0, batchFile: null }),
+    "prompts_delivered=0 batch_file=-",
+    "an unwritable batch keeps the trailer parseable instead of leaving the field empty",
+  );
+});
+
+test("renderPollDelivery appends the trailer as the last line and leaves the body untouched", () => {
+  const output = createPollOutput({
+    file: "/tmp/report.html",
+    response: { status: "feedback", prompts: [{ prompt: "one" }, { prompt: "two" }] },
+  });
+  const rendered = renderPollDelivery({ output, batchFile: "/state/batches/abc.json" });
+  const lines = rendered.split("\n");
+
+  assert.equal(lines.at(-1), "prompts_delivered=2 batch_file=/state/batches/abc.json");
+  assert.equal(
+    lines.slice(0, -1).join("\n"),
+    encodeToon(output),
+    "the response body stays byte-identical, so consumers that ignore the trailer are unaffected",
+  );
+});
+
+test("a response with no prompts still ends with a trailer, so the shape is uniform", () => {
+  const ended = createPollOutput({ file: "/tmp/report.html", response: { status: "ended", ended_by: "user" } });
+
+  assert.equal(
+    renderPollDelivery({ output: ended, batchFile: "/state/batches/abc.json" }).split("\n").at(-1),
+    "prompts_delivered=0 batch_file=/state/batches/abc.json",
+  );
+});
+
+// Error paths deliberately carry no trailer: they deliver no prompts, write no batch, and
+// already exit non-zero, so there is nothing to detect a short read of and nothing to recover.
+// createPollOutput throwing before it returns is the mechanism - pollCommand builds the trailer
+// only from a returned output, so an error can never reach it or name another poll's batch file.
+test("a superseded poll throws before any trailer or batch file is produced", () => {
+  assert.throws(
+    () => createPollOutput({ file: "/tmp/report.html", response: { status: "superseded" } }),
+    (error) => error instanceof AxiError && error.code === "POLL_SUPERSEDED",
+  );
+});
+
+// The proof bar for this change. The incident it closes happened OUTSIDE atelier: a harness
+// capped the poll's captured output and kept the TAIL, so the agent saw only the last four of
+// nine decisions and five money-adjacent answers vanished with no signal at all. Measured on
+// this exact fixture (see the PR description): the 9-decision compact response is 8581 bytes,
+// its `prompts` block 2398 bytes (~259 bytes per decision row), and `next_step` alone is 1714
+// bytes - which is why a 2932-byte tail (the incident's persisted size) leaves room for exactly
+// 4 rows, reproducing the incident's "received only the last four" precisely.
+test("a tail-capped poll capture keeps the trailer, so a short read is detectable and recoverable", async () => {
+  const stateDir = await mkdtemp(`${os.tmpdir()}/atelier-axi-poll-trailer-test-`);
+  const artifact = `${stateDir}/decisions.html`;
+  const decisions = Array.from({ length: 9 }, (_, index) => ({
+    uid: `decision-${index + 1}`,
+    prompt: `Decision ${index + 1}: use the tiered pricing table for the enterprise plan rather than the flat rate, and mirror the tier labels in the billing summary.`,
+    tag: "element",
+    selector: `#decision-${index + 1} > div.card-body > label:nth-of-type(1)`,
+    text: `Tiered pricing, option ${index + 1}`,
+  }));
+  await writeFile(artifact, "<html><body><main>nine decisions</main></body></html>", "utf8");
+  const server = await serve({ port: 0, stateFile: `${stateDir}/state.json`, version: VERSION });
+  const base = `http://127.0.0.1:${server.port}`;
+  try {
+    await fetch(`${base}/api/sessions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ file: artifact }),
+    });
+    const key = sessionKey(await canonicalFile(artifact));
+    await fetch(`${base}/api/${key}/prompts`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prompts: decisions, domSnapshot: "<main>nine decisions</main>" }),
+    });
+
+    // Piped stdio, so the child's stderr is not a TTY. The trailer must survive that: reaching a
+    // non-interactive agent whose capture was capped is its entire reason to exist, and it must
+    // never end up gated on `isTTY` the way the recurring wait ticks are.
+    const child = spawn(
+      process.execPath,
+      [fileURLToPath(new URL("../bin/atelier-axi.js", import.meta.url)), "poll", artifact],
+      {
+        cwd: fileURLToPath(new URL("..", import.meta.url)),
+        env: { ...process.env, ATELIER_AXI_STATE_DIR: stateDir, ATELIER_AXI_PORT: String(server.port) },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    let stdout = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+    await new Promise((resolve) => child.on("close", resolve));
+
+    const whole = Buffer.from(stdout, "utf8");
+    assert.equal(
+      stdout.trimEnd().split("\n").at(-1),
+      `prompts_delivered=9 batch_file=${path.join(stateDir, "batches", `${key}.json`)}`,
+      "a full read ends with the trailer even though stderr is not a TTY",
+    );
+
+    // The harness capture: keep only the last 2932 bytes, exactly as the incident's did.
+    const captured = whole.subarray(whole.length - 2932).toString("utf8");
+    assert.ok(whole.length > 2932, "the 9-decision response is larger than the incident's capture");
+    assert.doesNotMatch(captured, /^session:/m, "the cut lands past the head, as the incident's did");
+
+    const trailer = captured.trimEnd().split("\n").at(-1);
+    const declared = Number(trailer.match(/^prompts_delivered=(\d+) batch_file=(.+)$/)?.[1]);
+    const batchFile = trailer.match(/^prompts_delivered=(\d+) batch_file=(.+)$/)?.[2];
+    const survivingRows = captured.match(/^\s+decision-\d+/gm) || [];
+
+    assert.equal(declared, 9, "the surviving tail still states the authoritative count");
+    assert.ok(survivingRows.length < 9, "the capture really did lose decisions");
+    assert.notEqual(
+      survivingRows.length,
+      declared,
+      "the mismatch between the declared count and the parsed rows is what makes the loss detectable",
+    );
+
+    // ...and recoverable, without asking the reviewer to answer the lost decisions again.
+    const recovered = JSON.parse(await readFile(batchFile, "utf8"));
+    assert.equal(recovered.prompts.length, 9);
+    assert.deepEqual(
+      recovered.prompts.map((prompt) => prompt.uid),
+      decisions.map((decision) => decision.uid),
+    );
+  } finally {
+    await server.close();
+    await rm(stateDir, { force: true, recursive: true });
   }
 });
 

@@ -60,6 +60,15 @@ export function serverLogFile() {
   return path.join(stateDir(), "server.log");
 }
 
+// Full copy of the batch a poll last delivered for this session, pointed at by the poll
+// response's trailer so a consumer whose output capture truncated the response can recover
+// the whole batch. One file per session key, overwritten on every delivery: it exists to
+// rescue the response the agent is holding right now, and at most one poll owns a session,
+// so keeping only the latest batch is enough and keeps the directory bounded.
+export function pollBatchFile(key) {
+  return path.join(stateDir(), "batches", `${key}.json`);
+}
+
 export async function ensureStateDir() {
   await mkdir(stateDir(), { recursive: true });
 }
