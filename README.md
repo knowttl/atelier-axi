@@ -152,7 +152,7 @@ Nothing forces a cleanup, so sessions and the shared server can linger long afte
    Recreate an empty file at that exact path, run `atelier-axi end <html-file>`, then delete it again. Ending sessions before deleting their artifacts avoids this entirely.
 4. **Stop your own helpers separately.** A LAN port forwarder, SSH tunnel, or anything else you started alongside the server is a separate process Atelier never stops for you.
 5. **Clear the leftovers.** Artifacts live under `.atelier/` in the working directory by default, with any `<name>.export.html` copies beside them.
-   Whiteboard scene sidecars live under `<state-dir>/whiteboards/<key>/`, where `<state-dir>` is `~/.atelier-axi` by default or `ATELIER_AXI_STATE_DIR` when set, and `<key>` is the final segment of that session's URL; they are never removed automatically.
+   Whiteboard scene sidecars live under `<state-dir>/whiteboards/<key>/` and the last delivered poll batch at `<state-dir>/batches/<key>.json`, where `<state-dir>` is `~/.atelier-axi` by default or `ATELIER_AXI_STATE_DIR` when set, and `<key>` is the final segment of that session's URL; they are never removed automatically.
 
 ## How It Works
 
@@ -195,6 +195,8 @@ Under the hood, that loop is built from these pieces:
   The no-timeout poll always writes an immediate stderr banner so it is visibly not hung; it adds the periodic stderr wait ticks only in an interactive terminal, so when stderr is piped (as under agent harnesses) the captured output carries no tick noise. Stdout always stays reserved for the final response; if the poll is interrupted or times out, re-run it because queued feedback is never lost.
   Agents keep the poll in the foreground by default; a background poll is supported only through a harness-native tracked job whose completion resumes or notifies the same agent.
   Each artifact supports at most one current poll owner; any competing poll exits with `POLL_SUPERSEDED` without draining queued feedback.
+  Every delivered poll response ends with a `prompts_delivered=<N> batch_file=<path>` line, and the whole response is written to that file first.
+  Agent harnesses commonly cap captured output and keep the tail, which silently eats the head of a large batch; because a tail-keeping cap preserves the last line, an agent that parsed fewer prompts than `<N>` can tell the response was truncated and read the full batch from `batch_file` instead of asking you to answer again.
   Codex-specific guidance additionally warns that completed background tasks may not resume Codex automatically, so its poll should stay attached to the active turn.
 - **Session end etiquette** - Atelier tracks who ended a session: a human clicking **End session** (or **Send & End**) in the browser is a user-initiated end, while `atelier-axi end <html-file>` is agent-initiated.
   A plain `atelier-axi <html-file>` after a user-initiated end refuses to reopen the browser and returns guidance instead; pass `--reopen` only when the user asks for further review or something important needs their visual attention.
