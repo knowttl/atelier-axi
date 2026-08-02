@@ -44,7 +44,7 @@ export const POLL_WAKE_PATH_RULES = Object.freeze([
   "Do not tell the user the artifact is being monitored until that wake path is live.",
   "If the poll gets killed or times out anyway, just re-run it - queued feedback is never lost.",
   "Run at most one poll per artifact: a session delivers each batch of feedback to one owning poll and retires every competing poll with a POLL_SUPERSEDED error rather than splitting feedback between them.",
-  "Every delivered poll response ends with a `prompts_delivered=<N> batch_file=<path>` line: compare `<N>` against the prompts you actually read, and if you read fewer, your own output capture truncated the response - read the whole batch from `batch_file` instead of asking the user to repeat themselves.",
+  "Every delivered poll response ends with a `prompts_delivered=<N> batch_file=<path>` line: compare `<N>` against the prompts you actually read, and if you read fewer, your own output capture truncated the response - read the whole batch from `batch_file` instead of asking the user to repeat themselves. A `batch_file` value of `-` means the recovery copy could not be written, not that `-` is a filename.",
 ]);
 // The one authoritative wrap-up statement. It reaches agents through the home output (SessionStart
 // hook), `--help`, and the generated skill; every other surface points at it rather than restating
