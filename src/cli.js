@@ -34,6 +34,7 @@ export const POLL_WAKE_PATH_RULES = Object.freeze([
   "If the harness has no completion-aware background facility, use the foreground poll or first wire a verified wake callback into the surrounding supervisor.",
   "Do not tell the user the artifact is being monitored until that wake path is live.",
   "If the poll gets killed or times out anyway, just re-run it - queued feedback is never lost.",
+  "Run at most one poll per artifact: a session delivers each batch of feedback to one owning poll and retires every competing poll with a POLL_SUPERSEDED error rather than splitting feedback between them.",
 ]);
 // The one authoritative wrap-up statement. It reaches agents through the home output (SessionStart
 // hook), `--help`, and the generated skill; every other surface points at it rather than restating
@@ -353,6 +354,16 @@ export function createPollOutput({ file, response, full = false, agent = "generi
   if (response.status === "missing") {
     throw new AxiError("No active Atelier Editor session for this file", "NOT_FOUND", [
       `Run \`atelier-axi ${file}\` first`,
+    ]);
+  }
+  // A session delivers its feedback to exactly one poll. Being superseded means another poll owns
+  // the session, so this one returns nothing - loudly, because the alternative is two pollers
+  // splitting one batch between them with neither the user nor either agent told.
+  if (response.status === "superseded") {
+    throw new AxiError("Another `atelier-axi poll` owns this Atelier Editor session", "POLL_SUPERSEDED", [
+      "No feedback was delivered to this poll and none was lost - the owning poll receives it",
+      "Run only one poll per artifact: stop any leftover poll before starting another",
+      `To take the session back, run \`atelier-axi poll ${file}\` again once no other poll is running`,
     ]);
   }
   if (response.status === "feedback") {
