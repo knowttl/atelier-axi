@@ -288,9 +288,7 @@ test("artifact SDK registers a capture-phase document keydown listener for the m
 test("artifact SDK announces readiness after registering its chrome message listener", () => {
   const js = createSdkJs("abc");
   const listenerIndex = js.indexOf('window.addEventListener("message"');
-  const readyIndex = js.indexOf(
-    'parent.postMessage({ type: "atelier:sdkReady", documentToken, documentSequence }, "*")',
-  );
+  const readyIndex = js.indexOf('postArtifactMessage("atelier:sdkReady", { documentToken, documentSequence })');
 
   assert.notEqual(listenerIndex, -1);
   assert.ok(readyIndex > listenerIndex);

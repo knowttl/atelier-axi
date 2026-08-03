@@ -1861,7 +1861,7 @@ export function createArtifactSdk(
     if (msg.type === "atelier:restoreReviewState") restoreReviewState(msg.state);
     if (msg.type === "atelier:revealElement") revealElement(msg.selector);
   });
-  parent.postMessage({ type: "atelier:sdkReady", documentToken, documentSequence }, "*");
+  postArtifactMessage("atelier:sdkReady", { documentToken, documentSequence });
 
   // Bring a warning's element into view and flash it. The marker is Atelier UI, so it is excluded
   // from the layout audit and never becomes a finding of its own.

@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
 
+import { createArtifactSdk } from "../src/artifact-sdk.js";
+
 const sourceUrl = new URL("../src/chrome-client.js", import.meta.url);
 
 /** @typedef {{ key: string, file: string, layoutGateEnabled?: boolean, layoutGateMaxHoldMs?: number, modeToggleHotkeyKey?: string, initialLayoutWarnings?: any[], chromeLoadToken?: string, initialArtifactRevision?: number, initialArtifactLoadToken?: string, initialArtifactLoadSequence?: number }} HarnessSessionData */
@@ -322,6 +324,12 @@ async function createChromeHarness({
     return match ? decodeURIComponent(match[1]) : "";
   }
 
+  function dispatchFrameMessage(data) {
+    const handlers = windowListeners.get("message") || [];
+    assert.ok(handlers.length > 0, "chrome-client registered a message handler");
+    for (const handler of handlers) handler({ source: frame.contentWindow, data });
+  }
+
   return {
     element,
     frame,
@@ -344,13 +352,14 @@ async function createChromeHarness({
       return eventSources[0];
     },
     sendFrameMessage(data) {
-      const handlers = windowListeners.get("message") || [];
-      assert.ok(handlers.length > 0, "chrome-client registered a message handler");
       const message =
         artifactSrc && !Object.hasOwn(data || {}, "artifact_load_token")
           ? { ...data, artifact_load_token: frameLoadToken() }
           : data;
-      for (const handler of handlers) handler({ source: frame.contentWindow, data: message });
+      dispatchFrameMessage(message);
+    },
+    sendRawFrameMessage(data) {
+      dispatchFrameMessage(data);
     },
     sendSnapshot(
       snapshot,
@@ -422,6 +431,113 @@ async function createChromeHarness({
     beginRequests,
     artifactBeginRequests,
     artifactLoadToken: frameLoadToken,
+  };
+}
+
+function createArtifactSdkHarness({ artifactLoadToken, snapshotText }) {
+  const messages = [];
+  const windowListeners = new Map();
+
+  class ArtifactElement {
+    constructor(tagName, textContent = "") {
+      this.tagName = tagName.toUpperCase();
+      this.nodeType = 1;
+      this.textContent = textContent;
+      this.innerText = textContent;
+      this.parentElement = null;
+      this.children = [];
+      this.style = {};
+    }
+
+    closest() {
+      return null;
+    }
+
+    getAttribute() {
+      return null;
+    }
+  }
+
+  const documentElement = new ArtifactElement("html");
+  const body = new ArtifactElement("body", snapshotText);
+  documentElement.children.push(body);
+  body.parentElement = documentElement;
+  const parentWindow = {
+    postMessage(message) {
+      messages.push(message);
+    },
+  };
+  const artifactWindow = {
+    clearTimeout() {},
+    crypto: {
+      getRandomValues(values) {
+        values.set([1, 2, 3, 4]);
+        return values;
+      },
+    },
+    performance: { timeOrigin: 1234 },
+    addEventListener(type, handler) {
+      if (!windowListeners.has(type)) windowListeners.set(type, []);
+      windowListeners.get(type).push(handler);
+    },
+    setTimeout() {
+      return 1;
+    },
+  };
+  const artifactDocument = {
+    body,
+    documentElement,
+    readyState: "loading",
+    addEventListener() {},
+    getElementById() {
+      return null;
+    },
+    querySelectorAll() {
+      return [];
+    },
+  };
+  const context = {
+    Element: ArtifactElement,
+    MutationObserver: class {
+      observe() {}
+    },
+    artifactDocument,
+    artifactLoadToken,
+    artifactWindow,
+    deriveQueueKey() {
+      return "";
+    },
+    isNativeInteractive() {
+      return false;
+    },
+    mermaidHelpers: {
+      isMermaidSvg() {
+        return false;
+      },
+      mermaidNodeFrom() {
+        return null;
+      },
+      mermaidNodeElement() {
+        return null;
+      },
+    },
+    parentWindow,
+  };
+  vm.runInNewContext(
+    `(${createArtifactSdk.toString()})(deriveQueueKey, isNativeInteractive, mermaidHelpers, 1, artifactLoadToken)`,
+    {
+      ...context,
+      document: artifactDocument,
+      parent: parentWindow,
+      window: artifactWindow,
+    },
+  );
+
+  return {
+    messages,
+    dispatchChromeMessage(data) {
+      for (const handler of windowListeners.get("message") || []) handler({ source: parentWindow, data });
+    },
   };
 }
 
@@ -1675,6 +1791,41 @@ test("a decision sent while the agent is working still reaches the session store
     { prompt: "D1: Accept", selector: "form#d1", tag: "choice", text: "D1: Accept" },
   ]);
   assert.equal(chrome.queued().length, 0);
+});
+
+test("SDK readiness authorizes a correlated snapshot on a tokenized artifact load", async () => {
+  const posts = [];
+  const chrome = await createChromeHarness({
+    artifactSrc: "/artifact/abc/index.html",
+    fetchImpl: async (url, init) => {
+      posts.push({ url, body: JSON.parse(init.body) });
+      return { ok: true };
+    },
+  });
+  const sdk = createArtifactSdkHarness({
+    artifactLoadToken: chrome.artifactLoadToken(),
+    snapshotText: "Artifact body",
+  });
+  const ready = sdk.messages.find((message) => message.type === "atelier:sdkReady");
+  assert.ok(ready);
+  chrome.sendRawFrameMessage(ready);
+
+  chrome.sendFrameMessage({
+    type: "atelier:queuePrompt",
+    prompt: { prompt: "D1: Accept", selector: "form#d1", tag: "choice", text: "D1: Accept" },
+  });
+  chrome.element("send").onclick();
+  const request = chrome.postedToFrame.findLast((message) => message.type === "atelier:requestSnapshot");
+  assert.ok(request);
+  sdk.dispatchChromeMessage(request);
+  const snapshot = sdk.messages.findLast((message) => message.type === "atelier:snapshot");
+  assert.ok(snapshot);
+  chrome.sendRawFrameMessage(snapshot);
+  await flushPromises();
+
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].url, "/api/abc/prompts");
+  assert.equal(posts[0].body.domSnapshot, 'uid=1 body "Artifact body"');
 });
 
 test("a decision submit survives an artifact reload before the snapshot reply", async () => {
