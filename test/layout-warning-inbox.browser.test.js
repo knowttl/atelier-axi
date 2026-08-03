@@ -473,6 +473,7 @@ test(
       click(/radio " Pro"/);
       click(/checkbox " Include beta cohort"/);
       // Unsent annotation text on an element the reload will replace.
+      click(/button "Annotate"/);
       click(/Annotate this paragraph/);
       wait(800);
       run("chrome-devtools-axi", ["type", "Shorten this to one sentence"], chromeEnv);

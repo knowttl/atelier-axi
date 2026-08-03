@@ -149,9 +149,10 @@ review _surface_ changes.
    harness-native tracked job whose completion is guaranteed to resume or notify this same
    agent; if the harness has no such facility, keep it in the foreground. If it is killed,
    re-run it because queued feedback is never lost. Leave it running; never kill it deliberately.
-2. If the poll returns `layout_warnings`, follow the returned `next_step`: repair every proven
-   severe layout failure and re-check it BEFORE involving the human. Cosmetic, intentional,
-   transient, tiny, and uncertain observations do not enter this path.
+2. Browser-detected layout issues do not return the poll or wake the agent by themselves. If the
+   user selects and sends them, the poll returns an ordinary `layout-warnings` prompt; treat that
+   as an explicit repair request, apply every listed fix in one pass, and let Atelier re-check the
+   result after the newer artifact load.
 3. **Collect the user's answers** to the intake questions.
 4. **Propose approaches.** Once the questions are answered, update the artifact to present 2-3
    candidate approaches with tradeoffs and your recommendation, using the `comparison` playbook
