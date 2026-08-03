@@ -168,7 +168,7 @@ export function createHomeOutput({ bin, sessions, includeSessions = true, agent 
       "Run `atelier-axi <html-file>` to open or resume a Atelier Editor session. If the user explicitly ended the session from the browser, this refuses to reopen it and explains why instead of reopening uninvited - pass `--reopen` only when the user asks for further review or something important needs their visual attention",
       "Unless the user specifies another location, create HTML artifacts in the current working directory under `.atelier/`",
       "Atelier serves the html file through a local express.js server. If your html needs to reference other filesystem assets such as images, CSS, fonts, and local scripts, copy them into the same directory as the HTML file, then reference them with relative paths from that directory. Never prepend `/` to those asset paths - root paths won't work",
-      `Run \`atelier-axi poll <html-file>\` to wait for user feedback or browser-proven severe layout failures. It long-polls and stays silent until the user sends feedback, ends the session, or the real browser proves meaningful content is inaccessible or unusable, so leave it running - never kill it. Repair and re-check every returned layout failure before involving the human; cosmetic, intentional, transient, tiny, and uncertain observations stay silent. ${pollExecutionGuidance({ agent })} ${POLL_SEND_AND_END_RULE}`,
+      `Run \`atelier-axi poll <html-file>\` to wait for user feedback. It long-polls and stays silent until the user sends feedback or ends the session, so leave it running - never kill it. Detected layout issues never return this poll: the browser files them in the user's Layout issues inbox in the Atelier top bar, and they arrive as an ordinary tag "layout-warnings" prompt only when the user selects them and queues the fixes. Never edit the artifact to chase a layout issue the user has not queued. The only exception is a fatal artifact_failures response, which means the review surface itself could not be used. ${pollExecutionGuidance({ agent })} ${POLL_SEND_AND_END_RULE}`,
       'Rendered Mermaid diagrams in `.mermaid` containers become embedded, editable Excalidraw whiteboards in the browser (click a diagram to unlock editing; a Fullscreen action opens it over the whole viewport) - flowchart, sequence, class, ER, and state diagrams convert to editable shapes; other types embed as an image to draw on. Scenes autosave locally; when a reload detects a changed Mermaid source, the reviewer explicitly chooses to re-convert and discard saved edits or keep editing the saved scene. Standalone and exported copies still render plain Mermaid. Queue feedback adds a prompt to the Conversation panel; when the user sends it, poll returns a tag "whiteboard" prompt carrying a bounded edit summary plus local scenePath (.excalidraw JSON) and previewPath (PNG) files - read the summary first, open the files only when needed, then apply the edits by updating the Mermaid source in the artifact (never try to write the scene back)',
       SESSION_WRAPUP_HELP,
       "Run `atelier-axi export <html-file> [--out <path>]` to write a portable copy of the artifact - one HTML file with its LOCAL assets inlined - so it opens with no Atelier server and no sibling files. Remote CDN/font references are left as links, so it needs network to render those. Users can also export from the browser chrome's overflow menu",
@@ -203,7 +203,7 @@ export function createPlaybookOutput(args) {
 export function createOpenOutput({ file, url, status, agent = "generic" }) {
   return {
     session: { file, url, status },
-    next_step: `Do not respond to the user just yet. Now you must run \`atelier-axi poll ${file}\`. This command long-polls until the user sends feedback, ends the session, or the real browser proves a severe layout failure through the in-iframe audit, and it stays silent the whole time - that is normal, never kill it. If layout_warnings arrive, follow the poll response's next_step: repair and re-check the inaccessible or unusable content before involving the human. Cosmetic, intentional, transient, tiny, and uncertain observations stay silent. Do not pass --timeout-ms during normal agent use. ${pollExecutionGuidance({ agent })} After applying feedback, run \`atelier-axi poll ${file} --agent-reply "<message for the user>"\` without --timeout-ms to show your response in Atelier Editor and wait for more feedback. If the user ends the session, stop polling and do not reopen it by re-running \`atelier-axi ${file}\` unless the user asks for further review or something genuinely important needs their visual attention - deliver routine updates directly in this conversation instead. When reopening is warranted, run \`atelier-axi ${file} --reopen\`.`,
+    next_step: `Do not respond to the user just yet. Now you must run \`atelier-axi poll ${file}\`. This command long-polls until the user sends feedback or ends the session, and it stays silent the whole time - that is normal, never kill it. Layout issues the browser detects do not return this poll; they wait in the user's Layout issues inbox until the user queues them, then arrive as an ordinary tag "layout-warnings" prompt. Do not pass --timeout-ms during normal agent use. ${pollExecutionGuidance({ agent })} After applying feedback, run \`atelier-axi poll ${file} --agent-reply "<message for the user>"\` without --timeout-ms to show your response in Atelier Editor and wait for more feedback. If the user ends the session, stop polling and do not reopen it by re-running \`atelier-axi ${file}\` unless the user asks for further review or something genuinely important needs their visual attention - deliver routine updates directly in this conversation instead. When reopening is warranted, run \`atelier-axi ${file} --reopen\`.`,
   };
 }
 
@@ -318,14 +318,15 @@ async function pollCommand(args) {
 
 export function pollWaitBannerText(file) {
   return (
-    `[atelier-axi] Long-polling for user feedback or layout_warnings on ${file}. This stays silent until the user sends feedback, ends the session, or the browser reports fresh layout_warnings - leave it running. ` +
+    `[atelier-axi] Long-polling for user feedback on ${file}. This stays silent until the user sends feedback or ends the session - leave it running. ` +
+    `Detected layout issues do NOT return this poll: they wait in the user's Layout issues inbox until the user queues them as ordinary feedback. ` +
     `If it gets killed or times out, re-run \`atelier-axi poll ${file}\` - queued feedback is never lost.`
   );
 }
 
 export function pollWaitTickText(elapsedMs) {
   const minutes = Math.round(elapsedMs / 60_000);
-  return `[atelier-axi] Still waiting for user feedback (${minutes}m). Also waiting for fresh layout_warnings. Leave this running until the user acts or the browser reports fresh layout_warnings.`;
+  return `[atelier-axi] Still waiting for user feedback (${minutes}m). Leave this running until the user sends feedback or ends the session.`;
 }
 
 export function pollInterruptedText(file) {
@@ -363,7 +364,7 @@ export function startPollWaitReporter({
  *   dom_snapshot_bytes?: number,
  *   dom_snapshot_hint?: string,
  *   prompts?: any[],
- *   layout_warnings?: any[],
+ *   artifact_failures?: any[],
  * }}
  */
 export function createPollOutput({ file, response, full = false, agent = "generic" }) {
@@ -383,11 +384,7 @@ export function createPollOutput({ file, response, full = false, agent = "generi
     ]);
   }
   if (response.status === "feedback") {
-    const layoutWarnings = Array.isArray(response.layout_warnings)
-      ? response.layout_warnings.filter(
-          (warning) => warning && String(warning.severity || "").toLowerCase() === "error",
-        )
-      : [];
+    const artifactFailures = Array.isArray(response.artifact_failures) ? response.artifact_failures : [];
     const sessionEnded = Boolean(response.session_ended);
     const endedBy = typeof response.ended_by === "string" ? response.ended_by : undefined;
     return {
@@ -398,8 +395,8 @@ export function createPollOutput({ file, response, full = false, agent = "generi
       },
       ...truncateDomSnapshot(response.dom_snapshot, { file, full }),
       prompts: response.prompts || [],
-      ...(layoutWarnings.length > 0 ? { layout_warnings: layoutWarnings } : {}),
-      next_step: createFeedbackNextStep(file, layoutWarnings, sessionEnded, endedBy, response.prompts || [], agent),
+      ...(artifactFailures.length > 0 ? { artifact_failures: artifactFailures } : {}),
+      next_step: createFeedbackNextStep(file, artifactFailures, sessionEnded, endedBy, response.prompts || [], agent),
     };
   }
   if (response.status === "ended") {
@@ -455,39 +452,46 @@ async function writePollBatch(key, output) {
   }
 }
 
-function createFeedbackNextStep(file, layoutWarnings, sessionEnded, endedBy, prompts = [], agent = "generic") {
-  const count = layoutWarnings.length;
+function createFeedbackNextStep(file, artifactFailures, sessionEnded, endedBy, prompts = [], agent = "generic") {
+  const count = artifactFailures.length;
   const whiteboardNote = prompts.some((prompt) => prompt && prompt.tag === "whiteboard")
     ? `This feedback includes whiteboard edits (tag "whiteboard"): read the edit summary in the prompt text first, and only when it is not enough, open the target's scenePath (.excalidraw scene JSON) or previewPath (PNG) local files for detail. The artifact's Mermaid source stays authoritative - apply the edits by updating the Mermaid text in ${file} (Atelier live-reloads it); never try to write the .excalidraw scene back. `
     : "";
+  const layoutNote = prompts.some((prompt) => prompt && prompt.tag === "layout-warnings")
+    ? `This feedback includes layout issues the user selected from the Atelier Layout issues inbox (tag "layout-warnings"): the target lists the exact warning ids and targets. Apply every listed fix in one pass before saving so the user's review refreshes once. Queueing is a repair request, not a resolution - Atelier only marks a warning resolved after a newer artifact load and a complete check at the same viewport no longer detects it. `
+    : "";
   if (sessionEnded) {
-    const layoutNote =
+    const failureNote =
       count > 0
         ? endedBy === "user"
-          ? `${count} proven severe layout failure${count === 1 ? "" : "s"} arrived alongside this final feedback. Repair the inaccessible or unusable content in ${file}, then open it directly at the affected viewport and confirm the content or control is visible and usable without reopening this ended Atelier session. `
-          : `${count} proven severe layout failure${count === 1 ? "" : "s"} arrived alongside this final feedback. Repair the inaccessible or unusable content in ${file}, then run \`atelier-axi ${file}\` to open a fresh session and re-check the real-browser audit. `
+          ? `${count} fatal artifact failure${count === 1 ? "" : "s"} arrived alongside this final feedback - the review surface itself could not be used. Repair ${file}, then open it directly and confirm it renders without reopening this ended Atelier session. `
+          : `${count} fatal artifact failure${count === 1 ? "" : "s"} arrived alongside this final feedback - the review surface itself could not be used. Repair ${file}, then run \`atelier-axi ${file}\` to open a fresh session. `
         : "";
     if (endedBy === "user") {
       const reopenNote =
         count > 0
           ? ""
           : ` Only run \`atelier-axi ${file} --reopen\` if the user explicitly asks for further review or something genuinely important needs their visual attention.`;
-      return `${layoutNote}${whiteboardNote}This was the last feedback before the user ended the session. Stop polling ${file} and do not reopen it - deliver any remaining updates directly in this conversation instead.${reopenNote} ${SESSION_WRAPUP_NEXT_STEP}`;
+      return `${failureNote}${layoutNote}${whiteboardNote}This was the last feedback before the user ended the session. Stop polling ${file} and do not reopen it - deliver any remaining updates directly in this conversation instead.${reopenNote} ${SESSION_WRAPUP_NEXT_STEP}`;
     }
-    return `${layoutNote}${whiteboardNote}This was the last feedback before the Atelier Editor session ended. Stop polling ${file}. Deliver any remaining updates directly in this conversation, or run \`atelier-axi ${file}\` to open a fresh session if the user needs further visual review. ${SESSION_WRAPUP_NEXT_STEP}`;
+    return `${failureNote}${layoutNote}${whiteboardNote}This was the last feedback before the Atelier Editor session ended. Stop polling ${file}. Deliver any remaining updates directly in this conversation, or run \`atelier-axi ${file}\` to open a fresh session if the user needs further visual review. ${SESSION_WRAPUP_NEXT_STEP}`;
   }
-  const layoutPrefix =
-    count > 0 ? layoutWarningsPrefix(file, layoutWarnings) : `Apply the requested changes to ${file}. `;
-  return `${layoutPrefix}${whiteboardNote}Do not respond to the user just yet. Now you must run \`atelier-axi poll ${file} --agent-reply "<message for the user>"\` without --timeout-ms unless the user ended the session. The poll waits silently until the user sends more feedback, ends the session, or reports fresh layout_warnings - never kill it. ${pollExecutionGuidance({ agent })}`;
+  const prefix =
+    count > 0 ? artifactFailuresPrefix(file, artifactFailures) : `Apply the requested changes to ${file}. `;
+  return `${prefix}${layoutNote}${whiteboardNote}Do not respond to the user just yet. Now you must run \`atelier-axi poll ${file} --agent-reply "<message for the user>"\` without --timeout-ms unless the user ended the session. The poll waits silently until the user sends more feedback or ends the session - never kill it. ${pollExecutionGuidance({ agent })}`;
 }
 
-// Layout findings reach this path only after the browser has direct, stable evidence that
-// meaningful content or a required control is inaccessible or unusable. Cosmetic and uncertain
-// observations are discarded before storage, so every returned failure still requires repair.
-function layoutWarningsPrefix(file, layoutWarnings) {
-  const count = layoutWarnings.length;
+// The narrow fatal path. Ordinary layout findings never reach the poll: they wait in the user's
+// Layout issues inbox. Only failures that make the review itself unusable - the artifact document
+// not being servable, or one of its own local assets failing to load - arrive without user action.
+function artifactFailuresPrefix(file, artifactFailures) {
+  const count = artifactFailures.length;
   const plural = count === 1 ? "" : "s";
-  return `${count} proven severe layout failure${plural} detected - repair the inaccessible or unusable content in ${file}, then re-check in the browser before involving the human. Atelier live-reloads the artifact automatically after you save, so you do not need to re-run \`atelier-axi ${file}\` for this. `;
+  const details = artifactFailures
+    .map((failure) => `${failure.kind}: ${failure.detail}`)
+    .slice(0, 5)
+    .join("; ");
+  return `${count} fatal artifact failure${plural} detected - the review surface could not be used (${details}). Repair ${file} so it renders with all of its local assets, then re-check in the browser. Atelier live-reloads the artifact automatically after you save, so you do not need to re-run \`atelier-axi ${file}\` for this. `;
 }
 
 function createEndedNextStep(file, endedBy) {
@@ -1248,13 +1252,13 @@ export function getCommandHelp(command, { agent = "generic" } = {}) {
 }
 
 function createTopLevelHelp({ agent = "generic" } = {}) {
-  return `atelier-axi - Atelier Editor AXI\n\nUsage:\n  atelier-axi\n  atelier-axi <html-file> [--no-open] [--no-gate] [--reopen]\n  atelier-axi poll <html-file> [--agent-reply "..."]\n  atelier-axi end <html-file>\n  atelier-axi export <html-file> [--out <path>]\n  atelier-axi share <html-file> [--password <pw>] [--token <t>]\n  atelier-axi stop\n  atelier-axi playbook [playbook_id]\n  atelier-axi design\n  atelier-axi setup hooks\n  atelier-axi update [--check]\n\n${DESIGN_SYSTEM_HINT}\n\nNote: poll long-polls indefinitely by default until the user sends feedback, ends the session, or the browser proves a severe layout failure, staying silent while it waits - never kill it. Repair and re-check every returned layout failure before involving the human; cosmetic and uncertain observations are never returned. Do not pass --timeout-ms during normal agent use; it is for tests and debugging only. ${pollExecutionGuidance({ agent })} ${POLL_SEND_AND_END_RULE}\n\n`;
+  return `atelier-axi - Atelier Editor AXI\n\nUsage:\n  atelier-axi\n  atelier-axi <html-file> [--no-open] [--no-gate] [--reopen]\n  atelier-axi poll <html-file> [--agent-reply "..."]\n  atelier-axi end <html-file>\n  atelier-axi export <html-file> [--out <path>]\n  atelier-axi share <html-file> [--password <pw>] [--token <t>]\n  atelier-axi stop\n  atelier-axi playbook [playbook_id]\n  atelier-axi design\n  atelier-axi setup hooks\n  atelier-axi update [--check]\n\n${DESIGN_SYSTEM_HINT}\n\nNote: poll long-polls indefinitely by default until the user sends feedback or ends the session, staying silent while it waits - never kill it. Layout issues the browser detects are passive: they collect in the user's Layout issues inbox in the Atelier top bar and reach the agent only when the user selects them and queues the fixes, as an ordinary tag "layout-warnings" prompt. Do not pass --timeout-ms during normal agent use; it is for tests and debugging only. ${pollExecutionGuidance({ agent })} ${POLL_SEND_AND_END_RULE}\n\n`;
 }
 
 function createCommandHelp({ agent = "generic" } = {}) {
   return {
     open: `Usage: atelier-axi <html-file> [--no-open] [--no-gate] [--reopen]\n\nOpen or resume a Atelier Editor review session for an HTML artifact. Use --no-open when you need to ensure the server/session exists without opening another browser window. Use --no-gate to skip the open-time layout curtain for this browser open. If the user explicitly ended the session from the browser, this refuses to reopen it and returns guidance instead - pass --reopen to force it open when the user asks for further review or something important needs their visual attention. Sessions ended by the agent (\`atelier-axi end\`) reopen normally without the flag.\n`,
-    poll: `Usage: atelier-axi poll <html-file> [--agent-reply "..."] [--full]\n\nThis command long-polls indefinitely for queued user prompts and browser-proven severe layout failures, then returns them to the agent as layout_warnings. It stays silent while it waits - that is normal, never kill it. Repair and re-check every returned layout failure before involving the human; cosmetic and uncertain observations are never returned. Do not pass --timeout-ms during normal agent use; it is for tests and debugging only. ${pollExecutionGuidance({ agent })} Use --agent-reply after applying prior feedback to display your response in Atelier Editor before waiting again. The returned dom_snapshot is truncated by default with a size hint (override the byte cap with ATELIER_AXI_POLL_SNAPSHOT_MAX_BYTES); pass --full to receive the complete DOM snapshot. ${POLL_SEND_AND_END_RULE}\n`,
+    poll: `Usage: atelier-axi poll <html-file> [--agent-reply "..."] [--full]\n\nThis command long-polls indefinitely for queued user prompts. It stays silent while it waits - that is normal, never kill it. Browser-detected layout issues do NOT return this poll: they are filed passively in the user's Layout issues inbox and arrive as an ordinary tag "layout-warnings" prompt only after the user selects them and queues the fixes. Warning lifecycle: an issue stays unresolved and counted while queued, becomes recurring if a newer artifact revision still shows it, and is resolved only after a newer artifact load plus a complete diagnostic pass at the same viewport no longer detects it. A failed or incomplete pass preserves it as unverified rather than clearing it. The only response that arrives without user action is artifact_failures - a fatal failure that made the review surface itself unusable. Do not pass --timeout-ms during normal agent use; it is for tests and debugging only. ${pollExecutionGuidance({ agent })} Use --agent-reply after applying prior feedback to display your response in Atelier Editor before waiting again. The returned dom_snapshot is truncated by default with a size hint (override the byte cap with ATELIER_AXI_POLL_SNAPSHOT_MAX_BYTES); pass --full to receive the complete DOM snapshot. ${POLL_SEND_AND_END_RULE}\n`,
     end: `Usage: atelier-axi end <html-file>\n\nEnd a Atelier Editor session as the agent. A session ended this way still reopens normally on the next \`atelier-axi <html-file>\`, unlike a user ending it from the browser, which requires --reopen. End sessions before deleting their artifacts; run \`atelier-axi\` with no arguments and see the wrap-up entry in its help for the full procedure, including recovery when the file is already gone.\n`,
     export: `Usage: atelier-axi export <html-file> [--out <path>]\n\nWrite a portable copy of an artifact: one HTML file with its LOCAL assets inlined (relative-path stylesheets, scripts, images, and fonts become inline <style>/<script> blocks and data URIs). Remote CDN/font references (https URLs) are left as links for the browser to load, so the file needs network to render those. Atelier makes no outbound requests - it only reads local files, confined to the artifact's directory. Defaults to writing <name>.export.html next to the source; pass --out to choose a path. The Atelier annotation SDK is never included in an export.\n`,
     share: `Usage: atelier-axi share <html-file> [--password <pw>] [--token <t>]\n\nPublish the artifact on ht-ml.app (https://ht-ml.app), a third-party hosting service not part of Atelier, and print a visitable URL. Shares are PUBLIC by default: anyone with the link can open the page, and it may be indexed or scraped. Pass --password to publish a PRIVATE password-protected page; viewers must supply the password to view. Builds the same local-inlined HTML as 'export' (local assets inlined; remote CDN/font URLs left as links and are not blocked by CSP on ht-ml.app, but still load over the viewer's network), then POSTs it to ht-ml.app's /v1 API. Creating a site needs no account or API key. The response includes the url plus a secret update_key (shown once) for updating or deleting the page later. Set ATELIER_AXI_HTML_APP_TOKEN (or pass --token) to attach an optional bearer token; it is never required. The annotation SDK is never included.\n`,
