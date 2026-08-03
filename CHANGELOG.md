@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.3](https://github.com/knowttl/atelier-axi/compare/atelier-axi-v0.3.2...atelier-axi-v0.3.3) (2026-08-03)
+
+
+### Features
+
+* add multiplexed event stream foundation ([#212](https://github.com/knowttl/atelier-axi/issues/212)) ([34ed7f3](https://github.com/knowttl/atelier-axi/commit/34ed7f39875e472546935237b0f545d08a54f828))
+* add passive layout issue triage ([bfbddc7](https://github.com/knowttl/atelier-axi/commit/bfbddc7dda9532ccba565ad03aa527a86e45f7f5))
+* add passive layout warning triage ([#210](https://github.com/knowttl/atelier-axi/issues/210)) ([3c75e1f](https://github.com/knowttl/atelier-axi/commit/3c75e1f86350a78bbad21b1779e559cd11738e52))
+* sync upstream passive layout warning triage onto the atelier rename ([ef49409](https://github.com/knowttl/atelier-axi/commit/ef49409e85f13133e79bd750d693268b24678a30))
+
+
+### Bug Fixes
+
+* **cli:** detect truncated poll deliveries ([#31](https://github.com/knowttl/atelier-axi/issues/31)) ([711941e](https://github.com/knowttl/atelier-axi/commit/711941e4e8dab81229a17a3dc01d662a0bc27789))
+* restore long-poll-only feedback delivery ([#214](https://github.com/knowttl/atelier-axi/issues/214)) ([7c64184](https://github.com/knowttl/atelier-axi/commit/7c64184adce8b2b18c1cb072779305303b8079d9))
+* **server:** prevent competing polls from dropping feedback ([#30](https://github.com/knowttl/atelier-axi/issues/30)) ([1b9e6bd](https://github.com/knowttl/atelier-axi/commit/1b9e6bdb20460aa04aef56d1fea5c48901a27b8b))
+
 ## [0.3.2](https://github.com/knowttl/atelier-axi/compare/atelier-axi-v0.3.1...atelier-axi-v0.3.2) (2026-07-27)
 
 
