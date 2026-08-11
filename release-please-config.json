@@ -5,7 +5,14 @@
   "packages": {
     ".": {
       "release-type": "node",
-      "package-name": "atelier-axi"
+      "package-name": "atelier-axi",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "plugin.json",
+          "jsonpath": "$.version"
+        }
+      ]
     }
   }
 }

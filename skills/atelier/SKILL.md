@@ -1,12 +1,12 @@
 ---
 name: atelier
 description: Turn complex or visual agent responses into rich, reviewable HTML artifacts the user can annotate and send feedback on, and drive the feature-planning pipeline end to end, using the atelier-axi CLI. Use when about to give a plan, comparison, diagram, table, code diff, or report; when the user says "plan this", "let's design X", or "write a spec/plan for Y"; when asked to "implement plan.md" or execute a finished plan; or for anything easier to grasp visually than as prose.
-argument-hint: <what the artifact should show>
-author: Kun Chen (kunchenguid)
+license: MIT
 metadata:
-  hermes:
-    tags: [html, review, artifacts, visualization]
-    category: productivity
+  author: Kun Chen (kunchenguid)
+  argument-hint: <what the artifact should show>
+  hermes-tags: html, review, artifacts, visualization
+  hermes-category: productivity
 ---
 
 # Atelier Editor
@@ -42,6 +42,7 @@ Planning and implementation are one continuous arc: `planning.md` ends by offeri
 
 1. Create the HTML artifact (default location `.atelier/<name>.html` in the working directory).
 2. Run `npx -y atelier-axi <html-file>` to open or resume a review session in the browser.
+   If the output carries a `self_paint_warning`, fix the unpainted page surface and save before polling - Atelier live-reloads the artifact.
 3. Run `npx -y atelier-axi poll <html-file>` to long-poll for the user's annotations and queued prompts.
    On the first poll, prefer `--agent-reply "<one-line summary of what you built and what to review first>"` so the conversation panel opens with context.
    Browser-detected layout issues are filed passively in the user's Layout issues inbox and arrive as an ordinary `layout-warnings` prompt only when the user selects and queues them. Never edit an issue the user has not queued. The only response that arrives without user action is `artifact_failures`, when the review surface itself is unusable.

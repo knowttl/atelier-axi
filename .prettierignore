@@ -6,6 +6,7 @@ node_modules
 atelier-code-review.html
 package-lock.json
 CHANGELOG.md
+plugin.json
 .agents
 .claude/settings.local.json
 .beads
