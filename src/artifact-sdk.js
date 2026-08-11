@@ -291,6 +291,7 @@ export function createArtifactSdk(
   mermaid = mermaidHelpers,
   artifactRevision = 0,
   artifactLoadToken = "",
+  sessionKey = "",
 ) {
   const { isMermaidSvg, mermaidNodeFrom, mermaidNodeElement } = mermaid;
   function postArtifactMessage(type, payload = {}) {
@@ -559,6 +560,9 @@ export function createArtifactSdk(
     const params = new URLSearchParams({
       diagramIndex: String(entry.index),
       diagramId: String(entry.diagramId || ""),
+      // The frame's channel token is bound to this session, so the frame page
+      // must be told which session it belongs to.
+      key: String(sessionKey || ""),
     });
     return `/whiteboard-frame?${params}`;
   }

@@ -89,6 +89,32 @@ This installs a `SessionStart` hook for **Claude Code**, **Codex**, **OpenCode**
 Unlike the skill, the hook also shows your live open sessions, so a fresh agent session can resume an in-flight review.
 **Restart your agent session after running this** so the new hook takes effect.
 
+### Agent Plugin
+
+Atelier also ships as an [Agent Plugin](https://agent-plugins.org) - the vendor-neutral packaging standard for skills and MCP servers - so clients that speak that format can load it directly.
+
+**No marketplace is involved.** The installed npm package _is_ the plugin: `plugin.json` sits at the package root next to the `skills/` directory, so whatever `npm install` already put on disk is a complete, conformant plugin. Install the CLI, then register it:
+
+```sh
+npm install -g atelier-axi
+atelier-axi setup plugin
+```
+
+That registers the installed package with every supported client it finds - **VS Code**, **Cursor**, and **GitHub Copilot CLI** - and reports which ones were absent. It is opt-in and idempotent, and it repairs the registered path after a reinstall or relocation. Reload each client afterward.
+
+Each client is registered independently: one that cannot be registered is reported with what to do about it, and never blocks the others or fails the command.
+
+To register by hand instead, point any client at the package directory (`npm root -g`/`atelier-axi`):
+
+| Client             | Register with                                                                                                     |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| VS Code            | `"chat.pluginLocations": { "<package-dir>": true }` in user settings                                              |
+| Cursor             | link the package dir at `~/.cursor/plugins/local/atelier-axi` (`setup plugin` handles Windows link compatibility) |
+| GitHub Copilot CLI | `copilot plugin install <package-dir>` (or `copilot plugin install knowttl/atelier-axi` straight from the repo)   |
+
+Codex and ChatGPT install plugins only from marketplace sources, so Codex users should use the session hook above instead.
+Atelier declares no MCP server - the CLI itself is the agent interface - so a plugin install brings the same `atelier` skill, and the skill and plugin are alternatives rather than a stack.
+
 ### From source
 
 ```sh
@@ -166,6 +192,8 @@ Under the hood, that loop is built from these pieces:
   Only when both come up empty, run `atelier-axi design` for a copy-pasteable Tailwind CSS v4 + DaisyUI v5 CDN fallback, a content-to-playbook router, and Mermaid diagram tooling.
   That fallback guidance recommends DaisyUI's `luxury` theme by default, warns not to `@apply` DaisyUI classes inside Tailwind browser-runtime style blocks, includes an optional layout safety CSS snippet for dense nested grid/flex layouts, and provides a pinned, theme-aware Mermaid CDN snippet for flows, architecture, state, and sequence diagrams.
   The Mermaid snippet waits for page styles, chooses its light or dark rendering from the effective page background, and keeps diagrams in sync with page-theme and OS appearance changes.
+- **Self-paint warning** - `atelier-axi <html-file>`, `export`, and `share` run a render-free check for artifacts missing an explicit page background and return a one-line `self_paint_warning`.
+  The check fails open - any stylesheet link, `@import`, Tailwind runtime script, `color-scheme`, or `html`/`body`/`:root` background signal suppresses it - and it never blocks the open.
 - **Open-time layout gate** - The browser chrome masks an artifact only while the real in-iframe audit waits for fonts and final geometry.
   The first completed check always reveals the artifact, whatever it found; the gate never holds the review hostage waiting for a repair.
   The user can click **Show anyway**, and a bounded safety timeout fails open when no check has completed.
@@ -184,7 +212,7 @@ Under the hood, that loop is built from these pieces:
 - **Export and sharing** - `atelier-axi export` writes `<name>.export.html` by inlining local assets only, stripping the annotation SDK, and leaving remote CDN/font references as links that still need network access.
   `atelier-axi share` publishes the same local-inlined HTML to [ht-ml.app](https://ht-ml.app), a third-party hosting service not part of Atelier.
   Publishing sends the artifact to ht-ml.app's servers, public by default, or private and password-protected with `--password`; the response includes a secret `update_key` shown once for later management.
-  Bundling never fetches remote URLs, Atelier itself does not set a CSP, local reads stay confined and size-capped, and absolute `file://` paths outside safe inlined asset references are redacted before output.
+  Bundling never fetches remote URLs, local reads stay confined and size-capped, and absolute `file://` paths outside safe inlined asset references are redacted before output. Atelier's only response CSP is the review chrome's `frame-ancestors 'none'`; it does not constrain artifact content.
   Per-asset and per-bundle inline caps default to 10 MB and 25 MB, overridable with `ATELIER_AXI_EXPORT_MAX_ASSET_BYTES` and `ATELIER_AXI_EXPORT_MAX_BUNDLE_BYTES`.
   Unresolved local assets or export notices such as author-set CSP meta tags and redacted file URLs are surfaced in command or browser output.
   Use `--token` or `ATELIER_AXI_HTML_APP_TOKEN` for an optional bearer token; set `ATELIER_AXI_HTML_APP_API_URL` only when overriding the ht-ml.app API base.
@@ -224,7 +252,7 @@ Under the hood, that loop is built from these pieces:
 - **Diagnostic viewports** - `ATELIER_AXI_DIAGNOSTIC_VIEWPORTS` sets which viewport classes the layout-issue inbox tracks (`mobile`, `compact`, `desktop`; comma-separated, default all). Warnings whose class leaves the set are marked obsolete with an explicit reason rather than reading as fixed.
 - **Server port** - Set `ATELIER_AXI_PORT` to choose the server port; it defaults to `4387`.
 - **Network binding** - The server binds to loopback (`127.0.0.1`) by default. Set `ATELIER_AXI_HOST` to bind elsewhere; a wildcard (`0.0.0.0` or `::`) binds every interface. Binding beyond loopback exposes an unauthenticated server that can read and serve arbitrary local files to anything that can reach it, so only do so on a trusted network. Set `ATELIER_AXI_LINK_HOST` to control the hostname written into generated session links (defaults to the bind address, or loopback when bound to a wildcard).
-- **Allowed hosts** - To defend against DNS rebinding, the server rejects (`403`) any request whose `Host` header is missing or not one it answers to: the loopback names (`127.0.0.1`, `::1`, `localhost`), the configured bind and link host, and any bare IP literal except the wildcard/unspecified addresses `0.0.0.0` and `::`. IP literals are accepted without configuration because DNS rebinding needs a hostname the attacker controls in DNS, so an IP-literal `Host` can never be a rebound one - which keeps a LAN reviewer working when the loopback server is reached through a port forwarder or SSH tunnel (`Host: 192.168.1.5:4388`). Named hosts still need an opt-in: if you reach the server by a reverse-proxy hostname, an mDNS name, or any other name, list those in `ATELIER_AXI_ALLOWED_HOSTS` (whitespace-separated). Behind a reverse proxy, the forwarded `X-Forwarded-Host` is validated against the same rules, so add your public hostname there and have the proxy send it. Set `ATELIER_AXI_ALLOWED_HOSTS` to `*` to disable the check entirely (only when the server sits behind your own authentication or proxy).
+- **Allowed hosts** - To defend against DNS rebinding, the server rejects (`403`) any request whose `Host` header is missing or not one it answers to: the loopback names (`127.0.0.1`, `::1`, `localhost`), the configured bind and link host, and any bare IP literal except the wildcard/unspecified addresses `0.0.0.0` and `::`. IP literals are accepted without configuration because DNS rebinding needs a hostname the attacker controls in DNS, so an IP-literal `Host` can never be a rebound one - which keeps a LAN reviewer working when the loopback server is reached through a port forwarder or SSH tunnel (`Host: 192.168.1.5:4388`). Named hosts still need an opt-in: if you reach the server by a reverse-proxy hostname, an mDNS name, or any other name, list those in `ATELIER_AXI_ALLOWED_HOSTS` (whitespace-separated). Behind a reverse proxy, the forwarded `X-Forwarded-Host` is validated as a complete authority against the same rules, so add your public hostname there and have the proxy send it together with `X-Forwarded-Proto`. Set `ATELIER_AXI_ALLOWED_HOSTS` to `*` to disable the check entirely (only when the server sits behind your own authentication or proxy).
 - **Browser opening** - Set `ATELIER_AXI_NO_OPEN=1`, equivalent to `--no-open`, to create or resume a session without launching a browser window.
 
 ## CLI Reference
@@ -242,6 +270,7 @@ Under the hood, that loop is built from these pieces:
 | `atelier-axi playbook [id]`      | List focused artifact guidance or show one playbook; agents must open each matching playbook before writing HTML.                                                                                                                                                                                                                                                                                 |
 | `atelier-axi design`             | Show the Tailwind + DaisyUI CDN fallback, content-to-playbook router, theme-aware Mermaid diagram tooling, `luxury` default theme, DaisyUI `@apply` warning, and layout safety snippet.                                                                                                                                                                                                           |
 | `atelier-axi setup hooks`        | Install or repair optional SessionStart hooks for Claude Code, Codex, OpenCode, and GitHub Copilot CLI; restart the agent session afterward.                                                                                                                                                                                                                                                      |
+| `atelier-axi setup plugin`       | Register the installed package as an [Agent Plugin](https://agent-plugins.org) in VS Code, Cursor, and GitHub Copilot CLI; opt-in, idempotent, no marketplace involved. Reload each client afterward.                                                                                                                                                                                             |
 | `atelier-axi server`             | Run the local Atelier Editor server.                                                                                                                                                                                                                                                                                                                                                              |
 
 Known playbook IDs: `diagram`, `table`, `comparison`, `plan`, `code`, `input`, `slides`.
