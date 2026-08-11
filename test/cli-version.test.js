@@ -12,15 +12,12 @@ import { promisify } from "node:util";
 import { isVersionOnlyArgv, VERSION } from "../src/cli.js";
 
 const execFileAsync = promisify(execFile);
-const BIN = fileURLToPath(new URL("../bin/lavish-axi.js", import.meta.url));
+const BIN = fileURLToPath(new URL("../bin/atelier-axi.js", import.meta.url));
 
-// A regression to the pre-fast-path behavior costs the full telemetry drain (up to
-// 1000ms) plus process startup. This budget sits far below that and far above the
-// ~60ms the fast path actually needs, so it catches the regression without flaking.
+// The version path is probed by agent harnesses, so keep its process startup comfortably fast.
 const VERSION_BUDGET_MS = 500;
 
-// Accepts the telemetry connection and never answers, so a regression pays the whole
-// drain timeout instead of a fast connection refusal.
+// Accepts any unexpected telemetry connection and never answers.
 async function startBlackHoleTelemetry() {
   const sockets = new Set();
   const requests = [];
@@ -57,7 +54,7 @@ test("isVersionOnlyArgv matches exactly the SDK's version-flag shapes", () => {
 
 test("--version prints the version fast and skips telemetry and state-dir init", async (t) => {
   const telemetry = await startBlackHoleTelemetry();
-  const stateParent = await mkdtemp(path.join(tmpdir(), "lavish-version-"));
+  const stateParent = await mkdtemp(path.join(tmpdir(), "atelier-version-"));
   const stateDir = path.join(stateParent, "state");
   t.after(async () => {
     await telemetry.close();
@@ -66,10 +63,10 @@ test("--version prints the version fast and skips telemetry and state-dir init",
 
   const env = {
     ...process.env,
-    LAVISH_AXI_STATE_DIR: stateDir,
-    LAVISH_AXI_TELEMETRY: "1",
-    LAVISH_AXI_UMAMI_WEBSITE_ID: "version-fast-path-test",
-    LAVISH_AXI_UMAMI_HOST: telemetry.host,
+    ATELIER_AXI_STATE_DIR: stateDir,
+    ATELIER_AXI_TELEMETRY: "1",
+    ATELIER_AXI_UMAMI_WEBSITE_ID: "version-fast-path-test",
+    ATELIER_AXI_UMAMI_HOST: telemetry.host,
   };
 
   for (const flag of ["--version", "-v", "-V"]) {
@@ -84,15 +81,13 @@ test("--version prints the version fast and skips telemetry and state-dir init",
     );
   }
 
-  // The heavy init is provably skipped: no telemetry request was ever sent, and the
-  // state directory was never created.
   assert.deepEqual(telemetry.requests, []);
   assert.equal(existsSync(stateDir), false);
 });
 
-test("a non-version invocation still runs the telemetry init the fast path skips", async (t) => {
+test("a non-version invocation still initializes state without sending telemetry", async (t) => {
   const telemetry = await startBlackHoleTelemetry();
-  const stateParent = await mkdtemp(path.join(tmpdir(), "lavish-version-control-"));
+  const stateParent = await mkdtemp(path.join(tmpdir(), "atelier-version-control-"));
   const stateDir = path.join(stateParent, "state");
   t.after(async () => {
     await telemetry.close();
@@ -102,13 +97,13 @@ test("a non-version invocation still runs the telemetry init the fast path skips
   await execFileAsync(process.execPath, [BIN, "design"], {
     env: {
       ...process.env,
-      LAVISH_AXI_STATE_DIR: stateDir,
-      LAVISH_AXI_TELEMETRY: "1",
-      LAVISH_AXI_UMAMI_WEBSITE_ID: "version-fast-path-test",
-      LAVISH_AXI_UMAMI_HOST: telemetry.host,
+      ATELIER_AXI_STATE_DIR: stateDir,
+      ATELIER_AXI_TELEMETRY: "1",
+      ATELIER_AXI_UMAMI_WEBSITE_ID: "version-fast-path-test",
+      ATELIER_AXI_UMAMI_HOST: telemetry.host,
     },
   });
 
-  assert.ok(telemetry.requests.length > 0, "expected the control command to send telemetry");
+  assert.deepEqual(telemetry.requests, [], "Atelier does not send telemetry");
   assert.equal(existsSync(stateDir), true);
 });
