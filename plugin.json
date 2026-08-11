@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "atelier-axi",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "HTML is the new markdown. Atelier is the new editor for your HTML artifacts.",
   "author": {
     "name": "Kun Chen",
