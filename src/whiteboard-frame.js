@@ -37,6 +37,7 @@ import {
   fitShapesToFreeText,
   planSavedSceneTextMetricsMigration,
   repairSavedSceneTextMetrics,
+  restoreMermaidLabelLineBreaks,
   sanitizeSceneLink,
   sanitizeWhiteboardAppState,
   sceneIsImageFallback,
@@ -429,9 +430,10 @@ async function loadSceneFonts(elements, files) {
 }
 
 async function convertSource(source) {
-  const { elements: skeletons, files } = await parseMermaidToExcalidraw(source, {
+  const { elements: parsedSkeletons, files } = await parseMermaidToExcalidraw(source, {
     themeVariables: { fontSize: "16px" },
   });
+  const skeletons = restoreMermaidLabelLineBreaks(parsedSkeletons);
   const materialize = (input) => {
     // Preserve Mermaid node/edge identity for edit summaries; regenerate only
     // when upstream emitted colliding ids (parallel edges), where uniqueness
@@ -442,12 +444,15 @@ async function convertSource(source) {
     }
     return elements;
   };
-  const converted = await convertExcalidrawSkeletonsAfterFontsLoad(skeletons, {
-    convert: materialize,
-    loadFonts: async (fallbackElements) => {
-      await loadSceneFonts(fallbackElements, files);
-    },
-  });
+  const converted = restoreMermaidLabelLineBreaks(
+    await convertExcalidrawSkeletonsAfterFontsLoad(skeletons, {
+      convert: materialize,
+      loadFonts: async (fallbackElements) => {
+        await loadSceneFonts(fallbackElements, files);
+      },
+    }),
+    { measure: measureSceneText },
+  );
   const { elements } = fitShapesToFreeText(converted);
   return { elements, files: files || {}, imageFallback: sceneIsImageFallback(elements) };
 }
