@@ -1304,7 +1304,7 @@ function updateWarningSelectionState() {
   warningsSelectAll.checked = selectable.length > 0 && selectedCount === selectable.length;
   warningsSelectAll.indeterminate = selectedCount > 0 && selectedCount < selectable.length;
   warningsSelected.textContent = selectedCount === 0 ? "None selected" : selectedCount + " selected";
-  warningsQueueButton.disabled = selectedCount === 0 || ended || agentPresence === "working";
+  warningsQueueButton.disabled = selectedCount === 0 || ended;
 }
 
 function toggleSelectAllWarnings() {
@@ -1361,7 +1361,7 @@ async function dismissWarning(id) {
 // One queued batch = one ordinary queued prompt. The CLI cannot tell it apart from any other
 // feedback, which is exactly the point: no parallel agent protocol.
 async function queueSelectedWarningFixes() {
-  if (ended || agentPresence === "working") return;
+  if (ended) return;
   const ids = [...selectedWarningIds];
   if (ids.length === 0) return;
   warningsQueueButton.disabled = true;

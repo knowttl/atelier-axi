@@ -115,6 +115,8 @@ That makes the session key derived, not secret: anyone who learns the artifact p
    The chrome uses this state to show the waiting banner and the "Working..." bubble, but it never blocks a send on presence - only an ended session refuses one.
    Sends must stay open while the agent is working because prompts are pulled: a send lands in the session store and the agent's next poll drains it (see the working-presence regression in `test/chrome-client-queue.test.js`).
    An agent reply (`POST /api/:key/agent-reply`, the CLI's `--agent-reply`) still concludes the working state and returns presence to `waiting`.
+   That durability has to survive the take itself: `takeFeedback` clears the batch before any response is written, so a poll whose client disconnected while the immediate take was in flight puts the prompts, `dom_snapshot`, and `artifact_failures` back through `queuePrompts`'s `restore` mode and leaves delivery unmarked, because nothing was delivered. `restore` replays an already-accepted batch verbatim - it re-plans no layout warnings, re-appends no chat messages, and reinstates `artifact_failures` rather than merging them - while still re-deriving attachments through the same resolver.
+   Every poll exit path must undo the presence it set: `/api/poll` subscribes to the request's `close` before its first `await` and re-checks it after arming the listeners, so a disconnected client never strands `listening`.
 10. `--agent-reply` posts a chat message into the session before polling, so the agent's reply renders in the browser conversation panel via the `/events/:key` SSE stream.
 
 ### Passive layout-warning inbox
@@ -191,15 +193,12 @@ Atelier sets response CSP only where a browser boundary requires it: `frame-ance
 
 ### Hosted sharing (ht-ml.app)
 
-`src/html-app.js` (`publishToHtmlApp`) publishes the local-inlined HTML to [ht-ml.app](https://ht-ml.app), a third-party hosting service not part of Atelier, and returns a visitable URL.
-It sends the bundle to ht-ml.app's servers with `POST {ATELIER_AXI_HTML_APP_API_URL or https://api.ht-ml.app}/v1/sites` as `{ html_content, password? }`; **creating a site needs no account or API key**.
-The response carries the share `url` plus a secret `update_key` (returned once, the only credential, used later to update or delete the page). An optional bearer token (`ATELIER_AXI_HTML_APP_TOKEN` / `--token`) is sent when set but is never required.
-Remote CDN/font references in the published page load over the network because ht-ml.app serves hosted pages with no CSP and no sandbox header; the viewer browser still needs network access to those CDNs to render them.
-The browser surfaces a **Publish link** overflow-menu item that opens a share dialog with a linked ht-ml.app mention and an up-front third-party disclosure, then `POST`s `/api/:key/share`; the route is **same-origin guarded** (`isSameOriginRequest`) because publishing is a state-changing, outward-facing action - a cross-origin page must not drive a publish through the loopback server.
-The CLI exposes `atelier-axi share <html-file> [--password <pw>] [--token <t>]`, server-independently.
-Published pages are **PUBLIC by default** - anyone with the link can view them.
-When `--password` or a browser-dialog password is set, the page is **PRIVATE and password-protected** - viewers must supply the password to view, and runtime output reports `public: false`.
-Hosted shares never include the annotation SDK.
+`src/html-app.js` (`publishToHtmlApp`) publishes the local-inlined HTML to the share backend `ATELIER_AXI_HTML_APP_API_URL` names, defaulting to ht-ml.app.
+The wire contract - endpoint, request body, required response fields, and the optional bearer token - is owned by [docs/self-hosting-share.md](docs/self-hosting-share.md); do not restate it here.
+What matters architecturally is that creating a site needs no account or API key, so the response's secret `update_key` is the only credential the user ever gets and it is returned once.
+The user-facing contract - third-party disclosure, public by default, private with a password - lives in README's Export and sharing bullet and the runtime share output.
+The browser's **Publish link** flow `POST`s `/api/:key/share`; the route is **same-origin guarded** (`isSameOriginRequest`) because publishing is a state-changing, outward-facing action - a cross-origin page must not drive a publish through the loopback server.
+ht-ml.app serves hosted pages with no CSP and no sandbox header, so remote CDN/font references load over the viewer's network; hosted shares never include the annotation SDK.
 
 ### AXI integration
 

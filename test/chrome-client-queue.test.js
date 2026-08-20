@@ -1808,6 +1808,26 @@ test("nothing is selected by default and Select all is an explicit action", asyn
   assert.equal(chrome.element("warningsQueueButton").disabled, false);
 });
 
+test("warning fixes stay queueable while the agent is working", async () => {
+  const posts = [];
+  const chrome = await createChromeHarness({
+    fetchImpl: async (url, init) => {
+      posts.push({ url, body: init && init.body ? JSON.parse(init.body) : null });
+      return { ok: true, json: async () => ({ warnings: [warningPayload()], prompt: null }) };
+    },
+  });
+  chrome.eventSource().listeners.get("agent-presence")({ data: JSON.stringify({ state: "working" }) });
+  chrome.eventSource().listeners.get("layout-warnings")({ data: JSON.stringify({ warnings: [warningPayload()] }) });
+
+  const [row] = chrome.warningRows();
+  row.children[0].checked = true;
+  row.children[0].dispatch("change");
+  assert.equal(chrome.element("warningsQueueButton").disabled, false);
+
+  await chrome.element("warningsQueueButton").onclick();
+  assert.ok(posts.some((post) => post.url === "/api/abc/layout-warnings/queue"));
+});
+
 test("queueing a selected subset produces exactly one ordinary prompt with only those warnings", async () => {
   const posts = [];
   const queuedWarnings = [
@@ -2721,6 +2741,28 @@ test("a decision sent while the agent is working still reaches the session store
     { prompt: "D1: Accept", selector: "form#d1", tag: "choice", text: "D1: Accept" },
   ]);
   assert.equal(chrome.queued().length, 0);
+});
+
+test("send controls stay enabled while the agent works and lock once the session ends", async () => {
+  const chrome = await createChromeHarness({
+    fetchImpl: async () => ({ ok: true, json: async () => ({}) }),
+  });
+
+  chrome.eventSource().listeners.get("agent-presence")({ data: JSON.stringify({ state: "working" }) });
+  assert.equal(chrome.element("send").disabled, false);
+  assert.equal(chrome.element("sendAndEnd").disabled, false);
+
+  chrome.sendFrameMessage({
+    type: "atelier:queuePrompt",
+    prompt: { prompt: "Ship this", selector: "button#ship", tag: "choice", text: "Ship" },
+  });
+  chrome.element("sendAndEnd").onclick();
+  chrome.sendSnapshot("uid=1 body");
+  await flushPromises();
+  await flushPromises();
+
+  assert.equal(chrome.element("send").disabled, true);
+  assert.equal(chrome.element("sendAndEnd").disabled, true);
 });
 
 test("SDK readiness authorizes a correlated snapshot on a tokenized artifact load", async () => {
@@ -3795,7 +3837,7 @@ test("a non-array attachments field cannot wedge the queue (E5)", async () => {
   assert.deepEqual(chrome.queued(), [{ prompt: "bad", selector: "h1", tag: "annotation", text: "" }]);
 });
 
-test("a poisoned prompt already in sessionStorage cannot wedge a reload (E5)", async () => {
+test("a poisoned prompt already in the restored queue cannot wedge a reload (E5)", async () => {
   const chrome = await createChromeHarness({
     storedQueue: [{ prompt: "old poison", selector: "h1", tag: "annotation", text: "", attachments: [null] }],
   });
@@ -3856,8 +3898,9 @@ test("a queued attachment ref is projected to primitives, not kept by reference 
   chrome.sendSnapshot("uid=1 body");
   await flushPromises();
 
-  assert.equal(posts.length, 1, "the queue is still sendable");
-  assert.deepEqual(posts[0].body.prompts[0].attachments, [{ id, name: "ok.png" }]);
+  const submitted = posts.filter((post) => post.url === "/api/abc/prompts");
+  assert.equal(submitted.length, 1, "the queue is still sendable");
+  assert.deepEqual(submitted[0].body.prompts[0].attachments, [{ id, name: "ok.png" }]);
 });
 
 test("a non-string attachment name is dropped rather than carried (E5)", async () => {
