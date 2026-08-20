@@ -53,7 +53,7 @@ export const POLL_WAKE_PATH_RULES = Object.freeze([
   "Never use `nohup`, shell `&`, `disown`, redirected fire-and-forget processes, or a detached terminal without an explicit verified callback merely to keep polling alive.",
   "If the harness has no completion-aware background facility, use the foreground poll or first wire a verified wake callback into the surrounding supervisor.",
   "Do not tell the user the artifact is being monitored until that wake path is live.",
-  "If the poll gets killed or times out anyway, just re-run it - queued feedback is never lost.",
+  "If the poll gets killed or times out before feedback arrives, re-run it - feedback remains queued until delivery. Poll delivery consumes the response, so read it completely.",
   "Run at most one poll per artifact: a session delivers each batch of feedback to one owning poll and retires every competing poll with a POLL_SUPERSEDED error rather than splitting feedback between them.",
   "Every delivered poll response ends with a `prompts_delivered=<N> batch_file=<path>` line: compare `<N>` against the prompts you actually read, and if you read fewer, your own output capture truncated the response - read the whole batch from `batch_file` instead of asking the user to repeat themselves. A `batch_file` value of `-` means the recovery copy could not be written, not that `-` is a filename.",
 ]);
@@ -359,7 +359,7 @@ export function pollWaitBannerText(file) {
   return (
     `[atelier-axi] Long-polling for user feedback on ${file}. This stays silent until the user sends feedback or ends the session - leave it running. ` +
     `Detected layout issues do NOT return this poll: they wait in the user's Layout issues inbox until the user queues them as ordinary feedback. ` +
-    `If it gets killed or times out, re-run \`atelier-axi poll ${file}\` - queued feedback is never lost.`
+    `If it gets killed or times out before feedback arrives, re-run \`atelier-axi poll ${file}\` - feedback remains queued until delivery. Poll delivery consumes the response, so read it completely.`
   );
 }
 
@@ -371,7 +371,7 @@ export function pollWaitTickText(elapsedMs) {
 export function pollInterruptedText(file) {
   return (
     `[atelier-axi] Poll interrupted before user feedback arrived. The user may still be reviewing - ` +
-    `re-run \`atelier-axi poll ${file}\` to keep waiting; queued feedback is never lost.`
+    `re-run \`atelier-axi poll ${file}\` to keep waiting; feedback remains queued until delivery. Poll delivery consumes the response, so read it completely.`
   );
 }
 
@@ -397,13 +397,13 @@ export function startPollWaitReporter({
 /**
  * @returns {{
  *   session: { file: string, status: string, session_ended?: boolean, ended_by?: string },
+ *   prompts?: any[],
+ *   artifact_failures?: any[],
  *   next_step?: string,
  *   dom_snapshot?: string,
  *   dom_snapshot_truncated?: boolean,
  *   dom_snapshot_bytes?: number,
  *   dom_snapshot_hint?: string,
- *   prompts?: any[],
- *   artifact_failures?: any[],
  * }}
  */
 export function createPollOutput({ file, response, full = false, agent = "generic" }) {
@@ -432,10 +432,10 @@ export function createPollOutput({ file, response, full = false, agent = "generi
         status: "feedback",
         ...(sessionEnded ? { session_ended: true, ...(endedBy ? { ended_by: endedBy } : {}) } : {}),
       },
-      ...truncateDomSnapshot(response.dom_snapshot, { file, full }),
       prompts: response.prompts || [],
       ...(artifactFailures.length > 0 ? { artifact_failures: artifactFailures } : {}),
       next_step: createFeedbackNextStep(file, artifactFailures, sessionEnded, endedBy, response.prompts || [], agent),
+      ...truncateDomSnapshot(response.dom_snapshot, { file, full }),
     };
   }
   if (response.status === "ended") {
@@ -446,7 +446,7 @@ export function createPollOutput({ file, response, full = false, agent = "generi
   }
   return {
     session: { file, status: response.status || "waiting" },
-    next_step: `No user feedback arrived before the optional timeout. Run \`atelier-axi poll ${file}\` without --timeout-ms to wait indefinitely - queued feedback is never lost, so re-running the poll is always safe.`,
+    next_step: `No user feedback arrived before the optional timeout. Run \`atelier-axi poll ${file}\` without --timeout-ms to wait indefinitely - feedback remains queued until delivery, so re-running the poll is safe while waiting. Poll delivery consumes the response, so read it completely.`,
   };
 }
 
