@@ -186,7 +186,7 @@ Warnings are split into unresolved local assets, such as `load-failed`, `outside
 The transform is dependency-injectable (`readLocalFile`, `resolveAbsolute`, `confineDir`, size caps) so it is testable without disk; the server passes `resolveAbsolute: resolveDesignAssetPath` to inline legacy `/design/*` references from the packaged assets.
 The browser surfaces it as an **Export standalone HTML** item in the chrome overflow menu, which `GET`s `/api/:key/export` and blob-downloads `<name>.export.html`; the CLI exposes the same transform as `atelier-axi export <html-file> [--out <path>]`, server-independently.
 Because remote CDN/font references are left as links, **a static export needs network to render those remote assets** - this is documented behavior.
-Atelier itself sets **no** `Content-Security-Policy` on any response (the sandboxed iframe relies on the `sandbox` attribute, not CSP), but author-set CSP meta tags are preserved and reported as export notices because they may still block exported inline assets.
+Atelier sets response CSP only where a browser boundary requires it: `frame-ancestors 'none'` on the chrome page and the matching `sandbox` policy on artifact and browser-export responses. Author-set CSP meta tags are preserved and reported as export notices because they may still block exported inline assets.
 
 ### Hosted sharing (ht-ml.app)
 
@@ -239,7 +239,8 @@ The CLI ships no telemetry: it makes no analytics calls and bakes in no analytic
 - `run()` short-circuits `--version`/`-v`/`-V` (`isVersionOnlyArgv`) before `ensureStateDir` because agent harnesses probe every tool's version at session start. Any new startup work must go after that short-circuit; `test/cli-version.test.js` guards the latency budget, the absent state directory, and Atelier's no-telemetry contract.
 - `canonicalFile` runs `realpath`, so symlinks resolve to their target before becoming session keys. Two paths that refer to the same file always collapse to one session.
 - The SDK injected into artifacts lives in `src/artifact-sdk.js` and is wrapped by `createSdkJs`.
-  It executes inside an iframe sandboxed with `allow-scripts allow-forms allow-popups allow-downloads` (no `allow-same-origin`), so it cannot read the chrome's DOM - communication is `postMessage` only.
+  It executes inside an iframe sandboxed with `allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads` (no `allow-same-origin`), so it cannot read the chrome's DOM - communication is `postMessage` only.
+  `allow-popups-to-escape-sandbox` lets author-defined popups render as top-level tabs without weakening the artifact iframe, while the matching CSP sandbox on `/artifact/*` responses keeps artifact-owned active documents opaque-origin.
   It runs the layout audit in the iframe because the chrome cannot directly inspect the sandboxed document.
   Every artifact-to-chrome message must go through `postArtifactMessage`, which stamps the current `artifact_load_token`; the chrome drops stale or tokenless frame messages before dispatch.
   Tailwind, DaisyUI, Mermaid, and the optional layout safety CSS from `atelier-axi design` are not auto-injected: before writing HTML, agents should follow any user-requested look or design system, otherwise inspect the project the artifact is about - the subject or product whose content or UI it represents, which may differ from the current working directory - for design conventions (Tailwind or theme config, CSS variables or design tokens, component library, brand assets, existing styled pages), use that app's own design system for UI-preview artifacts, and only fall back to the `atelier-axi design` snippets when both sources come up empty.

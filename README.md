@@ -185,7 +185,8 @@ Nothing forces a cleanup, so sessions and the shared server can linger long afte
 Under the hood, that loop is built from these pieces:
 
 - **File-path identity** - Sessions are keyed by the canonical HTML file path, so agents do not need opaque IDs.
-- **Portable artifacts** - The artifact runs in an iframe while Atelier injects a small SDK for annotations, snapshots, feedback controls, and render-time layout checks.
+- **Portable artifacts** - The artifact runs in a sandboxed iframe while Atelier injects a small SDK for annotations, snapshots, feedback controls, and render-time layout checks.
+  Author-defined links and popups can open in top-level tabs, while artifact documents remain sandboxed without same-origin access.
   Atelier does not inject any design system, so the saved HTML file renders identically whether you open it through `atelier-axi` or directly in a browser.
   Before writing HTML, choose a design system in strict priority order: follow a user-requested look first; otherwise inspect the project the artifact is about - the subject or product whose content or UI it represents, which may differ from your current working directory - and match that project's Tailwind or theme config, CSS variables or design tokens, component library, brand assets, or existing styled pages.
   If the artifact previews, proposes, or mocks a specific app's UI, render it in that app's own design system so it faithfully shows the product, even when you are running in a different repo.
