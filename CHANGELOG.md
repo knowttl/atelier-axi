@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.4](https://github.com/knowttl/atelier-axi/compare/atelier-axi-v0.3.3...atelier-axi-v0.3.4) (2026-08-11)
+
+
+### Features
+
+* **cli:** add self-contained Agent Plugin support ([#223](https://github.com/knowttl/atelier-axi/issues/223)) ([8b43c21](https://github.com/knowttl/atelier-axi/commit/8b43c21f4a6d4d8096db63601dce4f31a48a68a4))
+* **cli:** guard against invisible unpainted artifacts ([#230](https://github.com/knowttl/atelier-axi/issues/230)) ([b285c40](https://github.com/knowttl/atelier-axi/commit/b285c40a55a4d84fdb321923794eff13f6fb5543))
+* sync upstream lavish-axi (Agent Plugin support, self-paint guard, security hardening) ([fc8dc4d](https://github.com/knowttl/atelier-axi/commit/fc8dc4d9f13b31b06bf5ab6eccace3cf186e68e1))
+
+
+### Bug Fixes
+
+* **chrome:** remove persistent layout issue banner ([#226](https://github.com/knowttl/atelier-axi/issues/226)) ([fb9107e](https://github.com/knowttl/atelier-axi/commit/fb9107e2d1e8e1820d93ad977a121f34a66e13be))
+* **cli:** make version checks near-instant ([#222](https://github.com/knowttl/atelier-axi/issues/222)) ([8ef64df](https://github.com/knowttl/atelier-axi/commit/8ef64dff4980a367a904aff7f24a0d7edcba191c))
+* **server:** confine artifact asset route by realpath (symlink-escape hardening) ([#194](https://github.com/knowttl/atelier-axi/issues/194)) ([6215658](https://github.com/knowttl/atelier-axi/commit/62156587cd163f14e90c0e7014492d1961afa5f7))
+* **server:** harden feedback submission boundaries ([#235](https://github.com/knowttl/atelier-axi/issues/235)) ([89412ca](https://github.com/knowttl/atelier-axi/commit/89412ca1c0c8490476edffa065317cd0e093afc8))
+* streamline invisible artifact guidance ([#232](https://github.com/knowttl/atelier-axi/issues/232)) ([232972b](https://github.com/knowttl/atelier-axi/commit/232972beba9e0e4e75682c98f2aeb2cf01532122))
+
 ## [0.3.3](https://github.com/knowttl/atelier-axi/compare/atelier-axi-v0.3.2...atelier-axi-v0.3.3) (2026-08-03)
 
 
