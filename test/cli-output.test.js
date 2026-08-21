@@ -43,6 +43,7 @@ import {
   resolveCopilotHookDir,
   resolveHookHomeDir,
   resolveServerEntry,
+  serverReplacementReason,
   shutdownServerOnPort,
   shouldForceRestartForLocalBuild,
   shouldKillProcessOnPort,
@@ -291,7 +292,7 @@ test("home output warns agents that poll needs an observable wake path", () => {
   assertObservablePollWakePath(pollHelp);
   assert.doesNotMatch(pollHelp, /Codex/);
   assert.match(pollHelp, /re-run/);
-  assert.match(pollHelp, /queued feedback is never lost/);
+  assert.match(pollHelp, /feedback remains queued until delivery/);
   assert.match(pollHelp, /`Send & End` ends the session/);
   assert.match(pollHelp, /final feedback is still delivered once/);
   assert.doesNotMatch(pollHelp, /above 10 minutes/);
@@ -322,7 +323,7 @@ test("home output keeps static skill poll guidance safe and agent-neutral", () =
   assertObservablePollWakePath(pollHelp);
   assert.doesNotMatch(pollHelp, /keep the poll attached to the active turn/i);
   assert.doesNotMatch(pollHelp, /Codex detected/);
-  assert.match(pollHelp, /queued feedback is never lost/);
+  assert.match(pollHelp, /feedback remains queued until delivery/);
 });
 
 test("invoking agent detection recognizes Codex runtime markers only", () => {
@@ -364,7 +365,7 @@ test("top-level help renders static home output without dynamic sessions", async
     assert.match(result.stdout, /app's own design system/i);
     assert.doesNotMatch(result.stdout, /inspect the current project/i);
     assert.match(result.stdout, /never kill it/);
-    assert.match(result.stdout, /queued feedback is never lost/);
+    assert.match(result.stdout, /feedback remains queued until delivery/);
     assert.doesNotMatch(result.stdout, /above 10 minutes/);
     assert.doesNotMatch(result.stdout, /atelier-design/);
     assert.doesNotMatch(result.stdout, /sessions\[/);
@@ -539,6 +540,7 @@ test("theme-aware Mermaid snippet serializes rapid theme-change renders", async 
   let nextRenderError;
   let activeRenders = 0;
   let maxActiveRenders = 0;
+  const renderedSources = [];
   let bodyColor = "white";
   let rootColor = "white";
   let rootColorScheme = "normal";
@@ -559,8 +561,20 @@ test("theme-aware Mermaid snippet serializes rapid theme-change renders", async 
       return { data: colors[this.color] };
     },
   };
+  let diagramMarkup = 'flowchart TD\\n  A["OBJECTIVE:<br/>do the thing"]';
   const diagram = {
-    textContent: "flowchart TD\\n  A --> B",
+    get innerHTML() {
+      return diagramMarkup;
+    },
+    set innerHTML(value) {
+      diagramMarkup = value;
+    },
+    get textContent() {
+      return diagramMarkup.replace(/<br\s*\/?\s*>/gi, "");
+    },
+    set textContent(value) {
+      diagramMarkup = value;
+    },
     removeAttribute() {},
   };
   const document = {
@@ -608,6 +622,7 @@ test("theme-aware Mermaid snippet serializes rapid theme-change renders", async 
       initializedThemes.push(theme);
     },
     run() {
+      renderedSources.push(diagram.innerHTML);
       activeRenders += 1;
       maxActiveRenders = Math.max(maxActiveRenders, activeRenders);
       if (nextRenderError) {
@@ -652,6 +667,7 @@ test("theme-aware Mermaid snippet serializes rapid theme-change renders", async 
   assert.equal(typeof transitionListener?.callback, "function");
   assert.equal(transitionListener?.capture, true);
   assert.deepEqual(initializedThemes, ["default"]);
+  assert.deepEqual(renderedSources, ['flowchart TD\\n  A["OBJECTIVE:<br/>do the thing"]']);
   bodyColor = "white-40";
   rootColor = "black";
   transitionListener.callback({ propertyName: "color" });
@@ -861,7 +877,7 @@ test("open output keeps the user URL in session data and next_step focused on po
   assert.match(output.next_step, /never kill it/);
   assertObservablePollWakePath(output.next_step);
   assert.doesNotMatch(output.next_step, /Codex/);
-  assert.match(output.next_step, /queued feedback is never lost/);
+  assert.match(output.next_step, /feedback remains queued until delivery/);
   assert.match(output.next_step, /Do not pass --timeout-ms/);
   assert.doesNotMatch(output.next_step, /above 10 minutes/);
   assert.match(output.next_step, /If the user ends the session, stop polling and do not reopen it/);
@@ -1203,7 +1219,7 @@ test("poll help requires an observable wake path", () => {
   assert.match(help, /never kill it/);
   assertObservablePollWakePath(help);
   assert.doesNotMatch(help, /Codex/);
-  assert.match(help, /queued feedback is never lost/);
+  assert.match(help, /feedback remains queued until delivery/);
   assert.match(help, /Do not pass --timeout-ms/);
   assert.match(help, /tests and debugging only/);
   assert.match(help, /`Send & End` ends the session/);
@@ -1368,9 +1384,77 @@ test("feedback next step keeps the next poll completion observable", () => {
   assert.match(output.next_step, /without --timeout-ms/);
   assertObservablePollWakePath(output.next_step);
   assert.doesNotMatch(output.next_step, /Codex/);
-  assert.match(output.next_step, /queued feedback is never lost/);
+  assert.match(output.next_step, /feedback remains queued until delivery/);
   assert.match(output.next_step, /Do not respond to the user just yet\. Now you must run/);
   assert.doesNotMatch(output.next_step, /above 10 minutes/);
+});
+
+test("poll feedback and the next step are emitted before the bulky DOM snapshot", async () => {
+  const stateDir = await mkdtemp(`${os.tmpdir()}/atelier-axi-poll-output-test-`);
+  const artifact = `${stateDir}/artifact.html`;
+  await writeFile(artifact, "<html><body>hello</body></html>", "utf8");
+  const response = {
+    status: "feedback",
+    prompts: [{ prompt: "Ship it", tag: "message" }],
+    artifact_failures: [{ kind: "artifact-unavailable", detail: "HTTP 404", severity: "fatal" }],
+    dom_snapshot: "large snapshot",
+  };
+  const server = createServer((req, res) => {
+    if (req.url === "/health") {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ ok: true, app: "atelier-axi", version: VERSION }));
+      return;
+    }
+    if (req.url?.startsWith("/api/poll?")) {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify(response));
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const child = spawn(
+      process.execPath,
+      [fileURLToPath(new URL("../bin/atelier-axi.js", import.meta.url)), "poll", artifact, "--timeout-ms", "1000"],
+      {
+        cwd: fileURLToPath(new URL("..", import.meta.url)),
+        env: { ...process.env, ATELIER_AXI_STATE_DIR: stateDir, ATELIER_AXI_PORT: String(address.port) },
+      },
+    );
+    let stdout = "";
+    let stderr = "";
+    assert.ok(child.stdout);
+    assert.ok(child.stderr);
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    const result = await new Promise((resolve) => {
+      child.on("close", (status, signal) => resolve({ status, signal }));
+    });
+
+    assert.equal(result.status, 0, stderr);
+    const promptsIndex = stdout.indexOf("prompts[");
+    const failuresIndex = stdout.indexOf("artifact_failures[");
+    const nextStepIndex = stdout.indexOf("next_step:");
+    const snapshotIndex = stdout.indexOf("dom_snapshot:");
+    assert.ok(promptsIndex >= 0, "poll stdout contains prompts");
+    assert.ok(failuresIndex >= 0, "poll stdout contains artifact_failures");
+    assert.ok(nextStepIndex >= 0, "poll stdout contains next_step");
+    assert.ok(snapshotIndex >= 0, "poll stdout contains dom_snapshot");
+    assert.ok(promptsIndex < failuresIndex, "prompts precede artifact_failures in poll stdout");
+    assert.ok(failuresIndex < nextStepIndex, "artifact_failures precede next_step in poll stdout");
+    assert.ok(nextStepIndex < snapshotIndex, "next_step precedes dom_snapshot in poll stdout");
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    await rm(stateDir, { force: true, recursive: true });
+  }
 });
 
 test("feedback next step is Codex-aware when requested", () => {
@@ -1481,6 +1565,53 @@ test("whiteboard feedback tells agents to read the summary, inspect files when n
   assert.match(output.next_step, /previewPath/);
   assert.match(output.next_step, /Mermaid source stays authoritative/);
   assert.match(output.next_step, /never try to write the \.excalidraw scene back/);
+});
+
+test("image-attachment feedback tells agents to open the local image paths", () => {
+  const output = createPollOutput({
+    file: "/tmp/report.html",
+    response: {
+      status: "feedback",
+      dom_snapshot: "",
+      prompts: [
+        {
+          uid: "1",
+          prompt: "Match this mock",
+          selector: "header",
+          tag: "header",
+          text: "",
+          attachments: [
+            {
+              id: "a".repeat(64) + ".png",
+              type: "image",
+              path: "/state/attachments/k/" + "a".repeat(64) + ".png",
+              mime: "image/png",
+              bytes: 1234,
+              width: 800,
+              height: 600,
+              name: "mock.png",
+            },
+          ],
+        },
+      ],
+    },
+  });
+
+  assert.match(output.next_step, /image attachments/);
+  assert.match(output.next_step, /`attachments` array/);
+  assert.match(output.next_step, /absolute local `path`/);
+});
+
+test("feedback without attachments does not mention image attachments", () => {
+  const output = createPollOutput({
+    file: "/tmp/report.html",
+    response: {
+      status: "feedback",
+      dom_snapshot: "",
+      prompts: [{ uid: "1", prompt: "Tweak this", selector: "h1", tag: "h1", text: "" }],
+    },
+  });
+  assert.doesNotMatch(output.next_step, /image attachments/);
 });
 
 test("non-whiteboard feedback does not mention whiteboard guidance", () => {
@@ -1647,7 +1778,7 @@ test("poll wait messages tell watching agents the silence is normal", () => {
   assert.match(banner, /Long-polling for user feedback/);
   assert.match(banner, /stays silent/);
   assert.match(banner, /leave it running/i);
-  assert.match(banner, /queued feedback is never lost/);
+  assert.match(banner, /feedback remains queued until delivery/);
 
   const tick = pollWaitTickText(3 * 60_000);
   assert.match(tick, /\[atelier-axi\]/);
@@ -1659,7 +1790,7 @@ test("poll wait messages tell watching agents the silence is normal", () => {
   assert.match(interrupted, /Poll interrupted/);
   assert.match(interrupted, /user may still be reviewing/);
   assert.match(interrupted, /atelier-axi poll \/tmp\/report\.html/);
-  assert.match(interrupted, /queued feedback is never lost/);
+  assert.match(interrupted, /feedback remains queued until delivery/);
 });
 
 test("poll wait reporter writes a banner immediately and heartbeats on an interval", async () => {
@@ -1977,7 +2108,7 @@ test("spawned poll with piped stderr banners once and leaves re-run guidance whe
     // to the child process's JavaScript signal handler.
     if (process.platform !== "win32") {
       assert.match(stderr, /Poll interrupted/);
-      assert.match(stderr, /queued feedback is never lost/);
+      assert.match(stderr, /feedback remains queued until delivery/);
     }
   } finally {
     await server.close();
@@ -1993,7 +2124,7 @@ test("waiting next step reassures agents that re-running poll loses nothing", ()
 
   assert.match(output.next_step, /atelier-axi poll \/tmp\/report\.html/);
   assert.match(output.next_step, /without --timeout-ms/);
-  assert.match(output.next_step, /queued feedback is never lost/);
+  assert.match(output.next_step, /feedback remains queued until delivery/);
 });
 
 test("html file arguments normalize to the hidden open command", () => {
@@ -2508,6 +2639,25 @@ test("shouldRestartServer does not restart when /health was unreachable", () => 
   assert.equal(shouldRestartServer("0.1.4", null), false);
 });
 
+// Every other open review page is told why its server went away, so the reason has to name the
+// branch that actually fired: a local-build force replaces a server of the same version, and
+// calling that an update is false on both counts.
+test("serverReplacementReason names a local-build force apart from a real version change", () => {
+  assert.equal(serverReplacementReason("0.1.4", { ok: true, app: "atelier-axi", version: "0.1.3" }), "upgrade");
+  assert.equal(serverReplacementReason("0.1.4", { ok: true, app: "atelier-axi" }), "upgrade");
+  assert.equal(
+    serverReplacementReason("0.1.4", { ok: true, app: "atelier-axi", version: "0.1.4" }, true),
+    "local-build",
+  );
+  // A version difference is an upgrade even when the local-build force is also set.
+  assert.equal(serverReplacementReason("0.1.4", { ok: true, app: "atelier-axi", version: "0.1.3" }, true), "upgrade");
+});
+
+test("serverReplacementReason names nothing when no replacement is warranted", () => {
+  assert.equal(serverReplacementReason("0.1.4", { ok: true, app: "atelier-axi", version: "0.1.4" }), "");
+  assert.equal(serverReplacementReason("0.1.4", null), "");
+});
+
 test("shouldKillProcessOnPort does not kill unidentified health responders", () => {
   assert.equal(shouldKillProcessOnPort("0.1.4", { ok: true, app: "other", version: "0.1.3" }), false);
 });
@@ -2736,3 +2886,109 @@ async function startFakeHtmlApp(requests) {
     close: () => new Promise((resolve) => server.close(() => resolve())),
   };
 }
+
+// A stand-in for a running server of another version: it answers /health, records what the CLI
+// actually puts on the wire at /shutdown, and then frees the port like a real one.
+async function startShutdownRecorder(version = "0.0.0-previous") {
+  const bodies = [];
+  const server = createServer((req, res) => {
+    if (req.url === "/health") {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ ok: true, app: "atelier-axi", version }));
+      return;
+    }
+    if (req.url === "/shutdown" && req.method === "POST") {
+      let raw = "";
+      req.on("data", (chunk) => {
+        raw += chunk;
+      });
+      req.on("end", () => {
+        bodies.push(raw ? JSON.parse(raw) : {});
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ status: "shutting-down" }));
+        server.close();
+        server.closeAllConnections?.();
+      });
+      return;
+    }
+    res.writeHead(404).end();
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(undefined)));
+  const address = /** @type {import("node:net").AddressInfo} */ (server.address());
+  return { bodies, port: address.port, close: () => server.close() };
+}
+
+test("atelier-axi stop tells the server it was stopped, and names no session to reload", async () => {
+  const recorder = await startShutdownRecorder();
+  try {
+    const output = await shutdownServerOnPort(recorder.port, {
+      baseUrl: `http://127.0.0.1:${recorder.port}`,
+      currentVersion: "0.1.4",
+    });
+
+    assert.deepEqual(recorder.bodies, [{ reason: "stop" }]);
+    assert.equal(output.server.status, "stopped");
+  } finally {
+    recorder.close();
+  }
+});
+
+// The page being opened is the one that reloads itself, and the server picks it by key, so the
+// key the CLI sends has to be the canonical session key for the file - an empty or non-canonical
+// one silently degrades the feature to "nobody reloads, everybody gets a banner".
+test("opening an artifact names that session as the one to reload across a version upgrade", async () => {
+  const recorder = await startShutdownRecorder();
+  const dir = await mkdtemp(path.join(os.tmpdir(), "atelier-open-reload-"));
+  const stateDir = path.join(dir, "state");
+  const nested = path.join(dir, "pages");
+  await mkdir(nested, { recursive: true });
+  const artifact = path.join(nested, "board.html");
+  await writeFile(artifact, "<!doctype html><html><body>board</body></html>");
+  const base = `http://127.0.0.1:${recorder.port}`;
+
+  try {
+    // Spawned asynchronously on purpose: the recorder runs in this process, so a blocking
+    // spawnSync would deadlock the CLI's own /health request against it.
+    const child = spawn(
+      process.execPath,
+      // A path with a `..` hop: the key must come from the canonicalized file, not this spelling.
+      [
+        fileURLToPath(new URL("../bin/atelier-axi.js", import.meta.url)),
+        path.join(nested, "..", "pages", "board.html"),
+        "--no-open",
+      ],
+      {
+        cwd: fileURLToPath(new URL("..", import.meta.url)),
+        env: {
+          ...process.env,
+          ATELIER_AXI_PORT: String(recorder.port),
+          ATELIER_AXI_STATE_DIR: stateDir,
+          ATELIER_AXI_TELEMETRY: "0",
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    let stderr = "";
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.stdout.resume();
+    const code = await new Promise((resolve) => child.on("exit", resolve));
+
+    assert.equal(code, 0, stderr);
+    assert.deepEqual(recorder.bodies, [{ reload_key: sessionKey(await canonicalFile(artifact)), reason: "upgrade" }]);
+  } finally {
+    // The CLI replaced the recorder with a real server on that port; stop it again.
+    await fetch(`${base}/shutdown`, { method: "POST" }).catch(() => {});
+    for (let i = 0; i < 30; i += 1) {
+      const alive = await fetch(`${base}/health`).then(
+        () => true,
+        () => false,
+      );
+      if (!alive) break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    recorder.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
