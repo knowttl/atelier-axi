@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.3.5](https://github.com/knowttl/atelier-axi/compare/atelier-axi-v0.3.4...atelier-axi-v0.3.5) (2026-08-21)
+
+
+### Features
+
+* **attachments:** attach reference images to annotations and deliver them to the agent ([#188](https://github.com/knowttl/atelier-axi/issues/188)) ([8186169](https://github.com/knowttl/atelier-axi/commit/8186169f115d76fe962bcf2b9891bb7e343ccba9))
+* **attachments:** support image paste, drop, and picker uploads in the conversation composer ([#248](https://github.com/knowttl/atelier-axi/issues/248)) ([7aa99d7](https://github.com/knowttl/atelier-axi/commit/7aa99d773cd852f8796c0aba2eba0447214429f7))
+
+
+### Bug Fixes
+
+* add semantic names to table annotations ([#256](https://github.com/knowttl/atelier-axi/issues/256)) ([9cb273e](https://github.com/knowttl/atelier-axi/commit/9cb273e58516e3bc2acd7c158a6cc538ed23e75c))
+* avoid phantom whiteboard conflicts ([#252](https://github.com/knowttl/atelier-axi/issues/252)) ([7a1fc59](https://github.com/knowttl/atelier-axi/commit/7a1fc59fec3e30a352c251c576ca88f1d64e075c))
+* **chrome:** recover a review that never finishes loading ([#268](https://github.com/knowttl/atelier-axi/issues/268)) ([5579768](https://github.com/knowttl/atelier-axi/commit/55797681a30f6eabc64ad675a93320b7c5fcb6b5))
+* **chrome:** recover a review that never finishes loading ([#268](https://github.com/knowttl/atelier-axi/issues/268)) ([30ef253](https://github.com/knowttl/atelier-axi/commit/30ef25389f409464a6f0a7d0121830e4a9335242))
+* **cli:** put poll feedback ahead of the DOM snapshot in output ([#266](https://github.com/knowttl/atelier-axi/issues/266)) ([624ddde](https://github.com/knowttl/atelier-axi/commit/624ddde8cdba0020871fcb0adc05b4f8ff73c108))
+* let artifact popups escape the iframe sandbox ([#258](https://github.com/knowttl/atelier-axi/issues/258)) ([4ca46f4](https://github.com/knowttl/atelier-axi/commit/4ca46f43f8a49b68edb0e43168a8fb143b334137))
+* preserve Mermaid label line breaks ([#237](https://github.com/knowttl/atelier-axi/issues/237)) ([b90fbea](https://github.com/knowttl/atelier-axi/commit/b90fbea302e0db6fc10a27259001a0ab4979d14f))
+* **server:** keep sends available while an agent works and stop losing feedback on closed polls ([#265](https://github.com/knowttl/atelier-axi/issues/265)) ([f7e5712](https://github.com/knowttl/atelier-axi/commit/f7e57122ab0336e3b58af68cca2be4ad85af650f))
+* **server:** reject foreign origins on mutating routes ([#257](https://github.com/knowttl/atelier-axi/issues/257)) ([82f12d0](https://github.com/knowttl/atelier-axi/commit/82f12d0773ac361cf6c3cb4f758af69518d6aad7))
+* **server:** restore taken feedback when a long-poll client disconnects ([#270](https://github.com/knowttl/atelier-axi/issues/270)) ([aa17793](https://github.com/knowttl/atelier-axi/commit/aa17793ef23a0828094cefb28723b01164842b5b))
+* **server:** restore taken feedback when a long-poll client disconnects ([#270](https://github.com/knowttl/atelier-axi/issues/270)) ([3b2c10f](https://github.com/knowttl/atelier-axi/commit/3b2c10f58dcbc95b81a8f17c48a960a9f5aee379))
+* **whiteboard:** preserve Mermaid node label line breaks in Excalidraw ([#246](https://github.com/knowttl/atelier-axi/issues/246)) ([d8414b8](https://github.com/knowttl/atelier-axi/commit/d8414b856e0032c6775bd11e83ba9db7a7ca0c75))
+
 ## [0.3.4](https://github.com/knowttl/atelier-axi/compare/atelier-axi-v0.3.3...atelier-axi-v0.3.4) (2026-08-11)
 
 
