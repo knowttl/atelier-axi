@@ -880,7 +880,9 @@ test("chrome mediates attachment uploads: rate + cumulative-byte ceiling (confus
   });
   await flushPromises();
   assert.equal(fetches, 30, "the 31st upload in the window is throttled, not sent");
-  const throttled = chrome.postedToFrame.find((m) => m.type === "atelier:attachmentResult" && m.localId === "throttled");
+  const throttled = chrome.postedToFrame.find(
+    (m) => m.type === "atelier:attachmentResult" && m.localId === "throttled",
+  );
   assert.equal(throttled.ok, false);
   assert.match(throttled.error, /Too many uploads/);
 });

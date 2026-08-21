@@ -110,6 +110,8 @@ async function convertShapeFitFixture() {
     },
   });
   return { before: worstFreeTextSpill(converted), after: worstFreeTextSpill(fitShapesToFreeText(converted).elements) };
+}
+
 function assertConvertedLines(element, lines, kind) {
   const original = String(element?.originalText || "");
   const text = String(element?.text || "");
