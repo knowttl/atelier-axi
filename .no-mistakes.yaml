@@ -1,0 +1,3 @@
+# no-mistakes repository configuration
+# Run the gate on the pi harness; model/effort come from host global config.
+agent: pi
