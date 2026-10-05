@@ -34,3 +34,7 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm test
       - run: pnpm run build
+      # Fail on drift between the committed generated files and their code-owned
+      # sources (mirrors the --check steps in `pnpm run check`, which CI does not run).
+      - run: node scripts/build-skill.js --check
+      - run: node scripts/build-plugin.js --check
